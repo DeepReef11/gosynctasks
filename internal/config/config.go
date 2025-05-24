@@ -1,33 +1,56 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 )
 
+import _ "embed"
+
+//go:embed config.sample.json
+var sampleConfig []byte
+
 const (
-	CONFIG_DIR_PATH  = "gosynctask"
+	CONFIG_DIR_PATH  = "gosynctasks"
 	CONFIG_FILE_PATH = "config.json"
 )
 
-func getConfigPath() {
+type Config struct {
+	Field1 string `json:"field1"`
+	Field2 int    `json:"field2"`
+}
+
+func GetConfigPath() {
 	dir, dirErr := os.UserConfigDir()
 	var (
 		configPath string
-		config []byte
+		configFile     []byte
 	)
 	if dirErr == nil {
 		configPath = filepath.Join(dir, CONFIG_DIR_PATH, CONFIG_FILE_PATH)
 		var err error
-		config, err = os.ReadFile(configPath)
+		configFile, err = os.ReadFile(configPath)
 		if os.IsNotExist(err) {
-			err = os.WriteFile(configPath, data, 0644)
-		} else if err != nil {
-			// The user has a config file but we couldn't read it.
-			// Report the error instead of ignoring their configuration.
-			log.Fatal(err)
+			if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+				log.Fatal(err)
+			}
+			configFile = sampleConfig
+
+			err = os.WriteFile(configPath, configFile, 0644)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
+
+		var configObj Config
+		err = json.Unmarshal(configFile, &configObj)
+		if err != nil {
+			log.Fatalf("Invalid JSON in config file %s: %v", configPath, err)
+		}
+		fmt.Println(configObj)
 	}
 }
+
