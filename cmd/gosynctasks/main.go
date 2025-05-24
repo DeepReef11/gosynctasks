@@ -11,6 +11,6 @@ import (
 func main() {
 	fmt.Println("ok")
 
-	config.GetConfigPath()
+	config.LoadUserOrSampleConfig()
 	fmt.Println("End.")
 }
