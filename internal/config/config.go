@@ -7,9 +7,24 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 import _ "embed"
+
+var globalConfig *Config
+var configOnce sync.Once
+
+func GetConfig() *Config {
+	configOnce.Do(func() {
+		config, err := loadUserOrSampleConfig()
+		if err != nil {
+			log.Fatal(err)
+		}
+		globalConfig = config
+	})
+	return globalConfig
+}
 
 //go:embed config.sample.json
 var sampleConfig []byte
@@ -17,58 +32,67 @@ var sampleConfig []byte
 const (
 	CONFIG_DIR_PATH  = "gosynctasks"
 	CONFIG_FILE_PATH = "config.json"
+	CONFIG_DIR_PERM  = 0755
+	CONFIG_FILE_PERM = 0644
 )
 
 type Config struct {
-	Field1 string `json:"field1"`
-	Field2 int    `json:"field2"`
-	CanWriteConfig bool `json:"canWriteConfig"` 
+	Field1         string `json:"field1"`
+	Field2         int    `json:"field2"`
+	CanWriteConfig bool   `json:"canWriteConfig"`
 }
 
-func LoadUserOrSampleConfig() {
-	loadConfig()
+func loadUserOrSampleConfig() (*Config, error) {
+	return loadConfig()
 }
 
-func GetConfigPath() string {
+func GetConfigPath() (string, error) {
 
-	dir, dirErr := os.UserConfigDir()
+	dir, err := os.UserConfigDir()
 
-	var (
-		configPath string
-	)
-	if dirErr == nil {
-		configPath = filepath.Join(dir, CONFIG_DIR_PATH, CONFIG_FILE_PATH)
+	if err != nil {
+		return "", fmt.Errorf("failed to get user config dir: %w", err)
 	}
+	return filepath.Join(dir, CONFIG_DIR_PATH, CONFIG_FILE_PATH), nil
+}
 
-	return configPath
+func createConfigDir(configPath string) error {
+	return os.MkdirAll(filepath.Dir(configPath), CONFIG_DIR_PERM)
+}
+func WriteConfigFile(configPath string, data []byte) error {
+    return os.WriteFile(configPath, data, CONFIG_FILE_PERM)
 }
 
 func createConfigFromSample(configPath string) []byte {
 	var (
-		configFile []byte
+		configData []byte
 		err        error
 	)
-
-	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
-		log.Fatal(err)
-	}
-	configFile = sampleConfig
-
-	err = os.WriteFile(configPath, configFile, 0644)
+	err = createConfigDir(configPath)
 	if err != nil {
 		log.Fatal(err)
 	}
-	return configFile
+	configData = sampleConfig
+
+	err = WriteConfigFile(configPath,configData)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return configData
 }
 
-func loadConfig() {
+func loadConfig() (*Config, error) {
 	var (
-		configPath string
-		configFile []byte
-		err        error
+		configPath     string
+		configFile     []byte
+		err            error
 		canWriteConfig bool
 	)
-	configPath = GetConfigPath()
+	configPath, err = GetConfigPath()
+	if err != nil {
+		log.Fatalf("Config path couldn't be retrieved")
+	}
+
 	configFile, err = os.ReadFile(configPath)
 	if os.IsNotExist(err) {
 		fmt.Println("No config exist at ", configPath)
@@ -91,5 +115,6 @@ func loadConfig() {
 	}
 	configObj.CanWriteConfig = canWriteConfig
 
-	fmt.Println(configObj)
+	return &configObj, nil
+
 }
