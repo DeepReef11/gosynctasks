@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/DeepReef11/gosynctasks/internal/utils"
+	"github.com/DeepReef11/gosynctasks/connectors"
+	"github.com/go-playground/validator/v10"
 	"log"
 	"os"
 	"path/filepath"
@@ -37,9 +39,13 @@ const (
 )
 
 type Config struct {
-	Field1         string `json:"field1"`
-	Field2         int    `json:"field2"`
-	CanWriteConfig bool   `json:"canWriteConfig"`
+	Connector      connectors.TasksConnector `json:"connector"`
+	CanWriteConfig bool           `json:"canWriteConfig"`
+}
+
+func (c Config) Validate() error {
+	validate := validator.New()
+	return validate.Struct(c)
 }
 
 func loadUserOrSampleConfig() (*Config, error) {
@@ -60,7 +66,7 @@ func createConfigDir(configPath string) error {
 	return os.MkdirAll(filepath.Dir(configPath), CONFIG_DIR_PERM)
 }
 func WriteConfigFile(configPath string, data []byte) error {
-    return os.WriteFile(configPath, data, CONFIG_FILE_PERM)
+	return os.WriteFile(configPath, data, CONFIG_FILE_PERM)
 }
 
 func createConfigFromSample(configPath string) []byte {
@@ -74,7 +80,7 @@ func createConfigFromSample(configPath string) []byte {
 	}
 	configData = sampleConfig
 
-	err = WriteConfigFile(configPath,configData)
+	err = WriteConfigFile(configPath, configData)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -83,37 +89,45 @@ func createConfigFromSample(configPath string) []byte {
 
 func loadConfig() (*Config, error) {
 	var (
-		configPath     string
-		configFile     []byte
-		err            error
-		canWriteConfig bool
+		configPath        string
+		configData        []byte
+		err               error
+		canWriteConfig    bool
+		noConfigFileFound = false
 	)
 	configPath, err = GetConfigPath()
 	if err != nil {
 		log.Fatalf("Config path couldn't be retrieved")
 	}
 
-	configFile, err = os.ReadFile(configPath)
+	configData, err = os.ReadFile(configPath)
 	if os.IsNotExist(err) {
+		noConfigFileFound = true
 		fmt.Println("No config exist at ", configPath)
 
 		shouldCopySample := utils.PromptYesNo("Do you want to copy config sample to " + configPath + "?")
 		if shouldCopySample {
-			configFile = createConfigFromSample(configPath)
+			configData = createConfigFromSample(configPath)
 			canWriteConfig = true
 
 		} else {
-			configFile = sampleConfig
+			configData = sampleConfig
 			canWriteConfig = false
 		}
 	}
 
 	var configObj Config
-	err = json.Unmarshal(configFile, &configObj)
+	err = json.Unmarshal(configData, &configObj)
+
 	if err != nil {
 		log.Fatalf("Invalid JSON in config file %s: %v", configPath, err)
 	}
-	configObj.CanWriteConfig = canWriteConfig
+	if err = configObj.Validate(); err != nil {
+		log.Fatalf("Missing field(s) in JSON config file %s: %v", configPath, err)
+	}
+	if noConfigFileFound {
+		configObj.CanWriteConfig = canWriteConfig
+	}
 
 	return &configObj, nil
 
