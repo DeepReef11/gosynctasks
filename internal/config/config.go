@@ -3,8 +3,8 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DeepReef11/gosynctasks/internal/utils"
 	"github.com/DeepReef11/gosynctasks/connectors"
+	"github.com/DeepReef11/gosynctasks/internal/utils"
 	"github.com/go-playground/validator/v10"
 	"log"
 	"os"
@@ -17,17 +17,6 @@ import _ "embed"
 var globalConfig *Config
 var configOnce sync.Once
 
-func GetConfig() *Config {
-	configOnce.Do(func() {
-		config, err := loadUserOrSampleConfig()
-		if err != nil {
-			log.Fatal(err)
-		}
-		globalConfig = config
-	})
-	return globalConfig
-}
-
 //go:embed config.sample.json
 var sampleConfig []byte
 
@@ -39,8 +28,8 @@ const (
 )
 
 type Config struct {
-	Connector      connectors.TasksConnector `json:"connector"`
-	CanWriteConfig bool           `json:"canWriteConfig"`
+	Connector      connectors.ConnectorConfig `json:"connector"`
+	CanWriteConfig bool                       `json:"canWriteConfig"`
 }
 
 func (c Config) Validate() error {
@@ -48,8 +37,24 @@ func (c Config) Validate() error {
 	return validate.Struct(c)
 }
 
-func loadUserOrSampleConfig() (*Config, error) {
-	return loadConfig()
+func GetConfig() *Config {
+	configOnce.Do(func() {
+		config, err := loadUserOrSampleConfig()
+		if err != nil {
+			log.Fatal(err)
+		}
+		globalConfig = config
+	})
+	return globalConfig
+}
+
+func loadUserOrSampleConfig() (*connectors.TaskConnector, error) {
+	config, configData, err := getConfigFromJSON()
+	if err != nil {
+		return nil, err
+	}
+	connector, err := loadConnector(configData)
+	return connector, err
 }
 
 func GetConfigPath() (string, error) {
@@ -87,7 +92,7 @@ func createConfigFromSample(configPath string) []byte {
 	return configData
 }
 
-func loadConfig() (*Config, error) {
+func getConfigFromJSON() (*Config, []byte, error) {
 	var (
 		configPath        string
 		configData        []byte
@@ -117,6 +122,7 @@ func loadConfig() (*Config, error) {
 	}
 
 	var configObj Config
+	// configObj, err := UnmarshalJSON(configData)
 	err = json.Unmarshal(configData, &configObj)
 
 	if err != nil {
@@ -129,6 +135,43 @@ func loadConfig() (*Config, error) {
 		configObj.CanWriteConfig = canWriteConfig
 	}
 
-	return &configObj, nil
+	return &configObj, configData, nil
 
+}
+
+func loadConnector(configData []byte) (*connectors.TaskConnector, error) {
+	connector, err := UnmarshalJSON(configData)
+	if err != nil {
+		log.Fatal("Connector error: ", err)
+	}
+	return &connector, nil
+
+}
+
+func UnmarshalJSON(data []byte) (connectors.TaskConnector, error) {
+	// type Alias Config
+	// aux := &struct {
+	// 	Connector json.RawMessage `json:"connector"`
+	// 	*Alias
+	// }{
+	// 	Alias: (*Alias)(c),
+	// }
+
+	// if err := json.Unmarshal(data, &aux); err != nil {
+	// 	return nil, err
+	// }
+
+	var baseConfig connectors.ConnectorConfig
+	if err := json.Unmarshal(data, &baseConfig); err != nil {
+		return nil, err
+	}
+
+	switch baseConfig.Type {
+	case "nextcloud":
+		var nc connectors.NextcloudConnector
+		err := json.Unmarshal(data, &nc)
+		return &nc, err
+	}
+
+	return nil, nil //TODO: Error not found
 }

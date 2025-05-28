@@ -1,35 +1,26 @@
 package connectors
 
 import ( 
-    "net/http"
+	// "net/http"
 	"time" 
-	"fmt"
-	"strings"
+	// "fmt"
+	// "strings"
 )
-
-// type TasksConnector struct {
-//     Type     string `json:"type" validate:"required,oneof=nextcloud local"`
-//     URL      string `json:"url,omitempty" validate:"omitempty,url"`
-//     Username string `json:"username,omitempty"`
-//     Password string `json:"password,omitempty"`
-//     Timeout  int    `json:"timeout,omitempty" validate:"omitempty,min=1"`
-// }
 
 type TaskConnector interface {
     GetTaskLists() ([]TaskList, error)
     GetTasks(listID string) ([]Task, error)
-    CreateTask(listID string, task Task) error
-    UpdateTask(listID string, task Task) error
-    DeleteTask(listID string, taskID string) error
+    // CreateTask(listID string, task Task) error
+    // UpdateTask(listID string, task Task) error
+    // DeleteTask(listID string, taskID string) error
 }
 
 // Base config struct
 type ConnectorConfig struct {
     Type     string `json:"type" validate:"required,oneof=nextcloud local"`
-    // Timeout  int    `json:"timeout,omitempty"`
-}
+    Timeout  int    `json:"timeout,omitempty"`
 
-// Nextcloud-specific connector
+}
 
 type Task struct {
     UID         string     `json:"uid"`
