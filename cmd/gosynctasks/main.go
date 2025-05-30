@@ -11,12 +11,8 @@ import (
 func main() {
 	fmt.Println("ok")
 
-	config := config.GetConfig()
-	if config.Connector.Type == "nextcloud" {
-		if nc, ok := config.Connector.(*connectors.NextcloudConnector); ok {
-			fmt.Println(nc.Username) // 
-		}
-	}
-	fmt.Println(*config)
+	// configObj := config.GetConfig()
+	connector := config.GetConnector()
+	fmt.Println(*connector)
 	fmt.Println("End.")
 }

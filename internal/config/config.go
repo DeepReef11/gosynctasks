@@ -3,8 +3,8 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/DeepReef11/gosynctasks/connectors"
-	"github.com/DeepReef11/gosynctasks/internal/utils"
+	"gosynctasks/connectors"
+	"gosynctasks/internal/utils"
 	"github.com/go-playground/validator/v10"
 	"log"
 	"os"
@@ -14,8 +14,10 @@ import (
 
 import _ "embed"
 
-var globalConfig *Config
 var configOnce sync.Once
+
+var globalConfig *Config
+var globalConnector *connectors.TaskConnector
 
 //go:embed config.sample.json
 var sampleConfig []byte
@@ -39,22 +41,43 @@ func (c Config) Validate() error {
 
 func GetConfig() *Config {
 	configOnce.Do(func() {
-		config, err := loadUserOrSampleConfig()
+		config, connector, err := loadUserOrSampleConfig()
 		if err != nil {
 			log.Fatal(err)
 		}
 		globalConfig = config
+		globalConnector = connector
 	})
 	return globalConfig
 }
 
-func loadUserOrSampleConfig() (*connectors.TaskConnector, error) {
-	config, configData, err := getConfigFromJSON()
+func GetConnector() *connectors.TaskConnector {
+	configOnce.Do(func() {
+		config, connector, err := loadUserOrSampleConfig()
+		if err != nil {
+			log.Fatal(err)
+		}
+		globalConfig = config
+		globalConnector = connector
+	})
+	return globalConnector
+}
+
+func loadUserOrSampleConfig() (*Config, *connectors.TaskConnector, error) {
+
+	configPath, err := GetConfigPath()
 	if err != nil {
-		return nil, err
+		log.Fatalf("Config path couldn't be retrieved")
+		return nil, nil, err
 	}
+	configData, err := configDataFromPath(configPath)
+	if err != nil {
+		log.Fatalf("Config data couldn't be retrieved")
+		return nil, nil, err
+	}
+	configObj, err := parseConfig(configData,configPath)
 	connector, err := loadConnector(configData)
-	return connector, err
+	return configObj, connector, err
 }
 
 func GetConfigPath() (string, error) {
@@ -92,38 +115,10 @@ func createConfigFromSample(configPath string) []byte {
 	return configData
 }
 
-func getConfigFromJSON() (*Config, []byte, error) {
-	var (
-		configPath        string
-		configData        []byte
-		err               error
-		canWriteConfig    bool
-		noConfigFileFound = false
-	)
-	configPath, err = GetConfigPath()
-	if err != nil {
-		log.Fatalf("Config path couldn't be retrieved")
-	}
-
-	configData, err = os.ReadFile(configPath)
-	if os.IsNotExist(err) {
-		noConfigFileFound = true
-		fmt.Println("No config exist at ", configPath)
-
-		shouldCopySample := utils.PromptYesNo("Do you want to copy config sample to " + configPath + "?")
-		if shouldCopySample {
-			configData = createConfigFromSample(configPath)
-			canWriteConfig = true
-
-		} else {
-			configData = sampleConfig
-			canWriteConfig = false
-		}
-	}
-
+func parseConfig(configData []byte, configPath string) (*Config,error) {
 	var configObj Config
 	// configObj, err := UnmarshalJSON(configData)
-	err = json.Unmarshal(configData, &configObj)
+	err := json.Unmarshal(configData, &configObj)
 
 	if err != nil {
 		log.Fatalf("Invalid JSON in config file %s: %v", configPath, err)
@@ -131,16 +126,35 @@ func getConfigFromJSON() (*Config, []byte, error) {
 	if err = configObj.Validate(); err != nil {
 		log.Fatalf("Missing field(s) in JSON config file %s: %v", configPath, err)
 	}
-	if noConfigFileFound {
-		configObj.CanWriteConfig = canWriteConfig
+	return &configObj, err
+}
+
+func configDataFromPath(configPath string) ([]byte, error) {
+	var (
+		configData        []byte
+		err               error
+	)
+
+	configData, err = os.ReadFile(configPath)
+	if os.IsNotExist(err) {
+		fmt.Println("No config exist at ", configPath)
+
+		shouldCopySample := utils.PromptYesNo("Do you want to copy config sample to " + configPath + "?")
+		if shouldCopySample {
+			configData = createConfigFromSample(configPath)
+
+		} else {
+			configData = sampleConfig
+		}
 	}
 
-	return &configObj, configData, nil
+
+	return configData, nil
 
 }
 
 func loadConnector(configData []byte) (*connectors.TaskConnector, error) {
-	connector, err := UnmarshalJSON(configData)
+	connector, err := UnmarshalConnectorJSON(configData)
 	if err != nil {
 		log.Fatal("Connector error: ", err)
 	}
@@ -148,18 +162,7 @@ func loadConnector(configData []byte) (*connectors.TaskConnector, error) {
 
 }
 
-func UnmarshalJSON(data []byte) (connectors.TaskConnector, error) {
-	// type Alias Config
-	// aux := &struct {
-	// 	Connector json.RawMessage `json:"connector"`
-	// 	*Alias
-	// }{
-	// 	Alias: (*Alias)(c),
-	// }
-
-	// if err := json.Unmarshal(data, &aux); err != nil {
-	// 	return nil, err
-	// }
+func UnmarshalConnectorJSON(data []byte) (connectors.TaskConnector, error) {
 
 	var baseConfig connectors.ConnectorConfig
 	if err := json.Unmarshal(data, &baseConfig); err != nil {
