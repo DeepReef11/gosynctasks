@@ -3,17 +3,20 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+
 	// "gosynctasks/backend"
-	"github.com/go-playground/validator/v10"
-	"gosynctasks/connectors"
+	"gosynctasks/backend"
+	// "gosynctasks/connectors"
 	"gosynctasks/internal/utils"
 	"log"
 	"os"
 	"path/filepath"
 	"sync"
-)
 
-import _ "embed"
+	"github.com/go-playground/validator/v10"
+
+	_ "embed"
+)
 
 var configOnce sync.Once
 
@@ -32,7 +35,7 @@ const (
 )
 
 type Config struct {
-	Connector      connectors.ConnectorConfig `json:"connector"`
+	Connector      backend.ConnectorConfig `json:"connector"`
 	CanWriteConfig bool                       `json:"canWriteConfig"`
 }
 
