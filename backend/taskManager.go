@@ -1,12 +1,12 @@
 package backend
 
 import (
-	"time"
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
+	"time"
 )
-
 
 type UnsupportedSchemeError struct {
 	Scheme string
@@ -60,10 +60,6 @@ func (c *ConnectorConfig) TaskManager() (TaskManager, error) {
 	}
 }
 
-
-
-
-
 type TaskManager interface {
 	GetTaskLists() ([]TaskList, error)
 	GetTasks(listID string) ([]Task, error)
@@ -72,8 +68,6 @@ type TaskManager interface {
 	// Create(Task) error
 }
 
-
- 
 type Task struct {
 	UID         string     `json:"uid"`
 	Summary     string     `json:"summary"`
@@ -89,6 +83,39 @@ type Task struct {
 	ParentUID   string     `json:"parent_uid,omitempty"` // For subtasks
 }
 
+func (t Task) String() string {
+	data, _ := json.Marshal(t)
+	var m map[string]any
+	json.Unmarshal(data, &m)
+
+	var result strings.Builder
+
+	result.WriteString("\n___\n")
+	// Priority fields
+	priority := []string{"uid", "summary", "description", "status", "created", "modified"}
+	for _, key := range priority {
+		if v, exists := m[key]; exists && v != nil {
+			if key == "summary" {
+				result.WriteString(fmt.Sprintf("\033[1;34m%s: %v\033[0m\n", key, v)) // Green bold
+			} else {
+				result.WriteString(fmt.Sprintf("%s: %v\n", key, v))
+			}
+			delete(m, key)
+		}
+	}
+
+	// Remaining fields
+	for k, v := range m {
+		if v != nil {
+			result.WriteString(fmt.Sprintf("%s: %v\n", k, v))
+		}
+	}
+	result.WriteString("‾‾‾")
+
+	return result.String()
+}
+
+
 type TaskList struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
@@ -96,4 +123,36 @@ type TaskList struct {
 	Color       string `json:"color,omitempty"`
 	URL         string `json:"url"`
 	CTags       string `json:"ctags,omitempty"`
+}
+
+func (t TaskList) String() string {
+	data, _ := json.Marshal(t)
+	var m map[string]any
+	json.Unmarshal(data, &m)
+
+	var result strings.Builder
+
+	result.WriteString("\n___\n")
+	// Priority fields
+	priority := []string{"id", "name", "description",  "url", "color"}
+	for _, key := range priority {
+		if v, exists := m[key]; exists && v != nil {
+			if key == "name" {
+				result.WriteString(fmt.Sprintf("\033[1;34m%s: %v\033[0m\n", key, v)) // Green bold
+			} else {
+				result.WriteString(fmt.Sprintf("%s: %v\n", key, v))
+			}
+			delete(m, key)
+		}
+	}
+
+	// Remaining fields
+	for k, v := range m {
+		if v != nil {
+			result.WriteString(fmt.Sprintf("%s: %v\n", k, v))
+		}
+	}
+	result.WriteString("‾‾‾")
+
+	return result.String()
 }
