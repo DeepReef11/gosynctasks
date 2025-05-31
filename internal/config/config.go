@@ -3,9 +3,10 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	// "gosynctasks/backend"
+	"github.com/go-playground/validator/v10"
 	"gosynctasks/connectors"
 	"gosynctasks/internal/utils"
-	"github.com/go-playground/validator/v10"
 	"log"
 	"os"
 	"path/filepath"
@@ -17,7 +18,8 @@ import _ "embed"
 var configOnce sync.Once
 
 var globalConfig *Config
-var globalConnector *connectors.TaskConnector
+
+// var globalConnector *connectors.TaskConnector
 
 //go:embed config.sample.json
 var sampleConfig []byte
@@ -41,43 +43,29 @@ func (c Config) Validate() error {
 
 func GetConfig() *Config {
 	configOnce.Do(func() {
-		config, connector, err := loadUserOrSampleConfig()
+		config, err := loadUserOrSampleConfig()
 		if err != nil {
 			log.Fatal(err)
 		}
 		globalConfig = config
-		globalConnector = connector
 	})
 	return globalConfig
 }
 
-func GetConnector() *connectors.TaskConnector {
-	configOnce.Do(func() {
-		config, connector, err := loadUserOrSampleConfig()
-		if err != nil {
-			log.Fatal(err)
-		}
-		globalConfig = config
-		globalConnector = connector
-	})
-	return globalConnector
-}
-
-func loadUserOrSampleConfig() (*Config, *connectors.TaskConnector, error) {
+func loadUserOrSampleConfig() (*Config, error) {
 
 	configPath, err := GetConfigPath()
 	if err != nil {
 		log.Fatalf("Config path couldn't be retrieved")
-		return nil, nil, err
+		return nil, err
 	}
 	configData, err := configDataFromPath(configPath)
 	if err != nil {
 		log.Fatalf("Config data couldn't be retrieved")
-		return nil, nil, err
+		return nil, err
 	}
-	configObj, err := parseConfig(configData,configPath)
-	connector, err := loadConnector(configData)
-	return configObj, connector, err
+	configObj, err := parseConfig(configData, configPath)
+	return configObj, err
 }
 
 func GetConfigPath() (string, error) {
@@ -115,7 +103,7 @@ func createConfigFromSample(configPath string) []byte {
 	return configData
 }
 
-func parseConfig(configData []byte, configPath string) (*Config,error) {
+func parseConfig(configData []byte, configPath string) (*Config, error) {
 	var configObj Config
 	// configObj, err := UnmarshalJSON(configData)
 	err := json.Unmarshal(configData, &configObj)
@@ -131,8 +119,8 @@ func parseConfig(configData []byte, configPath string) (*Config,error) {
 
 func configDataFromPath(configPath string) ([]byte, error) {
 	var (
-		configData        []byte
-		err               error
+		configData []byte
+		err        error
 	)
 
 	configData, err = os.ReadFile(configPath)
@@ -148,33 +136,6 @@ func configDataFromPath(configPath string) ([]byte, error) {
 		}
 	}
 
-
 	return configData, nil
 
-}
-
-func loadConnector(configData []byte) (*connectors.TaskConnector, error) {
-	connector, err := UnmarshalConnectorJSON(configData)
-	if err != nil {
-		log.Fatal("Connector error: ", err)
-	}
-	return &connector, nil
-
-}
-
-func UnmarshalConnectorJSON(data []byte) (connectors.TaskConnector, error) {
-
-	var baseConfig connectors.ConnectorConfig
-	if err := json.Unmarshal(data, &baseConfig); err != nil {
-		return nil, err
-	}
-
-	switch baseConfig.Type {
-	case "nextcloud":
-		var nc connectors.NextcloudConnector
-		err := json.Unmarshal(data, &nc)
-		return &nc, err
-	}
-
-	return nil, nil //TODO: Error not found
 }
