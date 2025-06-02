@@ -2,6 +2,7 @@ package backend
 
 import (
 	"crypto/tls"
+	"time"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,7 +22,10 @@ func (nB *NextcloudBackend) getClient() *http.Client {
 	if nB.client == nil {
 		nB.client = &http.Client{
 			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+				MaxIdleConns:        10,
+				MaxIdleConnsPerHost: 2,
+				IdleConnTimeout:     30 * time.Second,
 			},
 		}
 	}
@@ -54,7 +58,6 @@ func (nB *NextcloudBackend) getBaseURL() string {
 	}
 	return nB.baseURL
 }
-
 
 func (nB *NextcloudBackend) GetTasks(listID string) ([]Task, error) {
 

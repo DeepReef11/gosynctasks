@@ -37,6 +37,8 @@ const (
 type Config struct {
 	Connector      backend.ConnectorConfig `json:"connector"`
 	CanWriteConfig bool                       `json:"canWriteConfig"`
+	UI string                       `json:"ui" validate:"oneof=cli tui"`
+
 }
 
 func (c Config) Validate() error {
