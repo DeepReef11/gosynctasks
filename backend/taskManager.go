@@ -62,10 +62,63 @@ func (c *ConnectorConfig) TaskManager() (TaskManager, error) {
 
 type TaskManager interface {
 	GetTaskLists() ([]TaskList, error)
-	GetTasks(listID string) ([]Task, error)
+	GetTasks(listID string, taskFilter *TaskFilter) ([]Task, error)
 	// Tasks() iter.Seq[Task]
 	// Task(string) (Task, bool)
 	// Create(Task) error
+}
+
+type TaskFilter struct {
+	Statuses     *[]string // "NEEDS-ACTION", "COMPLETED", "IN-PROCESS", "CANCELLED"
+	DueAfter     *time.Time
+	DueBefore    *time.Time
+	CreatedAfter *time.Time
+}
+
+func StatusStringTranslateToStandardStatus(status *[]string) *[]string {
+	if status == nil {
+		return nil
+	}
+	statusMap := map[string]string{
+		"TODO":       "NEEDS-ACTION",
+		"DONE":       "COMPLETED",
+		"PROCESSING": "IN-PROCESS",
+		"CANCELLED":  "CANCELLED",
+	}
+
+	result := make([]string, len(*status))
+	for i, s := range *status {
+		if normalized, ok := statusMap[strings.ToUpper(s)]; ok {
+			result[i] = normalized
+		} else {
+			result[i] = s
+		}
+	}
+
+	return &result
+}
+
+func StatusStringTranslateToAppStatus(status *[]string) *[]string {
+	if status == nil {
+		return nil
+	}
+	statusMap := map[string]string{
+		"NEEDS-ACTION": "TODO",
+		"COMPLETED":    "DONE",
+		"IN-PROCESS":   "PROCESSING",
+		"CANCELLED":    "CANCELLED",
+	}
+
+	result := make([]string, len(*status))
+	for i, s := range *status {
+		if normalized, ok := statusMap[strings.ToUpper(s)]; ok {
+			result[i] = normalized
+		} else {
+			result[i] = s
+		}
+	}
+
+	return &result
 }
 
 type Task struct {
@@ -115,7 +168,6 @@ func (t Task) String() string {
 	return result.String()
 }
 
-
 type TaskList struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
@@ -134,7 +186,7 @@ func (t TaskList) String() string {
 
 	result.WriteString("\n___\n")
 	// Priority fields
-	priority := []string{"id", "name", "description",  "url", "color"}
+	priority := []string{"id", "name", "description", "url", "color"}
 	for _, key := range priority {
 		if v, exists := m[key]; exists && v != nil {
 			if key == "name" {

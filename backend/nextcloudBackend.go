@@ -2,12 +2,12 @@ package backend
 
 import (
 	"crypto/tls"
-	"time"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 type NextcloudBackend struct {
@@ -59,7 +59,63 @@ func (nB *NextcloudBackend) getBaseURL() string {
 	return nB.baseURL
 }
 
-func (nB *NextcloudBackend) GetTasks(listID string) ([]Task, error) {
+func (nB *NextcloudBackend) buildCalendarQuery(filter *TaskFilter) string {
+	query := `<?xml version="1.0" encoding="utf-8" ?>
+<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  <d:prop>
+    <d:getetag />
+    <c:calendar-data />
+  </d:prop>
+  <c:filter>
+    <c:comp-filter name="VCALENDAR">
+      <c:comp-filter name="VTODO">`
+
+	if filter != nil {
+		if filter.Statuses != nil {
+
+			standarizedStatuses := StatusStringTranslateToStandardStatus(filter.Statuses)
+			fmt.Println(standarizedStatuses)
+
+			for _, status := range *standarizedStatuses {
+				if status == "NEEDS-ACTION" {
+					query += `<c:prop-filter name="COMPLETED">
+  <c:is-not-defined/>
+</c:prop-filter>`
+				} else {
+					query += fmt.Sprintf(`<c:prop-filter name="STATUS">
+          <c:text-match><![CDATA[%s]]></c:text-match>
+        </c:prop-filter>`, status)
+
+				}
+			}
+		}
+
+		if filter.DueAfter != nil || filter.DueBefore != nil {
+			query += `
+        <c:prop-filter name="DUE">`
+			if filter.DueAfter != nil {
+				query += fmt.Sprintf(`
+          <c:time-range start="%s"/>`, filter.DueAfter.Format("20060102T150405Z"))
+			}
+			if filter.DueBefore != nil {
+				query += fmt.Sprintf(`
+          <c:time-range end="%s"/>`, filter.DueBefore.Format("20060102T150405Z"))
+			}
+			query += `
+        </c:prop-filter>`
+		}
+	}
+
+	query += `
+      </c:comp-filter>
+    </c:comp-filter>
+  </c:filter>
+</c:calendar-query>`
+
+	return query
+}
+
+func (nB *NextcloudBackend) GetTasks(listID string, taskFilter *TaskFilter) ([]Task, error) {
 
 	if nB.Connector.URL.User == nil {
 		return nil, fmt.Errorf("no user credentials in URL")
@@ -81,19 +137,7 @@ func (nB *NextcloudBackend) GetTasks(listID string) ([]Task, error) {
 	req.Header.Set("Content-Type", "application/xml")
 	req.Header.Set("Depth", "1")
 
-	body := `<?xml version="1.0" encoding="utf-8" ?>
-<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
-  <d:prop>
-    <d:getetag />
-    <c:calendar-data />
-  </d:prop>
-  <c:filter>
-    <c:comp-filter name="VCALENDAR">
-      <c:comp-filter name="VTODO" />
-    </c:comp-filter>
-  </c:filter>
-</c:calendar-query>`
-
+	body := nB.buildCalendarQuery(taskFilter)
 	req.Body = io.NopCloser(strings.NewReader(body))
 
 	resp, err := client.Do(req)
