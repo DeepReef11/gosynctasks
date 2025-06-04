@@ -90,6 +90,7 @@ func (nB *NextcloudBackend) buildCalendarQuery(filter *TaskFilter) string {
 			}
 		}
 
+		// TODO: 
 		if filter.DueAfter != nil || filter.DueBefore != nil {
 			query += `
         <c:prop-filter name="DUE">`
