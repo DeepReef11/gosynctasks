@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -90,7 +91,6 @@ func (nB *NextcloudBackend) buildCalendarQuery(filter *TaskFilter) string {
 			}
 		}
 
-		// TODO: 
 		if filter.DueAfter != nil || filter.DueBefore != nil {
 			query += `
         <c:prop-filter name="DUE">`
@@ -115,7 +115,6 @@ func (nB *NextcloudBackend) buildCalendarQuery(filter *TaskFilter) string {
 
 	return query
 }
-
 func (nB *NextcloudBackend) GetTasks(listID string, taskFilter *TaskFilter) ([]Task, error) {
 
 	if nB.Connector.URL.User == nil {
@@ -198,6 +197,94 @@ func (nB *NextcloudBackend) GetTaskLists() ([]TaskList, error) {
 	// fmt.Printf("Response body: %s\n", string(respBody))
 
 	return nB.parseTaskLists(string(respBody), calendarURL)
+}
+
+
+func (nB *NextcloudBackend) AddTask(listID string, task Task) (error) {
+	if task.UID == "" {
+		task.UID = fmt.Sprintf("task-%d", time.Now().Unix())
+	}
+
+	// Set created time if not provided
+	if task.Created.IsZero() {
+		task.Created = time.Now()
+	}
+
+	// Default status
+	if task.Status == "" {
+		task.Status = "NEEDS-ACTION"
+	}
+
+	// Build the iCalendar content
+	icalContent := nB.buildICalContent(task)
+
+	// Construct the URL
+	url := fmt.Sprintf("%s/remote.php/dav/calendars/%s/%s/%s.ics",
+		nB.getBaseURL(), nB.getBaseURL(), listID, task.UID)
+
+	// Create HTTP request
+	req, err := http.NewRequest("PUT", url, bytes.NewBufferString(icalContent))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "text/calendar; charset=utf-8")
+	req.SetBasicAuth(nB.getUsername(), nB.getPassword())
+
+	// Send request
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("request failed with status: %d %s", resp.StatusCode, resp.Status)
+	}
+
+	return nil
+
+}
+
+func (nb *NextcloudBackend) buildICalContent(task Task) string {
+	var icalContent bytes.Buffer
+
+	// Format timestamps
+	now := time.Now().UTC()
+	dtstamp := now.Format("20060102T150405Z")
+	created := task.Created.UTC().Format("20060102T150405Z")
+
+	icalContent.WriteString("BEGIN:VCALENDAR\r\n")
+	icalContent.WriteString("VERSION:2.0\r\n")
+	icalContent.WriteString("PRODID:-//Go CalDAV Client//EN\r\n")
+	icalContent.WriteString("BEGIN:VTODO\r\n")
+	icalContent.WriteString(fmt.Sprintf("UID:%s\r\n", task.UID))
+	icalContent.WriteString(fmt.Sprintf("DTSTAMP:%s\r\n", dtstamp))
+	icalContent.WriteString(fmt.Sprintf("CREATED:%s\r\n", created))
+	icalContent.WriteString(fmt.Sprintf("SUMMARY:%s\r\n", task.Summary))
+	
+	if task.Description != "" {
+		icalContent.WriteString(fmt.Sprintf("DESCRIPTION:%s\r\n", task.Description))
+	}
+	
+	icalContent.WriteString(fmt.Sprintf("STATUS:%s\r\n", task.Status))
+	
+	if task.Priority > 0 {
+		icalContent.WriteString(fmt.Sprintf("PRIORITY:%d\r\n", task.Priority))
+	}
+	
+	if task.DueDate != nil {
+		due := task.DueDate.UTC().Format("20060102T150405Z")
+		icalContent.WriteString(fmt.Sprintf("DUE:%s\r\n", due))
+	}
+	
+	icalContent.WriteString("END:VTODO\r\n")
+	icalContent.WriteString("END:VCALENDAR\r\n")
+
+	return icalContent.String()
 }
 
 func NewNextcloudBackend(url *url.URL) (TaskManager, error) {

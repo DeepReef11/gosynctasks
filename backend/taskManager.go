@@ -63,6 +63,7 @@ func (c *ConnectorConfig) TaskManager() (TaskManager, error) {
 type TaskManager interface {
 	GetTaskLists() ([]TaskList, error)
 	GetTasks(listID string, taskFilter *TaskFilter) ([]Task, error)
+	AddTask(listID string, task Task) (error)
 	// Tasks() iter.Seq[Task]
 	// Task(string) (Task, bool)
 	// Create(Task) error
