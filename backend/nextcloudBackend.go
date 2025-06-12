@@ -28,6 +28,7 @@ func (nB *NextcloudBackend) getClient() *http.Client {
 				MaxIdleConnsPerHost: 2,
 				IdleConnTimeout:     30 * time.Second,
 			},
+			Timeout: 30 * time.Second,
 		}
 	}
 	return nB.client
@@ -201,6 +202,10 @@ func (nB *NextcloudBackend) GetTaskLists() ([]TaskList, error) {
 
 
 func (nB *NextcloudBackend) AddTask(listID string, task Task) (error) {
+
+	username := nB.getUsername()
+	password := nB.getPassword()
+	baseURL := nB.getBaseURL()
 	if task.UID == "" {
 		task.UID = fmt.Sprintf("task-%d", time.Now().Unix())
 	}
@@ -219,8 +224,9 @@ func (nB *NextcloudBackend) AddTask(listID string, task Task) (error) {
 	icalContent := nB.buildICalContent(task)
 
 	// Construct the URL
+
 	url := fmt.Sprintf("%s/remote.php/dav/calendars/%s/%s/%s.ics",
-		nB.getBaseURL(), nB.getBaseURL(), listID, task.UID)
+		baseURL, username, listID, task.UID)
 
 	// Create HTTP request
 	req, err := http.NewRequest("PUT", url, bytes.NewBufferString(icalContent))
@@ -230,14 +236,16 @@ func (nB *NextcloudBackend) AddTask(listID string, task Task) (error) {
 
 	// Set headers
 	req.Header.Set("Content-Type", "text/calendar; charset=utf-8")
-	req.SetBasicAuth(nB.getUsername(), nB.getPassword())
+	req.SetBasicAuth(username, password)
 
 	// Send request
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := nB.getClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
+
+	fmt.Println("OKOK")
 	defer resp.Body.Close()
 
 	// Check response status

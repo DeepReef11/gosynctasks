@@ -191,7 +191,6 @@ func (a *App) run(cmd *cobra.Command, args []string) error {
 			Summary: "Test",
 		}
 		err = a.taskManager.AddTask(selectedList.ID, *task)
-		// a.taskManager.add
 	}
 	return err
 }
