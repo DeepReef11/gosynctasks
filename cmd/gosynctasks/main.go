@@ -102,6 +102,19 @@ func (a *App) selectListInteractively() (*backend.TaskList, error) {
 	return &a.taskLists[choice-1], nil
 }
 
+func (a *App) getSelectedList(listName string) (*backend.TaskList, error) {
+	if listName != "" {
+		selectedList := a.findListByName(listName)
+		if selectedList == nil {
+			return nil, fmt.Errorf("list '%s' not found", listName)
+		}
+		return selectedList, nil
+	}
+
+	// No list name provided, use interactive selection
+	return a.selectListInteractively()
+}
+
 func (a *App) buildFilter(cmd *cobra.Command) *backend.TaskFilter {
 	filter := &backend.TaskFilter{}
 
@@ -143,6 +156,7 @@ func (a *App) buildFilter(cmd *cobra.Command) *backend.TaskFilter {
 
 func (a *App) run(cmd *cobra.Command, args []string) error {
 	var listName string
+	var taskSummary string
 	action := "get"
 
 	if len(args) == 1 {
@@ -152,32 +166,20 @@ func (a *App) run(cmd *cobra.Command, args []string) error {
 		action = args[0]
 		listName = args[1]
 	}
+	if len(args) >= 3 {
+		taskSummary = args[2]
+	}
 
 	filter := a.buildFilter(cmd)
 	fmt.Println(&filter)
 
-	// if action == "list" {
-	// 	fmt.Println("TODO get lists")
-	// 	return nil
-	// }
-	var selectedList *backend.TaskList
-	var err error
-
-	if listName != "" {
-		selectedList = a.findListByName(listName)
-		if selectedList == nil {
-			return fmt.Errorf("list '%s' not found", listName)
-		}
-	} else {
-		selectedList, err = a.selectListInteractively()
-		if err != nil {
-			return err
-		}
+	selectedList, err := a.getSelectedList(listName)
+	if err != nil {
+		return err
 	}
 
 	switch strings.ToLower(action) {
 	case "get":
-
 		tasks, err := a.taskManager.GetTasks(selectedList.ID, filter)
 		if err != nil {
 			return fmt.Errorf("error retrieving tasks: %w", err)
@@ -185,14 +187,38 @@ func (a *App) run(cmd *cobra.Command, args []string) error {
 
 		fmt.Println(selectedList)
 		fmt.Println(tasks)
+		return nil
+
 	case "add":
-		fmt.Println("NOT DONE")
-		task := &backend.Task{
-			Summary: "Test",
+		// If no task summary provided in args, prompt for it
+		if taskSummary == "" {
+			fmt.Print("Enter task summary: ")
+			var input string
+			if _, err := fmt.Scanln(&input); err != nil {
+				return fmt.Errorf("failed to read task summary: %w", err)
+			}
+			taskSummary = input
 		}
-		err = a.taskManager.AddTask(selectedList.ID, *task)
+
+		if taskSummary == "" {
+			return fmt.Errorf("task summary cannot be empty")
+		}
+
+		task := backend.Task{
+			Summary: taskSummary,
+			Status:  "NEEDS-ACTION",
+		}
+
+		if err := a.taskManager.AddTask(selectedList.ID, task); err != nil {
+			return fmt.Errorf("error adding task: %w", err)
+		}
+
+		fmt.Printf("Task '%s' added successfully to list '%s'\n", taskSummary, selectedList.Name)
+		return nil
+
+	default:
+		return fmt.Errorf("unknown action: %s (supported: get, add)", action)
 	}
-	return err
 }
 
 func main() {
@@ -202,9 +228,18 @@ func main() {
 	}
 
 	rootCmd := &cobra.Command{
-		Use:               "gosynctasks [action] [list-name]",
+		Use:               "gosynctasks [action] [list-name] [task-summary]",
 		Short:             "Task synchronization tool",
-		Args:              cobra.MaximumNArgs(2),
+		Long: `Task synchronization tool for managing tasks across different backends.
+
+Examples:
+  gosynctasks                           # Interactive list selection, show tasks
+  gosynctasks MyList                    # Show tasks from "MyList"
+  gosynctasks get MyList                # Show tasks from "MyList"
+  gosynctasks add MyList "New task"     # Add a task to "MyList"
+  gosynctasks add MyList                # Add a task (will prompt for summary)
+  gosynctasks -s TODO,PROCESSING MyList # Filter tasks by status`,
+		Args:              cobra.MaximumNArgs(3),
 		ValidArgsFunction: app.listNameCompletion,
 		RunE:              app.run,
 	}

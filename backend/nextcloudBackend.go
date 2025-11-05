@@ -5,8 +5,8 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -23,7 +23,7 @@ func (nB *NextcloudBackend) getClient() *http.Client {
 	if nB.client == nil {
 		nB.client = &http.Client{
 			Transport: &http.Transport{
-				TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+				TLSClientConfig:     &tls.Config{InsecureSkipVerify: nB.Connector.InsecureSkipVerify},
 				MaxIdleConns:        10,
 				MaxIdleConnsPerHost: 2,
 				IdleConnTimeout:     30 * time.Second,
@@ -295,14 +295,20 @@ func (nb *NextcloudBackend) buildICalContent(task Task) string {
 	return icalContent.String()
 }
 
-func NewNextcloudBackend(url *url.URL) (TaskManager, error) {
+func NewNextcloudBackend(connectorConfig ConnectorConfig) (TaskManager, error) {
 	nB := &NextcloudBackend{
-		Connector: ConnectorConfig{URL: url},
+		Connector: connectorConfig,
 	}
 
 	if err := nB.BasicValidation(); err != nil {
 		return nil, err
 	}
+
+	// Warn if TLS verification is disabled
+	if nB.Connector.InsecureSkipVerify {
+		log.Println("WARNING: TLS certificate verification is disabled. This is insecure and should only be used for development with self-signed certificates.")
+	}
+
 	return nB, nil
 }
 

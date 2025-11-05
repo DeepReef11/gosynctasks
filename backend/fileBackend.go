@@ -1,21 +1,23 @@
 package backend
 
-import (
-	"net/url"
-)
-
 type FileBackend struct {
+	Connector ConnectorConfig
 }
 
-func (nB *FileBackend) GetTaskLists() ([]TaskList, error) {
-	return nil, nil
-
-}
-
-func (nB *FileBackend) GetTasks() ([]Task, error) {
+func (fB *FileBackend) GetTaskLists() ([]TaskList, error) {
 	return nil, nil
 }
 
-func NewFileBackend(url *url.URL) (TaskManager, error) {
+func (fB *FileBackend) GetTasks(listID string, taskFilter *TaskFilter) ([]Task, error) {
 	return nil, nil
+}
+
+func (fB *FileBackend) AddTask(listID string, task Task) error {
+	return nil
+}
+
+func NewFileBackend(connectorConfig ConnectorConfig) (TaskManager, error) {
+	return &FileBackend{
+		Connector: connectorConfig,
+	}, nil
 }

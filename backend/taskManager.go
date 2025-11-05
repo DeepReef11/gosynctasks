@@ -18,7 +18,8 @@ func (e *UnsupportedSchemeError) Error() string {
 
 // Base config struct
 type ConnectorConfig struct {
-	URL *url.URL `json:"url"`
+	URL                *url.URL `json:"url"`
+	InsecureSkipVerify bool     `json:"insecure_skip_verify,omitempty"` // WARNING: Only use for self-signed certificates in dev
 	// Type     string `json:"type" validate:"required,oneof=nextcloud local"`
 	//  Timeout  int    `json:"timeout,omitempty"`
 }
@@ -28,7 +29,8 @@ func (c *ConnectorConfig) UnmarshalJSON(data []byte) error {
 
 	tmp := struct {
 		*ConnConfig
-		URL string `json:"url"`
+		URL                string `json:"url"`
+		InsecureSkipVerify bool   `json:"insecure_skip_verify,omitempty"`
 	}{
 		ConnConfig: (*ConnConfig)(c),
 	}
@@ -43,6 +45,7 @@ func (c *ConnectorConfig) UnmarshalJSON(data []byte) error {
 	}
 
 	tmp.ConnConfig.URL = u
+	tmp.ConnConfig.InsecureSkipVerify = tmp.InsecureSkipVerify
 
 	return nil
 }
@@ -50,9 +53,9 @@ func (c *ConnectorConfig) UnmarshalJSON(data []byte) error {
 func (c *ConnectorConfig) TaskManager() (TaskManager, error) {
 	switch c.URL.Scheme {
 	case "nextcloud":
-		return NewNextcloudBackend(c.URL)
+		return NewNextcloudBackend(*c)
 	case "file":
-		return NewFileBackend(c.URL)
+		return NewFileBackend(*c)
 	default:
 		return nil, &UnsupportedSchemeError{
 			Scheme: c.URL.Scheme,

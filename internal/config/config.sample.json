@@ -1,4 +1,8 @@
 {
-  "field1": "ok",
-  "field2": 2
+  "connector": {
+    "url": "nextcloud://username:password@nextcloud.example.com",
+    "insecure_skip_verify": false
+  },
+  "canWriteConfig": true,
+  "ui": "cli"
 }
