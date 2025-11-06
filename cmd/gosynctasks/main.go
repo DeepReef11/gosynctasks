@@ -157,7 +157,7 @@ func (a *App) smartCompletion(cmd *cobra.Command, args []string, toComplete stri
 
 	// First argument: suggest actions OR list names
 	if len(args) == 0 {
-		actions := []string{"get", "add"}
+		actions := []string{"get", "g", "add", "a", "update", "u", "complete", "c"}
 		for _, action := range actions {
 			if strings.HasPrefix(action, strings.ToLower(toComplete)) {
 				completions = append(completions, action)
@@ -233,6 +233,122 @@ func (a *App) getSelectedList(listName string) (*backend.TaskList, error) {
 	return a.selectListInteractively()
 }
 
+func normalizeAction(action string) string {
+	action = strings.ToLower(action)
+	switch action {
+	case "g":
+		return "get"
+	case "a":
+		return "add"
+	case "u":
+		return "update"
+	case "c":
+		return "complete"
+	default:
+		return action
+	}
+}
+
+// findTaskBySummary searches for a task by summary and handles UX for exact/partial/multiple matches
+func (a *App) findTaskBySummary(listID string, searchSummary string) (*backend.Task, error) {
+	// Use backend's search method
+	matches, err := a.taskManager.FindTasksBySummary(listID, searchSummary)
+	if err != nil {
+		return nil, fmt.Errorf("error searching for tasks: %w", err)
+	}
+
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("no tasks found matching '%s'", searchSummary)
+	}
+
+	// Separate exact and partial matches
+	var exactMatches []backend.Task
+	var partialMatches []backend.Task
+	searchLower := strings.ToLower(searchSummary)
+
+	for _, task := range matches {
+		if strings.ToLower(task.Summary) == searchLower {
+			exactMatches = append(exactMatches, task)
+		} else {
+			partialMatches = append(partialMatches, task)
+		}
+	}
+
+	// Single exact match - proceed without confirmation
+	if len(exactMatches) == 1 && len(partialMatches) == 0 {
+		return &exactMatches[0], nil
+	}
+
+	// Single partial match - ask for confirmation
+	if len(exactMatches) == 0 && len(partialMatches) == 1 {
+		task := &partialMatches[0]
+		confirmed, err := a.confirmTask(task)
+		if err != nil {
+			return nil, err
+		}
+		if !confirmed {
+			return nil, fmt.Errorf("operation cancelled")
+		}
+		return task, nil
+	}
+
+	// Multiple matches (exact or partial) - prompt selection
+	if len(exactMatches) > 1 {
+		return a.selectTask(exactMatches, searchSummary)
+	}
+
+	// Mix of exact and partial, or multiple partial
+	return a.selectTask(matches, searchSummary)
+}
+
+// selectTask shows a list of tasks and prompts user to select one
+func (a *App) selectTask(tasks []backend.Task, searchSummary string) (*backend.Task, error) {
+	if len(tasks) == 0 {
+		return nil, fmt.Errorf("no tasks found matching '%s'", searchSummary)
+	}
+
+	// Show tasks with "all" view
+	fmt.Printf("\n%d tasks found matching '%s':\n", len(tasks), searchSummary)
+	dateFormat := a.config.GetDateFormat()
+
+	for i, task := range tasks {
+		fmt.Printf("\n%d:", i+1)
+		fmt.Print(task.FormatWithView("all", a.taskManager, dateFormat))
+	}
+
+	fmt.Printf("\nSelect task (1-%d) or 0 to cancel: ", len(tasks))
+	var choice int
+	if _, err := fmt.Scanf("%d", &choice); err != nil {
+		return nil, fmt.Errorf("invalid input: %w", err)
+	}
+
+	if choice == 0 {
+		return nil, fmt.Errorf("operation cancelled")
+	}
+
+	if choice < 1 || choice > len(tasks) {
+		return nil, fmt.Errorf("invalid choice: %d", choice)
+	}
+
+	return &tasks[choice-1], nil
+}
+
+// confirmTask shows task details and asks for confirmation
+func (a *App) confirmTask(task *backend.Task) (bool, error) {
+	dateFormat := a.config.GetDateFormat()
+	fmt.Println("\nTask found:")
+	fmt.Print(task.FormatWithView("all", a.taskManager, dateFormat))
+	fmt.Print("\nProceed with this task? (y/n): ")
+
+	var response string
+	if _, err := fmt.Scanf("%s", &response); err != nil {
+		return false, fmt.Errorf("invalid input: %w", err)
+	}
+
+	response = strings.ToLower(strings.TrimSpace(response))
+	return response == "y" || response == "yes", nil
+}
+
 func (a *App) buildFilter(cmd *cobra.Command) *backend.TaskFilter {
 	filter := &backend.TaskFilter{}
 
@@ -278,6 +394,7 @@ func (a *App) run(cmd *cobra.Command, args []string) error {
 
 	var listName string
 	var taskSummary string
+	var searchSummary string
 	action := "get"
 
 	if len(args) == 1 {
@@ -288,8 +405,18 @@ func (a *App) run(cmd *cobra.Command, args []string) error {
 		listName = args[1]
 	}
 	if len(args) >= 3 {
-		taskSummary = args[2]
+		// For update/complete: arg[2] is summary to search for
+		// For add: arg[2] is task summary to create
+		if strings.ToLower(action) == "update" || strings.ToLower(action) == "u" ||
+			strings.ToLower(action) == "complete" || strings.ToLower(action) == "c" {
+			searchSummary = args[2]
+		} else {
+			taskSummary = args[2]
+		}
 	}
+
+	// Normalize action (support abbreviations)
+	action = normalizeAction(action)
 
 	filter := a.buildFilter(cmd)
 
@@ -298,7 +425,7 @@ func (a *App) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	switch strings.ToLower(action) {
+	switch action {
 	case "get":
 		tasks, err := a.taskManager.GetTasks(selectedList.ID, filter)
 		if err != nil {
@@ -333,9 +460,45 @@ func (a *App) run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("task summary cannot be empty")
 		}
 
+		// Get optional flags
+		description, _ := cmd.Flags().GetString("description")
+		priority, _ := cmd.Flags().GetInt("priority")
+		statusFlag, _ := cmd.Flags().GetString("add-status")
+
+		// Default status
+		taskStatus := "NEEDS-ACTION"
+
+		// Handle status flag (case insensitive, translate app statuses)
+		if statusFlag != "" {
+			upperStatus := strings.ToUpper(statusFlag)
+			// Handle app status names and abbreviations
+			switch upperStatus {
+			case "T", "TODO":
+				taskStatus = "NEEDS-ACTION"
+			case "D", "DONE":
+				taskStatus = "COMPLETED"
+			case "P", "PROCESSING":
+				taskStatus = "IN-PROCESS"
+			case "C", "CANCELLED":
+				taskStatus = "CANCELLED"
+			// Also accept backend status names directly
+			case "NEEDS-ACTION", "COMPLETED", "IN-PROCESS":
+				taskStatus = upperStatus
+			default:
+				return fmt.Errorf("invalid status: %s (valid: TODO/T, DONE/D, PROCESSING/P, CANCELLED/C, or backend statuses)", statusFlag)
+			}
+		}
+
+		// Validate priority
+		if priority < 0 || priority > 9 {
+			return fmt.Errorf("priority must be between 0-9 (0=undefined, 1=highest, 9=lowest)")
+		}
+
 		task := backend.Task{
-			Summary: taskSummary,
-			Status:  "NEEDS-ACTION",
+			Summary:     taskSummary,
+			Description: description,
+			Status:      taskStatus,
+			Priority:    priority,
 		}
 
 		if err := a.taskManager.AddTask(selectedList.ID, task); err != nil {
@@ -345,8 +508,122 @@ func (a *App) run(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Task '%s' added successfully to list '%s'\n", taskSummary, selectedList.Name)
 		return nil
 
+	case "update":
+		// Get the task summary to search for
+		if searchSummary == "" {
+			return fmt.Errorf("task summary is required for update (usage: gosynctasks update <list> <task-summary>)")
+		}
+
+		// Find the task by summary (handles exact/partial/multiple matches)
+		taskToUpdate, err := a.findTaskBySummary(selectedList.ID, searchSummary)
+		if err != nil {
+			return err
+		}
+
+		// Get update flags
+		statusFlags, _ := cmd.Flags().GetStringArray("status")
+		description, _ := cmd.Flags().GetString("description")
+		priority, _ := cmd.Flags().GetInt("priority")
+		summaryFlag, _ := cmd.Flags().GetString("summary")
+
+		// Update fields if provided
+		// For update action, use first status value if provided
+		if len(statusFlags) > 0 && statusFlags[0] != "" {
+			statusFlag := statusFlags[0]
+			upperStatus := strings.ToUpper(statusFlag)
+			switch upperStatus {
+			case "T", "TODO":
+				taskToUpdate.Status = "NEEDS-ACTION"
+			case "D", "DONE":
+				taskToUpdate.Status = "COMPLETED"
+			case "P", "PROCESSING":
+				taskToUpdate.Status = "IN-PROCESS"
+			case "C", "CANCELLED":
+				taskToUpdate.Status = "CANCELLED"
+			case "NEEDS-ACTION", "COMPLETED", "IN-PROCESS":
+				taskToUpdate.Status = upperStatus
+			default:
+				return fmt.Errorf("invalid status: %s (valid: TODO/T, DONE/D, PROCESSING/P, CANCELLED/C)", statusFlag)
+			}
+		}
+
+		if summaryFlag != "" {
+			taskToUpdate.Summary = summaryFlag
+		}
+
+		if cmd.Flags().Changed("description") {
+			taskToUpdate.Description = description
+		}
+
+		if cmd.Flags().Changed("priority") {
+			if priority < 0 || priority > 9 {
+				return fmt.Errorf("priority must be between 0-9 (0=undefined, 1=highest, 9=lowest)")
+			}
+			taskToUpdate.Priority = priority
+		}
+
+		// Update the task
+		if err := a.taskManager.UpdateTask(selectedList.ID, *taskToUpdate); err != nil {
+			return fmt.Errorf("error updating task: %w", err)
+		}
+
+		fmt.Printf("Task '%s' updated successfully in list '%s'\n", taskToUpdate.Summary, selectedList.Name)
+		return nil
+
+	case "complete":
+		// Get the task summary to search for
+		if searchSummary == "" {
+			return fmt.Errorf("task summary is required for complete (usage: gosynctasks complete <list> <task-summary>)")
+		}
+
+		// Find the task by summary (handles exact/partial/multiple matches)
+		taskToComplete, err := a.findTaskBySummary(selectedList.ID, searchSummary)
+		if err != nil {
+			return err
+		}
+
+		// Get status flag (if provided), otherwise default to COMPLETED
+		statusFlags, _ := cmd.Flags().GetStringArray("status")
+		newStatus := "COMPLETED" // Default
+		statusName := "completed"
+
+		if len(statusFlags) > 0 && statusFlags[0] != "" {
+			statusFlag := statusFlags[0]
+			upperStatus := strings.ToUpper(statusFlag)
+			switch upperStatus {
+			case "T", "TODO":
+				newStatus = "NEEDS-ACTION"
+				statusName = "TODO"
+			case "D", "DONE":
+				newStatus = "COMPLETED"
+				statusName = "DONE"
+			case "P", "PROCESSING":
+				newStatus = "IN-PROCESS"
+				statusName = "PROCESSING"
+			case "C", "CANCELLED":
+				newStatus = "CANCELLED"
+				statusName = "CANCELLED"
+			case "NEEDS-ACTION", "COMPLETED", "IN-PROCESS":
+				newStatus = upperStatus
+				statusName = upperStatus
+			default:
+				return fmt.Errorf("invalid status: %s (valid: TODO/T, DONE/D, PROCESSING/P, CANCELLED/C)", statusFlag)
+			}
+		}
+
+		// Set the new status
+		taskToComplete.Status = newStatus
+
+		// Update the task
+		if err := a.taskManager.UpdateTask(selectedList.ID, *taskToComplete); err != nil {
+			return fmt.Errorf("error updating task: %w", err)
+		}
+
+		fmt.Printf("Task '%s' marked as %s in list '%s'\n", taskToComplete.Summary, statusName, selectedList.Name)
+		return nil
+
 	default:
-		return fmt.Errorf("unknown action: %s (supported: get, add)", action)
+		return fmt.Errorf("unknown action: %s (supported: get/g, add/a, update/u, complete/c)", action)
 	}
 }
 
@@ -361,20 +638,50 @@ func main() {
 		Short:             "Task synchronization tool",
 		Long: `Task synchronization tool for managing tasks across different backends.
 
+Actions (abbreviations in parentheses):
+  get (g)       - List tasks from a task list
+  add (a)       - Add a new task to a list
+  update (u)    - Update an existing task by summary
+  complete (c)  - Change task status by summary (defaults to DONE)
+
 Examples:
   gosynctasks                           # Interactive list selection, show tasks
   gosynctasks MyList                    # Show tasks from "MyList"
-  gosynctasks get MyList                # Show tasks from "MyList"
+  gosynctasks get MyList                # Show tasks from "MyList" (g also works)
+  gosynctasks -s TODO,PROCESSING MyList # Filter tasks by status
+
   gosynctasks add MyList "New task"     # Add a task to "MyList"
+  gosynctasks a MyList "New task"       # Same using abbreviation
   gosynctasks add MyList                # Add a task (will prompt for summary)
-  gosynctasks -s TODO,PROCESSING MyList # Filter tasks by status`,
+  gosynctasks add MyList "Task" -d "Details" -p 1 -S done  # Add with options
+
+  gosynctasks update MyList "Buy groceries" -s DONE  # Update task status
+  gosynctasks u MyList "groceries" --summary "Buy milk"  # Partial match + rename
+  gosynctasks update MyList "task" -p 5              # Partial match + set priority
+
+  gosynctasks complete MyList "Buy groceries"      # Mark as DONE (default)
+  gosynctasks c MyList "groceries" -s TODO         # Mark as TODO
+  gosynctasks c MyList "task" -s PROCESSING        # Mark as PROCESSING
+  gosynctasks c MyList "old task" -s CANCELLED     # Mark as CANCELLED`,
 		Args:              cobra.MaximumNArgs(3),
 		ValidArgsFunction: app.smartCompletion,
 		RunE:              app.run,
 	}
 
-	rootCmd.Flags().StringArrayP("status", "s", []string{}, "filter by status ([T]ODO, [D]ONE, [P]ROCESSING, [C]ANCELLED)")
+	rootCmd.Flags().StringArrayP("status", "s", []string{}, "filter by status (for get) or set status (for update): [T]ODO, [D]ONE, [P]ROCESSING, [C]ANCELLED")
 	rootCmd.Flags().StringP("view", "v", "basic", "view mode (basic, all)")
+	rootCmd.Flags().StringP("description", "d", "", "task description (for add/update)")
+	rootCmd.Flags().IntP("priority", "p", 0, "task priority (for add/update, 0-9: 0=undefined, 1=highest, 9=lowest)")
+	rootCmd.Flags().StringP("add-status", "S", "", "task status when adding (TODO/T, DONE/D, PROCESSING/P, CANCELLED/C)")
+	rootCmd.Flags().String("summary", "", "task summary (for update)")
+
+	// Register flag value completion for status flags
+	rootCmd.RegisterFlagCompletionFunc("status", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return []string{"TODO", "DONE", "PROCESSING", "CANCELLED"}, cobra.ShellCompDirectiveNoFileComp
+	})
+	rootCmd.RegisterFlagCompletionFunc("add-status", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return []string{"TODO", "DONE", "PROCESSING", "CANCELLED"}, cobra.ShellCompDirectiveNoFileComp
+	})
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)

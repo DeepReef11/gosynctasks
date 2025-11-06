@@ -155,6 +155,32 @@ func (nB *NextcloudBackend) GetTasks(listID string, taskFilter *TaskFilter) ([]T
 	return nB.parseVTODOs(string(respBody))
 }
 
+func (nB *NextcloudBackend) FindTasksBySummary(listID string, summary string) ([]Task, error) {
+	// For now, implement client-side filtering
+	// Future optimization: could use CalDAV text-match query for server-side search
+
+	// Get all tasks from the list
+	allTasks, err := nB.GetTasks(listID, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter by summary (case-insensitive partial match)
+	var matches []Task
+	summaryLower := strings.ToLower(summary)
+
+	for _, task := range allTasks {
+		taskSummaryLower := strings.ToLower(task.Summary)
+
+		// Include both exact and partial matches
+		if strings.Contains(taskSummaryLower, summaryLower) {
+			matches = append(matches, task)
+		}
+	}
+
+	return matches, nil
+}
+
 func (nB *NextcloudBackend) GetTaskLists() ([]TaskList, error) {
 	username := nB.getUsername()
 	password := nB.getPassword()
@@ -256,6 +282,57 @@ func (nB *NextcloudBackend) AddTask(listID string, task Task) (error) {
 
 }
 
+func (nB *NextcloudBackend) UpdateTask(listID string, task Task) (error) {
+
+	username := nB.getUsername()
+	password := nB.getPassword()
+	baseURL := nB.getBaseURL()
+
+	// Set modified time to now
+	task.Modified = time.Now()
+
+	// If status is COMPLETED and Completed time not set, set it now
+	if task.Status == "COMPLETED" && task.Completed == nil {
+		now := time.Now()
+		task.Completed = &now
+	}
+
+	// Build the iCalendar content
+	icalContent := nB.buildICalContent(task)
+
+	// Construct the URL (same as AddTask - CalDAV uses PUT for both create and update)
+	url := fmt.Sprintf("%s/remote.php/dav/calendars/%s/%s/%s.ics",
+		baseURL, username, listID, task.UID)
+
+	// Create HTTP request
+	req, err := http.NewRequest("PUT", url, bytes.NewBufferString(icalContent))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set headers
+	req.Header.Set("Content-Type", "text/calendar; charset=utf-8")
+	req.SetBasicAuth(username, password)
+
+	// Send request
+	client := nB.getClient()
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("request failed with status: %d %s, body: %s", resp.StatusCode, resp.Status, string(body))
+	}
+
+	return nil
+
+}
+
 func (nb *NextcloudBackend) buildICalContent(task Task) string {
 	var icalContent bytes.Buffer
 
@@ -271,23 +348,36 @@ func (nb *NextcloudBackend) buildICalContent(task Task) string {
 	icalContent.WriteString(fmt.Sprintf("UID:%s\r\n", task.UID))
 	icalContent.WriteString(fmt.Sprintf("DTSTAMP:%s\r\n", dtstamp))
 	icalContent.WriteString(fmt.Sprintf("CREATED:%s\r\n", created))
+
+	// Add LAST-MODIFIED if task has been modified
+	if !task.Modified.IsZero() {
+		modified := task.Modified.UTC().Format("20060102T150405Z")
+		icalContent.WriteString(fmt.Sprintf("LAST-MODIFIED:%s\r\n", modified))
+	}
+
 	icalContent.WriteString(fmt.Sprintf("SUMMARY:%s\r\n", task.Summary))
-	
+
 	if task.Description != "" {
 		icalContent.WriteString(fmt.Sprintf("DESCRIPTION:%s\r\n", task.Description))
 	}
-	
+
 	icalContent.WriteString(fmt.Sprintf("STATUS:%s\r\n", task.Status))
-	
+
 	if task.Priority > 0 {
 		icalContent.WriteString(fmt.Sprintf("PRIORITY:%d\r\n", task.Priority))
 	}
-	
+
 	if task.DueDate != nil {
 		due := task.DueDate.UTC().Format("20060102T150405Z")
 		icalContent.WriteString(fmt.Sprintf("DUE:%s\r\n", due))
 	}
-	
+
+	// Add COMPLETED timestamp if status is COMPLETED
+	if task.Status == "COMPLETED" && task.Completed != nil {
+		completed := task.Completed.UTC().Format("20060102T150405Z")
+		icalContent.WriteString(fmt.Sprintf("COMPLETED:%s\r\n", completed))
+	}
+
 	icalContent.WriteString("END:VTODO\r\n")
 	icalContent.WriteString("END:VCALENDAR\r\n")
 

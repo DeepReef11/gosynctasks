@@ -69,7 +69,9 @@ func (c *ConnectorConfig) TaskManager() (TaskManager, error) {
 type TaskManager interface {
 	GetTaskLists() ([]TaskList, error)
 	GetTasks(listID string, taskFilter *TaskFilter) ([]Task, error)
+	FindTasksBySummary(listID string, summary string) ([]Task, error) // Search tasks by summary (exact and partial matches)
 	AddTask(listID string, task Task) (error)
+	UpdateTask(listID string, task Task) (error)
 	SortTasks(tasks []Task) // Sort tasks according to backend's preferred order
 	GetPriorityColor(priority int) string // Get ANSI color code for priority
 	// Tasks() iter.Seq[Task]
@@ -209,9 +211,14 @@ func (t Task) FormatWithView(view string, backend TaskManager, dateFormat string
 		result.WriteString(fmt.Sprintf("     \033[2m%s\033[0m\n", desc))
 	}
 
-	// Metadata line: created, modified, priority (only for "all" view)
+	// Metadata line: UID, created, modified, priority (only for "all" view)
 	if view == "all" {
 		var metadata []string
+
+		// Always show UID in all view
+		if t.UID != "" {
+			metadata = append(metadata, fmt.Sprintf("UID: %s", t.UID))
+		}
 
 		if !t.Created.IsZero() {
 			metadata = append(metadata, fmt.Sprintf("Created: %s", t.Created.Format(dateFormat)))

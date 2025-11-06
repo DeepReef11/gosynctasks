@@ -16,11 +16,29 @@ go build -o gosynctasks ./cmd/gosynctasks
 # Run directly
 go run ./cmd/gosynctasks/main.go
 
-# Run with arguments (list tasks from a specific list)
-go run ./cmd/gosynctasks/main.go [action] [list-name]
+# Basic usage patterns
+gosynctasks                              # Interactive list selection
+gosynctasks MyList                       # Show tasks from "MyList"
+gosynctasks get MyList                   # Explicit get action (g also works)
+gosynctasks -s TODO,DONE MyList          # Filter by status (T/D/P/C abbreviations)
 
-# Filter by status (supports abbreviations: T=TODO, D=DONE, P=PROCESSING, C=CANCELLED)
-go run ./cmd/gosynctasks/main.go -s TODO,DONE [list-name]
+# Adding tasks
+gosynctasks add MyList "Task summary"    # Create task (a also works)
+gosynctasks add MyList                   # Will prompt for summary
+gosynctasks add MyList "Task" -d "Details" -p 1 -S done  # With description, priority, status
+
+# Updating tasks
+gosynctasks update MyList "task name" -s DONE     # Find and update status (u also works)
+gosynctasks update MyList "partial" -p 5          # Partial match, update priority
+gosynctasks update MyList "old" --summary "new"   # Rename task
+
+# Completing tasks (shortcut for status changes)
+gosynctasks complete MyList "task name"           # Mark as DONE (c also works)
+gosynctasks complete MyList "task" -s TODO        # Change to TODO
+gosynctasks complete MyList "task" -s PROCESSING  # Change to PROCESSING
+
+# View options
+gosynctasks -v all MyList                # Show all metadata (UID, dates, priority)
 ```
 
 ### Testing
@@ -47,8 +65,15 @@ go mod tidy
 ### Backend System
 The application uses a **backend abstraction pattern** with a pluggable architecture:
 
-- **`backend.TaskManager` interface** (backend/taskManager.go): Core interface that all backends must implement
-  - Methods: `GetTaskLists()`, `GetTasks()`, `AddTask()`
+- **`backend.TaskManager` interface** (backend/taskManager.go:69-80): Core interface that all backends must implement
+  - Required methods:
+    - `GetTaskLists()`: Retrieve all task lists
+    - `GetTasks(listID, filter)`: Get filtered tasks from a list
+    - `FindTasksBySummary(listID, summary)`: Search tasks by summary (exact/partial)
+    - `AddTask(listID, task)`: Create a new task
+    - `UpdateTask(listID, task)`: Update an existing task
+    - `SortTasks(tasks)`: Sort tasks using backend-specific ordering
+    - `GetPriorityColor(priority)`: Get ANSI color code for task priority
   - Backends are selected via URL scheme in config (e.g., `nextcloud://`, `file://`)
 
 - **`backend.ConnectorConfig`** (backend/taskManager.go:20-61): Factory that creates TaskManager instances based on URL scheme
@@ -59,24 +84,33 @@ The application uses a **backend abstraction pattern** with a pluggable architec
 
 #### NextcloudBackend (backend/nextcloudBackend.go)
 - Implements CalDAV protocol for Nextcloud task management
-- Uses HTTP REPORT/PROPFIND methods with XML queries
+- Uses HTTP REPORT/PROPFIND/PUT methods with XML queries
 - Credentials extracted from URL (e.g., `nextcloud://user:pass@host`)
+- **Full CRUD support**: Create, Read, Update operations
 - Key methods:
-  - `GetTaskLists()`: PROPFIND request to discover calendars with VTODO support
-  - `GetTasks()`: REPORT request with calendar-query XML filter
-  - `buildCalendarQuery()`: Constructs CalDAV XML queries with status/date filters
+  - `GetTaskLists()` (line 184-227): PROPFIND request to discover calendars with VTODO support
+  - `GetTasks()` (line 119-156): REPORT request with calendar-query XML filter
+  - `FindTasksBySummary()` (line 158-182): Client-side task search (exact/partial matches)
+  - `AddTask()` (line 230-283): PUT request with iCalendar VTODO content
+  - `UpdateTask()` (line 285-334): PUT request to update existing task
+  - `buildCalendarQuery()` (line 65-118): Constructs CalDAV XML queries with status/date filters
+  - `buildICalContent()` (line 336-385): Builds iCalendar format for task creation/update
   - `parseVTODOs()`: Parses iCalendar VTODO format from responses
+  - `SortTasks()` (line 387-403): Nextcloud-specific priority sorting (1=highest, 0=undefined goes last)
+  - `GetPriorityColor()` (line 405-415): Nextcloud color scheme (1-4=red, 5=yellow, 6-9=blue)
 
 #### FileBackend (backend/fileBackend.go)
 - Placeholder implementation (not yet functional)
 - Intended for local file-based task storage
+- Contains stub implementations for all TaskManager interface methods
+- Returns nil/empty values for all operations
 
 ### Status Translation Layer
-The app uses **dual status naming** (backend/taskManager.go:79-123):
+The app uses **dual status naming** (backend/taskManager.go:89-133):
 - **Internal app statuses**: TODO, DONE, PROCESSING, CANCELLED
 - **CalDAV standard statuses**: NEEDS-ACTION, COMPLETED, IN-PROCESS, CANCELLED
 - Translation functions: `StatusStringTranslateToStandardStatus()` and `StatusStringTranslateToAppStatus()`
-- CLI supports abbreviations (T/D/P/C) which are expanded in main.go:125-134
+- CLI supports abbreviations (T/D/P/C) which are expanded throughout main.go (lines 371-380, 475-490, 534-547, etc.)
 
 ### Configuration System (internal/config/config.go)
 - Uses singleton pattern with `sync.Once` for global config
@@ -98,23 +132,49 @@ The app uses **dual status naming** (backend/taskManager.go:79-123):
   - `taskLists`: Cached list of available task lists
   - `taskManager`: Active backend implementation
   - `config`: Global configuration
+- **Task list caching** (lines 62-153):
+  - Cache location: `$XDG_CACHE_HOME/gosynctasks/lists.json`
+  - Stores task lists with timestamp
+  - Methods: `loadTaskListsFromCache()`, `saveTaskListsToCache()`, `refreshTaskLists()`
+- **Action-based commands** (line 389-628):
+  - `get` (alias: `g`): List tasks from a list (default action)
+  - `add` (alias: `a`): Create new task with summary/description/priority
+  - `update` (alias: `u`): Update task by searching summary
+  - `complete` (alias: `c`): Change task status (defaults to DONE)
+- **Task search functionality** (lines 252-350):
+  - `findTaskBySummary()`: Searches for tasks with exact/partial matching
+  - `selectTask()`: Interactive selection when multiple matches found
+  - `confirmTask()`: Confirmation prompt for single partial match
+  - Handles exact matches, partial matches, and multiple matches
 - **Interactive mode**: If no list name provided, shows numbered selection
-- **Shell completion**: Supports tab-completion of task list names
-- **Filter building**: Constructs `TaskFilter` from CLI flags
+- **Shell completion**: Supports tab-completion of actions and task list names
+- **Filter building**: Constructs `TaskFilter` from CLI flags with abbreviation support (T/D/P/C)
 
 ### Data Models
 
-#### Task (backend/taskManager.go:125-138)
+#### Task (backend/taskManager.go:135-148)
 Follows iCalendar VTODO spec:
 - `UID`, `Summary`, `Description`
 - `Status`: NEEDS-ACTION, IN-PROCESS, COMPLETED, CANCELLED
 - `Priority`: 0-9 (0=undefined, 1=highest, 9=lowest)
 - Timestamps: `Created`, `Modified`, `DueDate`, `StartDate`, `Completed`
+- `Categories`: List of category tags
 - Supports subtasks via `ParentUID`
+- **Formatting methods**:
+  - `String()` (line 150-152): Default basic format output
+  - `FormatWithView(view, backend, dateFormat)` (line 154-241): Rich formatting with:
+    - Status indicators with color (✓ ○ ● ✗)
+    - Priority-based coloring (from backend)
+    - Due date display with overdue/upcoming highlighting
+    - Description preview (truncated to 70 chars)
+    - Metadata display in "all" view (UID, created, modified, priority)
 
-#### TaskList (backend/taskManager.go:172-179)
+#### TaskList (backend/taskManager.go:243-250)
 - Represents a calendar/list containing tasks
 - Contains CalDAV-specific fields: `CTags` for sync, `Color` for UI
+- **Formatting methods**:
+  - `String()` (line 252-269): Renders top border with list name and description
+  - `BottomBorder()` (line 271-274): Renders bottom border for task list display
 
 ### iCalendar Parsing (backend/parseVTODOs.go)
 - Manual XML and iCalendar parsing (no external parser library)
@@ -127,9 +187,43 @@ Follows iCalendar VTODO spec:
 
 ### Adding a New Backend
 1. Create new file in `backend/` (e.g., `sqliteBackend.go`)
-2. Implement the `TaskManager` interface
-3. Add URL scheme case to `ConnectorConfig.TaskManager()` (backend/taskManager.go:50-61)
-4. Implement required methods: `GetTaskLists()`, `GetTasks()`, `AddTask()`
+2. Implement the `TaskManager` interface with all required methods:
+   - `GetTaskLists()`: Retrieve all task lists
+   - `GetTasks(listID, filter)`: Get filtered tasks
+   - `FindTasksBySummary(listID, summary)`: Search for tasks
+   - `AddTask(listID, task)`: Create new task
+   - `UpdateTask(listID, task)`: Update existing task
+   - `SortTasks(tasks)`: Implement backend-specific sorting
+   - `GetPriorityColor(priority)`: Return ANSI color codes for priorities
+3. Add URL scheme case to `ConnectorConfig.TaskManager()` (backend/taskManager.go:56-67)
+
+### Task Search and Matching
+The application implements intelligent task search for update/complete operations:
+
+**Search Algorithm** (main.go:252-350):
+1. `FindTasksBySummary()` - Backend searches for tasks (exact + partial matches)
+2. Separate exact and partial matches
+3. Single exact match → Proceed immediately
+4. Single partial match → Show task, ask for confirmation
+5. Multiple matches → Display all with metadata, prompt for selection
+
+**Implementation Pattern**:
+```go
+// Find task by summary
+task, err := app.findTaskBySummary(listID, searchSummary)
+if err != nil {
+    return err  // No match or user cancelled
+}
+
+// Use the found task
+err = taskManager.UpdateTask(listID, *task)
+```
+
+**User Experience**:
+- Exact matches proceed without confirmation
+- Partial matches show task details for verification
+- Multiple matches display numbered list with "all" view (includes UID, dates, priority)
+- User can cancel at selection prompt
 
 ### Working with Status Filters
 Always use the translation functions when working between app and CalDAV statuses:
@@ -137,10 +231,12 @@ Always use the translation functions when working between app and CalDAV statuse
 - Use `StatusStringTranslateToAppStatus()` when displaying to user
 
 ### HTTP Client Configuration
-The NextcloudBackend uses a customized HTTP client (backend/nextcloudBackend.go:22-35):
+The NextcloudBackend uses a customized HTTP client:
+- Lazy initialization via `getClient()` method (backend/nextcloudBackend.go:23-36)
 - `InsecureSkipVerify` configurable via `ConnectorConfig.InsecureSkipVerify` (warns when enabled)
-- Connection pooling configured
-- 30-second timeout
+- Connection pooling: max 10 idle connections, 2 per host
+- 30-second timeout for requests
+- Credentials extracted via `getUsername()`, `getPassword()`, `getBaseURL()` helper methods
 
 ### Security
 - TLS certificate verification is enabled by default
@@ -155,10 +251,19 @@ The NextcloudBackend uses a customized HTTP client (backend/nextcloudBackend.go:
 ## Known Issues and TODOs
 
 ### Current Limitations
-- FileBackend is a placeholder (not implemented)
-- NextcloudBackend: Add flags for due date filter
-- NextcloudBackend: Test due date filter
+- FileBackend is a placeholder (not implemented - only stubs)
+- No DELETE operation for tasks yet
+- FindTasksBySummary uses client-side filtering (could optimize with CalDAV text-match queries)
+- Task list cache doesn't have expiration or CTag-based invalidation
 - No config package tests yet (needs backup/restore functionality)
+
+### Completed Features
+- ✓ Full CRUD operations for tasks (Create, Read, Update)
+- ✓ Task search with exact/partial/multiple match handling
+- ✓ Action-based CLI with abbreviations
+- ✓ Task list caching for faster completion
+- ✓ Rich task formatting with colors and status indicators
+- ✓ Priority-based sorting and coloring
 
 ## Future Work: SQLite Sync Implementation
 

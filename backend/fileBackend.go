@@ -12,7 +12,15 @@ func (fB *FileBackend) GetTasks(listID string, taskFilter *TaskFilter) ([]Task, 
 	return nil, nil
 }
 
+func (fB *FileBackend) FindTasksBySummary(listID string, summary string) ([]Task, error) {
+	return nil, nil
+}
+
 func (fB *FileBackend) AddTask(listID string, task Task) error {
+	return nil
+}
+
+func (fB *FileBackend) UpdateTask(listID string, task Task) error {
 	return nil
 }
 
