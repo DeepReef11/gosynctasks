@@ -4,5 +4,6 @@
     "insecure_skip_verify": false
   },
   "canWriteConfig": true,
-  "ui": "cli"
+  "ui": "cli",
+  "date_format": "2006-01-02"
 }

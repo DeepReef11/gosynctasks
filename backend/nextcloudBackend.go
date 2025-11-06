@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
@@ -76,7 +77,6 @@ func (nB *NextcloudBackend) buildCalendarQuery(filter *TaskFilter) string {
 		if filter.Statuses != nil {
 
 			standarizedStatuses := StatusStringTranslateToStandardStatus(filter.Statuses)
-			fmt.Println(standarizedStatuses)
 
 			for _, status := range *standarizedStatuses {
 				if status == "NEEDS-ACTION" {
@@ -194,7 +194,7 @@ func (nB *NextcloudBackend) GetTaskLists() ([]TaskList, error) {
 		return nil, fmt.Errorf("failed to read response: %v", err)
 	}
 
-	fmt.Printf("Response status: %d\n", resp.StatusCode)
+	// fmt.Printf("Response status: %d\n", resp.StatusCode)
 	// fmt.Printf("Response body: %s\n", string(respBody))
 
 	return nB.parseTaskLists(string(respBody), calendarURL)
@@ -245,7 +245,6 @@ func (nB *NextcloudBackend) AddTask(listID string, task Task) (error) {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
 
-	fmt.Println("OKOK")
 	defer resp.Body.Close()
 
 	// Check response status
@@ -295,6 +294,36 @@ func (nb *NextcloudBackend) buildICalContent(task Task) string {
 	return icalContent.String()
 }
 
+func (nB *NextcloudBackend) SortTasks(tasks []Task) {
+	// Nextcloud priority: 1 is highest, 0 is undefined (goes last)
+	sort.Slice(tasks, func(i, j int) bool {
+		pi, pj := tasks[i].Priority, tasks[j].Priority
+
+		// Priority 0 (undefined) goes to the end
+		if pi == 0 && pj != 0 {
+			return false
+		}
+		if pj == 0 && pi != 0 {
+			return true
+		}
+
+		// Otherwise sort ascending (1, 2, 3, ...)
+		return pi < pj
+	})
+}
+
+func (nB *NextcloudBackend) GetPriorityColor(priority int) string {
+	// Nextcloud priority color scheme
+	if priority >= 1 && priority <= 4 {
+		return "\033[31m" // Red (high priority)
+	} else if priority == 5 {
+		return "\033[33m" // Yellow (medium priority)
+	} else if priority >= 6 && priority <= 9 {
+		return "\033[34m" // Blue (low priority)
+	}
+	return "" // No color for 0 (undefined)
+}
+
 func NewNextcloudBackend(connectorConfig ConnectorConfig) (TaskManager, error) {
 	nB := &NextcloudBackend{
 		Connector: connectorConfig,
@@ -305,7 +334,7 @@ func NewNextcloudBackend(connectorConfig ConnectorConfig) (TaskManager, error) {
 	}
 
 	// Warn if TLS verification is disabled
-	if nB.Connector.InsecureSkipVerify {
+	if nB.Connector.InsecureSkipVerify && !nB.Connector.SuppressSSLWarning {
 		log.Println("WARNING: TLS certificate verification is disabled. This is insecure and should only be used for development with self-signed certificates.")
 	}
 

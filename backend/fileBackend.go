@@ -16,6 +16,18 @@ func (fB *FileBackend) AddTask(listID string, task Task) error {
 	return nil
 }
 
+func (fB *FileBackend) SortTasks(tasks []Task) {
+	// File backend: no specific sorting
+}
+
+func (fB *FileBackend) GetPriorityColor(priority int) string {
+	// File backend: default color scheme
+	if priority >= 1 && priority <= 4 {
+		return "\033[31m"
+	}
+	return ""
+}
+
 func NewFileBackend(connectorConfig ConnectorConfig) (TaskManager, error) {
 	return &FileBackend{
 		Connector: connectorConfig,

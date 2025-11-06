@@ -20,6 +20,7 @@ func (e *UnsupportedSchemeError) Error() string {
 type ConnectorConfig struct {
 	URL                *url.URL `json:"url"`
 	InsecureSkipVerify bool     `json:"insecure_skip_verify,omitempty"` // WARNING: Only use for self-signed certificates in dev
+	SuppressSSLWarning bool     `json:"suppress_ssl_warning,omitempty"` // Suppress SSL warning when InsecureSkipVerify is true
 	// Type     string `json:"type" validate:"required,oneof=nextcloud local"`
 	//  Timeout  int    `json:"timeout,omitempty"`
 }
@@ -31,6 +32,7 @@ func (c *ConnectorConfig) UnmarshalJSON(data []byte) error {
 		*ConnConfig
 		URL                string `json:"url"`
 		InsecureSkipVerify bool   `json:"insecure_skip_verify,omitempty"`
+		SuppressSSLWarning bool   `json:"suppress_ssl_warning,omitempty"`
 	}{
 		ConnConfig: (*ConnConfig)(c),
 	}
@@ -46,6 +48,7 @@ func (c *ConnectorConfig) UnmarshalJSON(data []byte) error {
 
 	tmp.ConnConfig.URL = u
 	tmp.ConnConfig.InsecureSkipVerify = tmp.InsecureSkipVerify
+	tmp.ConnConfig.SuppressSSLWarning = tmp.SuppressSSLWarning
 
 	return nil
 }
@@ -67,6 +70,8 @@ type TaskManager interface {
 	GetTaskLists() ([]TaskList, error)
 	GetTasks(listID string, taskFilter *TaskFilter) ([]Task, error)
 	AddTask(listID string, task Task) (error)
+	SortTasks(tasks []Task) // Sort tasks according to backend's preferred order
+	GetPriorityColor(priority int) string // Get ANSI color code for priority
 	// Tasks() iter.Seq[Task]
 	// Task(string) (Task, bool)
 	// Create(Task) error
@@ -141,33 +146,89 @@ type Task struct {
 }
 
 func (t Task) String() string {
-	data, _ := json.Marshal(t)
-	var m map[string]any
-	json.Unmarshal(data, &m)
+	return t.FormatWithView("basic", nil, "2006-01-02")
+}
 
+func (t Task) FormatWithView(view string, backend TaskManager, dateFormat string) string {
 	var result strings.Builder
 
-	result.WriteString("\n___\n")
-	// Priority fields
-	priority := []string{"uid", "summary", "description", "status", "created", "modified"}
-	for _, key := range priority {
-		if v, exists := m[key]; exists && v != nil {
-			if key == "summary" {
-				result.WriteString(fmt.Sprintf("\033[1;34m%s: %v\033[0m\n", key, v)) // Green bold
-			} else {
-				result.WriteString(fmt.Sprintf("%s: %v\n", key, v))
-			}
-			delete(m, key)
+	// Status indicator
+	statusColor := ""
+	statusSymbol := "○"
+	switch t.Status {
+	case "COMPLETED":
+		statusColor = "\033[32m" // Green
+		statusSymbol = "✓"
+	case "IN-PROCESS":
+		statusColor = "\033[33m" // Yellow
+		statusSymbol = "●"
+	case "CANCELLED":
+		statusColor = "\033[31m" // Red
+		statusSymbol = "✗"
+	default: // NEEDS-ACTION
+		statusColor = "\033[37m" // White
+		statusSymbol = "○"
+	}
+
+	// Get priority color from backend
+	priorityColor := ""
+	if t.Priority > 0 && backend != nil {
+		priorityColor = backend.GetPriorityColor(t.Priority)
+	}
+
+	// Due date
+	dueStr := ""
+	if t.DueDate != nil {
+		now := time.Now()
+		due := *t.DueDate
+		if due.Before(now) {
+			dueStr = fmt.Sprintf(" \033[31m(overdue: %s)\033[0m", due.Format(dateFormat))
+		} else if due.Sub(now).Hours() < 24 {
+			dueStr = fmt.Sprintf(" \033[33m(due: %s)\033[0m", due.Format(dateFormat))
+		} else {
+			dueStr = fmt.Sprintf(" \033[90m(due: %s)\033[0m", due.Format(dateFormat))
 		}
 	}
 
-	// Remaining fields
-	for k, v := range m {
-		if v != nil {
-			result.WriteString(fmt.Sprintf("%s: %v\n", k, v))
+	// Main line: status + colored summary (by priority) + due
+	summaryColor := priorityColor
+	if summaryColor == "" {
+		summaryColor = "\033[1m" // Bold if no priority color
+	} else {
+		summaryColor = summaryColor + "\033[1m" // Bold + priority color
+	}
+	result.WriteString(fmt.Sprintf("  %s%s\033[0m %s%s\033[0m%s\n",
+		statusColor, statusSymbol, summaryColor, t.Summary, dueStr))
+
+	// Description (if present)
+	if t.Description != "" {
+		desc := strings.ReplaceAll(t.Description, "\n", " ")
+		if len(desc) > 70 {
+			desc = desc[:67] + "..."
+		}
+		result.WriteString(fmt.Sprintf("     \033[2m%s\033[0m\n", desc))
+	}
+
+	// Metadata line: created, modified, priority (only for "all" view)
+	if view == "all" {
+		var metadata []string
+
+		if !t.Created.IsZero() {
+			metadata = append(metadata, fmt.Sprintf("Created: %s", t.Created.Format(dateFormat)))
+		}
+
+		if !t.Modified.IsZero() {
+			metadata = append(metadata, fmt.Sprintf("Modified: %s", t.Modified.Format(dateFormat)))
+		}
+
+		if t.Priority > 0 {
+			metadata = append(metadata, fmt.Sprintf("Priority: %d", t.Priority))
+		}
+
+		if len(metadata) > 0 {
+			result.WriteString(fmt.Sprintf("     \033[2m%s\033[0m\n", strings.Join(metadata, " | ")))
 		}
 	}
-	result.WriteString("‾‾‾")
 
 	return result.String()
 }
@@ -182,33 +243,25 @@ type TaskList struct {
 }
 
 func (t TaskList) String() string {
-	data, _ := json.Marshal(t)
-	var m map[string]any
-	json.Unmarshal(data, &m)
-
 	var result strings.Builder
 
-	result.WriteString("\n___\n")
-	// Priority fields
-	priority := []string{"id", "name", "description", "url", "color"}
-	for _, key := range priority {
-		if v, exists := m[key]; exists && v != nil {
-			if key == "name" {
-				result.WriteString(fmt.Sprintf("\033[1;34m%s: %v\033[0m\n", key, v)) // Green bold
-			} else {
-				result.WriteString(fmt.Sprintf("%s: %v\n", key, v))
-			}
-			delete(m, key)
-		}
+	// Build the title text
+	title := t.Name
+	if t.Description != "" {
+		title = fmt.Sprintf(" - %s", t.Description)
+	} else {
+		title = ""
 	}
 
-	// Remaining fields
-	for k, v := range m {
-		if v != nil {
-			result.WriteString(fmt.Sprintf("%s: %v\n", k, v))
-		}
-	}
-	result.WriteString("‾‾‾")
+	// Top border with corner and title
+	result.WriteString(fmt.Sprintf("\n\033[1;36m┌─ %s%s ", t.Name, title))
+	result.WriteString(strings.Repeat("─", 50))
+	result.WriteString("┐\033[0m\n")
 
 	return result.String()
+}
+
+func (t TaskList) BottomBorder() string {
+	// Bottom border
+	return fmt.Sprintf("\033[1;36m└%s┘\033[0m\n", strings.Repeat("─", 60))
 }

@@ -2,11 +2,14 @@ package main
 
 import (
 	// "context"
+	"encoding/json"
 	"fmt"
 	"gosynctasks/backend"
 	"gosynctasks/internal/config"
 	"log"
-	// "os"
+	"os"
+	"path/filepath"
+	"time"
 	"database/sql"
 	"github.com/spf13/cobra"
 	_ "modernc.org/sqlite"
@@ -56,19 +59,134 @@ func initDB() (*sql.DB, error) {
 	return db, err
 }
 
-func (a *App) loadTaskLists() error {
-	var err error
-	a.taskLists, err = a.taskManager.GetTaskLists()
-	return err
+func getCacheDir() (string, error) {
+	cacheDir := os.Getenv("XDG_CACHE_HOME")
+	if cacheDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		cacheDir = filepath.Join(home, ".cache")
+	}
+	cacheDir = filepath.Join(cacheDir, "gosynctasks")
+	return cacheDir, os.MkdirAll(cacheDir, 0755)
 }
 
-func (a *App) listNameCompletion(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+func getCacheFile() (string, error) {
+	cacheDir, err := getCacheDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(cacheDir, "lists.json"), nil
+}
+
+type cachedData struct {
+	Lists     []backend.TaskList `json:"lists"`
+	Timestamp int64              `json:"timestamp"`
+}
+
+func (a *App) loadTaskListsFromCache() error {
+	cacheFile, err := getCacheFile()
+	if err != nil {
+		return err
+	}
+
+	data, err := os.ReadFile(cacheFile)
+	if err != nil {
+		return err
+	}
+
+	var cached cachedData
+	if err := json.Unmarshal(data, &cached); err != nil {
+		return err
+	}
+
+	a.taskLists = cached.Lists
+	return nil
+}
+
+func (a *App) saveTaskListsToCache() error {
+	cacheFile, err := getCacheFile()
+	if err != nil {
+		return err
+	}
+
+	cached := cachedData{
+		Lists:     a.taskLists,
+		Timestamp: time.Now().Unix(),
+	}
+
+	data, err := json.MarshalIndent(cached, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(cacheFile, data, 0644)
+}
+
+func (a *App) loadTaskLists() error {
+	// Try cache first
+	if err := a.loadTaskListsFromCache(); err == nil {
+		return nil
+	}
+
+	// Fetch from remote
+	var err error
+	a.taskLists, err = a.taskManager.GetTaskLists()
+	if err != nil {
+		return err
+	}
+
+	// Save to cache for next time
+	_ = a.saveTaskListsToCache()
+	return nil
+}
+
+func (a *App) refreshTaskLists() error {
+	var err error
+	a.taskLists, err = a.taskManager.GetTaskLists()
+	if err != nil {
+		return err
+	}
+	_ = a.saveTaskListsToCache()
+	return nil
+}
+
+func (a *App) smartCompletion(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	var completions []string
-	for _, list := range a.taskLists {
-		if strings.HasPrefix(strings.ToLower(list.Name), strings.ToLower(toComplete)) {
-			completions = append(completions, list.Name)
+
+	// First argument: suggest actions OR list names
+	if len(args) == 0 {
+		actions := []string{"get", "add"}
+		for _, action := range actions {
+			if strings.HasPrefix(action, strings.ToLower(toComplete)) {
+				completions = append(completions, action)
+			}
+		}
+
+		// Also suggest list names for direct access
+		for _, list := range a.taskLists {
+			if strings.HasPrefix(strings.ToLower(list.Name), strings.ToLower(toComplete)) {
+				completions = append(completions, list.Name)
+			}
 		}
 	}
+
+	// Second argument (after action): suggest list names only
+	if len(args) == 1 {
+		for _, list := range a.taskLists {
+			if strings.HasPrefix(strings.ToLower(list.Name), strings.ToLower(toComplete)) {
+				completions = append(completions, list.Name)
+			}
+		}
+	}
+
+	// Third argument (after "add <list>"): no completion, user enters task summary
+	// Return directive to stop completion
+	if len(args) >= 2 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
 	return completions, cobra.ShellCompDirectiveNoFileComp
 }
 
@@ -128,7 +246,6 @@ func (a *App) buildFilter(cmd *cobra.Command) *backend.TaskFilter {
 				allStatuses = append(allStatuses, strings.TrimSpace(part))
 			}
 		}
-		fmt.Println(allStatuses)
 
 		// Convert to full status names and uppercase
 		var upperStatuses []string
@@ -145,7 +262,6 @@ func (a *App) buildFilter(cmd *cobra.Command) *backend.TaskFilter {
 			case "C":
 				upperStatus = "CANCELLED"
 			}
-			fmt.Println(upperStatus)
 			upperStatuses = append(upperStatuses, upperStatus)
 		}
 		filter.Statuses = &upperStatuses
@@ -155,6 +271,11 @@ func (a *App) buildFilter(cmd *cobra.Command) *backend.TaskFilter {
 }
 
 func (a *App) run(cmd *cobra.Command, args []string) error {
+	// Refresh task lists from remote for actual operations
+	if err := a.refreshTaskLists(); err != nil {
+		log.Printf("Warning: Could not refresh task lists: %v", err)
+	}
+
 	var listName string
 	var taskSummary string
 	action := "get"
@@ -171,7 +292,6 @@ func (a *App) run(cmd *cobra.Command, args []string) error {
 	}
 
 	filter := a.buildFilter(cmd)
-	fmt.Println(&filter)
 
 	selectedList, err := a.getSelectedList(listName)
 	if err != nil {
@@ -185,8 +305,17 @@ func (a *App) run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("error retrieving tasks: %w", err)
 		}
 
+		// Sort using backend-specific sorting
+		a.taskManager.SortTasks(tasks)
+
+		view, _ := cmd.Flags().GetString("view")
+		dateFormat := a.config.GetDateFormat()
+
 		fmt.Println(selectedList)
-		fmt.Println(tasks)
+		for _, task := range tasks {
+			fmt.Print(task.FormatWithView(view, a.taskManager, dateFormat))
+		}
+		fmt.Print(selectedList.BottomBorder())
 		return nil
 
 	case "add":
@@ -240,11 +369,12 @@ Examples:
   gosynctasks add MyList                # Add a task (will prompt for summary)
   gosynctasks -s TODO,PROCESSING MyList # Filter tasks by status`,
 		Args:              cobra.MaximumNArgs(3),
-		ValidArgsFunction: app.listNameCompletion,
+		ValidArgsFunction: app.smartCompletion,
 		RunE:              app.run,
 	}
 
 	rootCmd.Flags().StringArrayP("status", "s", []string{}, "filter by status ([T]ODO, [D]ONE, [P]ROCESSING, [C]ANCELLED)")
+	rootCmd.Flags().StringP("view", "v", "basic", "view mode (basic, all)")
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)

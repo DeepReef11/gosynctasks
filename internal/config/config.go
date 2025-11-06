@@ -36,14 +36,21 @@ const (
 
 type Config struct {
 	Connector      backend.ConnectorConfig `json:"connector"`
-	CanWriteConfig bool                       `json:"canWriteConfig"`
-	UI string                       `json:"ui" validate:"oneof=cli tui"`
-
+	CanWriteConfig bool                    `json:"canWriteConfig"`
+	UI             string                  `json:"ui" validate:"oneof=cli tui"`
+	DateFormat     string                  `json:"date_format,omitempty"` // Go time format string, defaults to "2006-01-02"
 }
 
 func (c Config) Validate() error {
 	validate := validator.New()
 	return validate.Struct(c)
+}
+
+func (c *Config) GetDateFormat() string {
+	if c.DateFormat == "" {
+		return "2006-01-02" // Default to yyyy-mm-dd
+	}
+	return c.DateFormat
 }
 
 func GetConfig() *Config {
