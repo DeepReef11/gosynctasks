@@ -211,14 +211,9 @@ func (t Task) FormatWithView(view string, backend TaskManager, dateFormat string
 		result.WriteString(fmt.Sprintf("     \033[2m%s\033[0m\n", desc))
 	}
 
-	// Metadata line: UID, created, modified, priority (only for "all" view)
+	// Metadata line: created, modified, priority (only for "all" view)
 	if view == "all" {
 		var metadata []string
-
-		// Always show UID in all view
-		if t.UID != "" {
-			metadata = append(metadata, fmt.Sprintf("UID: %s", t.UID))
-		}
 
 		if !t.Created.IsZero() {
 			metadata = append(metadata, fmt.Sprintf("Created: %s", t.Created.Format(dateFormat)))
@@ -250,25 +245,54 @@ type TaskList struct {
 }
 
 func (t TaskList) String() string {
+	return t.StringWithWidth(80) // Default width
+}
+
+func (t TaskList) StringWithWidth(termWidth int) string {
 	var result strings.Builder
 
+	// Calculate border width
+	borderWidth := termWidth - 2
+	if borderWidth < 40 {
+		borderWidth = 40
+	}
+	if borderWidth > 100 {
+		borderWidth = 100
+	}
+
 	// Build the title text
-	title := t.Name
+	titleText := "─ " + t.Name
 	if t.Description != "" {
-		title = fmt.Sprintf(" - %s", t.Description)
-	} else {
-		title = ""
+		titleText += " - " + t.Description
+	}
+	titleText += " "
+
+	// Calculate padding for header
+	headerPadding := borderWidth - len(titleText) - 1
+	if headerPadding < 0 {
+		headerPadding = 0
 	}
 
 	// Top border with corner and title
-	result.WriteString(fmt.Sprintf("\n\033[1;36m┌─ %s%s ", t.Name, title))
-	result.WriteString(strings.Repeat("─", 50))
-	result.WriteString("┐\033[0m\n")
+	result.WriteString(fmt.Sprintf("\n\033[1;36m┌%s%s┐\033[0m\n", titleText, strings.Repeat("─", headerPadding)))
 
 	return result.String()
 }
 
 func (t TaskList) BottomBorder() string {
+	return t.BottomBorderWithWidth(80) // Default width
+}
+
+func (t TaskList) BottomBorderWithWidth(termWidth int) string {
+	// Calculate border width
+	borderWidth := termWidth - 2
+	if borderWidth < 40 {
+		borderWidth = 40
+	}
+	if borderWidth > 100 {
+		borderWidth = 100
+	}
+
 	// Bottom border
-	return fmt.Sprintf("\033[1;36m└%s┘\033[0m\n", strings.Repeat("─", 60))
+	return fmt.Sprintf("\033[1;36m└%s┘\033[0m\n", strings.Repeat("─", borderWidth))
 }

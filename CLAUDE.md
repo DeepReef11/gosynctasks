@@ -19,26 +19,26 @@ go run ./cmd/gosynctasks/main.go
 # Basic usage patterns
 gosynctasks                              # Interactive list selection
 gosynctasks MyList                       # Show tasks from "MyList"
-gosynctasks get MyList                   # Explicit get action (g also works)
-gosynctasks -s TODO,DONE MyList          # Filter by status (T/D/P/C abbreviations)
+gosynctasks MyList get                   # Explicit get action (g also works)
+gosynctasks MyList -s TODO,DONE          # Filter by status (T/D/P/C abbreviations)
 
 # Adding tasks
-gosynctasks add MyList "Task summary"    # Create task (a also works)
-gosynctasks add MyList                   # Will prompt for summary
-gosynctasks add MyList "Task" -d "Details" -p 1 -S done  # With description, priority, status
+gosynctasks MyList add "Task summary"    # Create task (a also works)
+gosynctasks MyList add                   # Will prompt for summary
+gosynctasks MyList add "Task" -d "Details" -p 1 -S done  # With description, priority, status
 
 # Updating tasks
-gosynctasks update MyList "task name" -s DONE     # Find and update status (u also works)
-gosynctasks update MyList "partial" -p 5          # Partial match, update priority
-gosynctasks update MyList "old" --summary "new"   # Rename task
+gosynctasks MyList update "task name" -s DONE     # Find and update status (u also works)
+gosynctasks MyList update "partial" -p 5          # Partial match, update priority
+gosynctasks MyList update "old" --summary "new"   # Rename task
 
 # Completing tasks (shortcut for status changes)
-gosynctasks complete MyList "task name"           # Mark as DONE (c also works)
-gosynctasks complete MyList "task" -s TODO        # Change to TODO
-gosynctasks complete MyList "task" -s PROCESSING  # Change to PROCESSING
+gosynctasks MyList complete "task name"           # Mark as DONE (c also works)
+gosynctasks MyList complete "task" -s TODO        # Change to TODO
+gosynctasks MyList complete "task" -s PROCESSING  # Change to PROCESSING
 
 # View options
-gosynctasks -v all MyList                # Show all metadata (UID, dates, priority)
+gosynctasks MyList -v all                # Show all metadata (dates, priority)
 ```
 
 ### Testing
@@ -128,6 +128,10 @@ The app uses **dual status naming** (backend/taskManager.go:89-133):
 
 ### CLI Structure (cmd/gosynctasks/main.go)
 - Built with `github.com/spf13/cobra`
+- **Argument order**: `gosynctasks [list-name] [action] [task-summary]`
+  - List name comes first (context-based approach)
+  - Action is optional (defaults to `get`)
+  - Task summary for add/update/complete operations
 - **App struct** encapsulates state:
   - `taskLists`: Cached list of available task lists
   - `taskManager`: Active backend implementation
@@ -146,8 +150,18 @@ The app uses **dual status naming** (backend/taskManager.go:89-133):
   - `selectTask()`: Interactive selection when multiple matches found
   - `confirmTask()`: Confirmation prompt for single partial match
   - Handles exact matches, partial matches, and multiple matches
-- **Interactive mode**: If no list name provided, shows numbered selection
-- **Shell completion**: Supports tab-completion of actions and task list names
+- **Interactive mode** (lines 205-270): Enhanced list selection when no list name provided
+  - Shows formatted table with borders and colors
+  - **Dynamic terminal width detection**: Borders adapt to terminal size (40-100 chars)
+  - Cross-platform terminal size detection using `golang.org/x/term`
+  - Displays task count for each list (e.g., "5 tasks")
+  - Shows list descriptions in gray text
+  - Allows cancellation with "0"
+  - Clear visual hierarchy with cyan borders and bold list names
+- **Shell completion** (lines 156-185):
+  - First arg: completes to list names
+  - Second arg: completes to actions (get/add/update/complete - full names only)
+  - Third arg: no completion (user enters task summary)
 - **Filter building**: Constructs `TaskFilter` from CLI flags with abbreviation support (T/D/P/C)
 
 ### Data Models
@@ -162,19 +176,22 @@ Follows iCalendar VTODO spec:
 - Supports subtasks via `ParentUID`
 - **Formatting methods**:
   - `String()` (line 150-152): Default basic format output
-  - `FormatWithView(view, backend, dateFormat)` (line 154-241): Rich formatting with:
+  - `FormatWithView(view, backend, dateFormat)` (line 154-236): Rich formatting with:
     - Status indicators with color (✓ ○ ● ✗)
     - Priority-based coloring (from backend)
     - Due date display with overdue/upcoming highlighting
     - Description preview (truncated to 70 chars)
-    - Metadata display in "all" view (UID, created, modified, priority)
+    - Metadata display in "all" view (created, modified, priority)
 
 #### TaskList (backend/taskManager.go:243-250)
 - Represents a calendar/list containing tasks
 - Contains CalDAV-specific fields: `CTags` for sync, `Color` for UI
 - **Formatting methods**:
-  - `String()` (line 252-269): Renders top border with list name and description
-  - `BottomBorder()` (line 271-274): Renders bottom border for task list display
+  - `String()` (line 247-249): Renders top border with default 80-char width
+  - `StringWithWidth(termWidth)` (line 251-280): Renders top border with dynamic width
+  - `BottomBorder()` (line 282-284): Renders bottom border with default 80-char width
+  - `BottomBorderWithWidth(termWidth)` (line 286-298): Renders bottom border with dynamic width
+  - All methods use configurable width with min/max constraints (40-100 chars)
 
 ### iCalendar Parsing (backend/parseVTODOs.go)
 - Manual XML and iCalendar parsing (no external parser library)
@@ -184,6 +201,17 @@ Follows iCalendar VTODO spec:
 - `unescapeText()`: Handles iCalendar escape sequences (\n, \,, \;, \\)
 
 ## Common Patterns
+
+### Terminal Width Detection
+The application uses `golang.org/x/term` for cross-platform terminal size detection:
+- **Helper function**: `getTerminalWidth()` (main.go:196-203)
+- **Default fallback**: Returns 80 if terminal size cannot be detected
+- **Platform support**: Linux, macOS, Windows (including Wayland on Linux)
+- **Width constraints**: 40-100 characters (min-max)
+- **Used for**:
+  - List selection interface borders
+  - Task list display borders
+  - Dynamic formatting based on terminal size
 
 ### Adding a New Backend
 1. Create new file in `backend/` (e.g., `sqliteBackend.go`)
@@ -222,7 +250,7 @@ err = taskManager.UpdateTask(listID, *task)
 **User Experience**:
 - Exact matches proceed without confirmation
 - Partial matches show task details for verification
-- Multiple matches display numbered list with "all" view (includes UID, dates, priority)
+- Multiple matches display numbered list with "all" view (includes dates, priority)
 - User can cancel at selection prompt
 
 ### Working with Status Filters
