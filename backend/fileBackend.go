@@ -1,5 +1,10 @@
 package backend
 
+import (
+	"fmt"
+	"strings"
+)
+
 type FileBackend struct {
 	Connector ConnectorConfig
 }
@@ -22,6 +27,37 @@ func (fB *FileBackend) AddTask(listID string, task Task) error {
 
 func (fB *FileBackend) UpdateTask(listID string, task Task) error {
 	return nil
+}
+
+func (fB *FileBackend) DeleteTask(listID string, taskUID string) error {
+	return nil
+}
+
+func (fB *FileBackend) ParseStatusFlag(statusFlag string) (string, error) {
+	if statusFlag == "" {
+		return "", fmt.Errorf("status flag cannot be empty")
+	}
+
+	upperStatus := strings.ToUpper(statusFlag)
+
+	// FileBackend uses display names directly (TODO, DONE, PROCESSING, CANCELLED)
+	switch upperStatus {
+	case "T", "TODO":
+		return "TODO", nil
+	case "D", "DONE":
+		return "DONE", nil
+	case "P", "PROCESSING":
+		return "PROCESSING", nil
+	case "C", "CANCELLED":
+		return "CANCELLED", nil
+	default:
+		return "", fmt.Errorf("invalid status: %s (valid: TODO/T, DONE/D, PROCESSING/P, CANCELLED/C)", statusFlag)
+	}
+}
+
+func (fB *FileBackend) StatusToDisplayName(backendStatus string) string {
+	// FileBackend already uses display names, so just return as-is
+	return strings.ToUpper(backendStatus)
 }
 
 func (fB *FileBackend) SortTasks(tasks []Task) {

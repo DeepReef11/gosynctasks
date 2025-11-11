@@ -25,10 +25,11 @@ func ExecuteAction(taskManager backend.TaskManager, cfg *config.Config, taskList
 		action = args[1]
 	}
 	if len(args) >= 3 {
-		// For update/complete: arg[2] is summary to search for
+		// For update/complete/delete: arg[2] is summary to search for
 		// For add: arg[2] is task summary to create
 		if strings.ToLower(action) == "update" || strings.ToLower(action) == "u" ||
-			strings.ToLower(action) == "complete" || strings.ToLower(action) == "c" {
+			strings.ToLower(action) == "complete" || strings.ToLower(action) == "c" ||
+			strings.ToLower(action) == "delete" || strings.ToLower(action) == "d" {
 			searchSummary = args[2]
 		} else {
 			taskSummary = args[2]
@@ -38,9 +39,12 @@ func ExecuteAction(taskManager backend.TaskManager, cfg *config.Config, taskList
 	// Normalize action (support abbreviations)
 	action = NormalizeAction(action)
 
-	filter := BuildFilter(cmd)
-
 	selectedList, err := GetSelectedList(taskLists, taskManager, listName)
+	if err != nil {
+		return err
+	}
+
+	filter, err := BuildFilter(cmd, taskManager)
 	if err != nil {
 		return err
 	}
@@ -58,8 +62,11 @@ func ExecuteAction(taskManager backend.TaskManager, cfg *config.Config, taskList
 	case "complete":
 		return HandleCompleteAction(cmd, taskManager, cfg, selectedList, searchSummary)
 
+	case "delete":
+		return HandleDeleteAction(cmd, taskManager, cfg, selectedList, searchSummary)
+
 	default:
-		return fmt.Errorf("unknown action: %s (supported: get/g, add/a, update/u, complete/c)", action)
+		return fmt.Errorf("unknown action: %s (supported: get/g, add/a, update/u, complete/c, delete/d)", action)
 	}
 }
 
@@ -75,6 +82,8 @@ func NormalizeAction(action string) string {
 		return "update"
 	case "c":
 		return "complete"
+	case "d":
+		return "delete"
 	default:
 		return action
 	}
@@ -123,28 +132,16 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 	priority, _ := cmd.Flags().GetInt("priority")
 	statusFlag, _ := cmd.Flags().GetString("add-status")
 
-	// Default status
-	taskStatus := "NEEDS-ACTION"
-
-	// Handle status flag (case insensitive, translate app statuses)
+	// Default status: use backend's parser with "TODO" as default
+	var taskStatus string
+	var err error
 	if statusFlag != "" {
-		upperStatus := strings.ToUpper(statusFlag)
-		// Handle app status names and abbreviations
-		switch upperStatus {
-		case "T", "TODO":
-			taskStatus = "NEEDS-ACTION"
-		case "D", "DONE":
-			taskStatus = "COMPLETED"
-		case "P", "PROCESSING":
-			taskStatus = "IN-PROCESS"
-		case "C", "CANCELLED":
-			taskStatus = "CANCELLED"
-		// Also accept backend status names directly
-		case "NEEDS-ACTION", "COMPLETED", "IN-PROCESS":
-			taskStatus = upperStatus
-		default:
-			return fmt.Errorf("invalid status: %s (valid: TODO/T, DONE/D, PROCESSING/P, CANCELLED/C, or backend statuses)", statusFlag)
-		}
+		taskStatus, err = taskManager.ParseStatusFlag(statusFlag)
+	} else {
+		taskStatus, err = taskManager.ParseStatusFlag("TODO")
+	}
+	if err != nil {
+		return err
 	}
 
 	// Validate priority
@@ -189,22 +186,11 @@ func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 	// Update fields if provided
 	// For update action, use first status value if provided
 	if len(statusFlags) > 0 && statusFlags[0] != "" {
-		statusFlag := statusFlags[0]
-		upperStatus := strings.ToUpper(statusFlag)
-		switch upperStatus {
-		case "T", "TODO":
-			taskToUpdate.Status = "NEEDS-ACTION"
-		case "D", "DONE":
-			taskToUpdate.Status = "COMPLETED"
-		case "P", "PROCESSING":
-			taskToUpdate.Status = "IN-PROCESS"
-		case "C", "CANCELLED":
-			taskToUpdate.Status = "CANCELLED"
-		case "NEEDS-ACTION", "COMPLETED", "IN-PROCESS":
-			taskToUpdate.Status = upperStatus
-		default:
-			return fmt.Errorf("invalid status: %s (valid: TODO/T, DONE/D, PROCESSING/P, CANCELLED/C)", statusFlag)
+		newStatus, err := taskManager.ParseStatusFlag(statusFlags[0])
+		if err != nil {
+			return err
 		}
+		taskToUpdate.Status = newStatus
 	}
 
 	if summaryFlag != "" {
@@ -244,34 +230,21 @@ func HandleCompleteAction(cmd *cobra.Command, taskManager backend.TaskManager, c
 		return err
 	}
 
-	// Get status flag (if provided), otherwise default to COMPLETED
+	// Get status flag (if provided), otherwise default to DONE
 	statusFlags, _ := cmd.Flags().GetStringArray("status")
-	newStatus := "COMPLETED" // Default
-	statusName := "completed"
+	var newStatus string
 
 	if len(statusFlags) > 0 && statusFlags[0] != "" {
-		statusFlag := statusFlags[0]
-		upperStatus := strings.ToUpper(statusFlag)
-		switch upperStatus {
-		case "T", "TODO":
-			newStatus = "NEEDS-ACTION"
-			statusName = "TODO"
-		case "D", "DONE":
-			newStatus = "COMPLETED"
-			statusName = "DONE"
-		case "P", "PROCESSING":
-			newStatus = "IN-PROCESS"
-			statusName = "PROCESSING"
-		case "C", "CANCELLED":
-			newStatus = "CANCELLED"
-			statusName = "CANCELLED"
-		case "NEEDS-ACTION", "COMPLETED", "IN-PROCESS":
-			newStatus = upperStatus
-			statusName = upperStatus
-		default:
-			return fmt.Errorf("invalid status: %s (valid: TODO/T, DONE/D, PROCESSING/P, CANCELLED/C)", statusFlag)
-		}
+		newStatus, err = taskManager.ParseStatusFlag(statusFlags[0])
+	} else {
+		newStatus, err = taskManager.ParseStatusFlag("DONE")
 	}
+	if err != nil {
+		return err
+	}
+
+	// Get display name for user feedback
+	statusName := taskManager.StatusToDisplayName(newStatus)
 
 	// Set the new status
 	taskToComplete.Status = newStatus
@@ -282,5 +255,39 @@ func HandleCompleteAction(cmd *cobra.Command, taskManager backend.TaskManager, c
 	}
 
 	fmt.Printf("Task '%s' marked as %s in list '%s'\n", taskToComplete.Summary, statusName, selectedList.Name)
+	return nil
+}
+
+// HandleDeleteAction deletes a task by summary
+func HandleDeleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *config.Config, selectedList *backend.TaskList, searchSummary string) error {
+	// Get the task summary to search for
+	if searchSummary == "" {
+		return fmt.Errorf("task summary is required for delete (usage: gosynctasks <list> delete <task-summary>)")
+	}
+
+	// Find the task by summary (handles exact/partial/multiple matches)
+	taskToDelete, err := FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary)
+	if err != nil {
+		return err
+	}
+
+	// Show a final confirmation before deletion
+	fmt.Printf("\nAre you sure you want to delete task '%s'? This action cannot be undone. (y/n): ", taskToDelete.Summary)
+	var response string
+	if _, err := fmt.Scanf("%s", &response); err != nil {
+		return fmt.Errorf("invalid input: %w", err)
+	}
+
+	response = strings.ToLower(strings.TrimSpace(response))
+	if response != "y" && response != "yes" {
+		return fmt.Errorf("deletion cancelled")
+	}
+
+	// Delete the task
+	if err := taskManager.DeleteTask(selectedList.ID, taskToDelete.UID); err != nil {
+		return fmt.Errorf("error deleting task: %w", err)
+	}
+
+	fmt.Printf("Task '%s' deleted successfully from list '%s'\n", taskToDelete.Summary, selectedList.Name)
 	return nil
 }

@@ -75,10 +75,8 @@ func (nB *NextcloudBackend) buildCalendarQuery(filter *TaskFilter) string {
 
 	if filter != nil {
 		if filter.Statuses != nil {
-
-			standarizedStatuses := StatusStringTranslateToStandardStatus(filter.Statuses)
-
-			for _, status := range *standarizedStatuses {
+			// Statuses are already in CalDAV format from BuildFilter
+			for _, status := range *filter.Statuses {
 				if status == "NEEDS-ACTION" {
 					query += `<c:prop-filter name="COMPLETED">
   <c:is-not-defined/>
@@ -275,7 +273,11 @@ func (nB *NextcloudBackend) AddTask(listID string, task Task) (error) {
 
 	// Check response status
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("request failed with status: %d %s", resp.StatusCode, resp.Status)
+		body, _ := io.ReadAll(resp.Body)
+		return NewBackendError("AddTask", resp.StatusCode, resp.Status).
+			WithTaskUID(task.UID).
+			WithListID(listID).
+			WithBody(string(body))
 	}
 
 	return nil
@@ -326,7 +328,58 @@ func (nB *NextcloudBackend) UpdateTask(listID string, task Task) (error) {
 	// Check response status
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("request failed with status: %d %s, body: %s", resp.StatusCode, resp.Status, string(body))
+		return NewBackendError("UpdateTask", resp.StatusCode, resp.Status).
+			WithTaskUID(task.UID).
+			WithListID(listID).
+			WithBody(string(body))
+	}
+
+	return nil
+
+}
+
+func (nB *NextcloudBackend) DeleteTask(listID string, taskUID string) (error) {
+
+	username := nB.getUsername()
+	password := nB.getPassword()
+	baseURL := nB.getBaseURL()
+
+	// Construct the URL for the task
+	url := fmt.Sprintf("%s/remote.php/dav/calendars/%s/%s/%s.ics",
+		baseURL, username, listID, taskUID)
+
+	// Create HTTP DELETE request
+	req, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set authentication
+	req.SetBasicAuth(username, password)
+
+	// Send request
+	client := nB.getClient()
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+
+	defer resp.Body.Close()
+
+	// Check response status
+	// 204 No Content is the success status for DELETE
+	// 404 Not Found means the task doesn't exist (could be already deleted)
+	if resp.StatusCode == 404 {
+		return NewBackendError("DeleteTask", 404, "task not found (may have been already deleted)").
+			WithTaskUID(taskUID).
+			WithListID(listID)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return NewBackendError("DeleteTask", resp.StatusCode, resp.Status).
+			WithTaskUID(taskUID).
+			WithListID(listID).
+			WithBody(string(body))
 	}
 
 	return nil
@@ -400,6 +453,48 @@ func (nB *NextcloudBackend) SortTasks(tasks []Task) {
 		// Otherwise sort ascending (1, 2, 3, ...)
 		return pi < pj
 	})
+}
+
+func (nB *NextcloudBackend) ParseStatusFlag(statusFlag string) (string, error) {
+	if statusFlag == "" {
+		return "", fmt.Errorf("status flag cannot be empty")
+	}
+
+	upperStatus := strings.ToUpper(statusFlag)
+
+	// Handle app status names and abbreviations
+	// Convert to CalDAV standard status
+	switch upperStatus {
+	case "T", "TODO":
+		return "NEEDS-ACTION", nil
+	case "D", "DONE":
+		return "COMPLETED", nil
+	case "P", "PROCESSING":
+		return "IN-PROCESS", nil
+	case "C", "CANCELLED":
+		return "CANCELLED", nil
+	// Also accept CalDAV status names directly
+	case "NEEDS-ACTION", "COMPLETED", "IN-PROCESS":
+		return upperStatus, nil
+	default:
+		return "", fmt.Errorf("invalid status: %s (valid: TODO/T, DONE/D, PROCESSING/P, CANCELLED/C)", statusFlag)
+	}
+}
+
+func (nB *NextcloudBackend) StatusToDisplayName(backendStatus string) string {
+	// Convert CalDAV status to display name
+	switch strings.ToUpper(backendStatus) {
+	case "NEEDS-ACTION":
+		return "TODO"
+	case "COMPLETED":
+		return "DONE"
+	case "IN-PROCESS":
+		return "PROCESSING"
+	case "CANCELLED":
+		return "CANCELLED"
+	default:
+		return backendStatus
+	}
 }
 
 func (nB *NextcloudBackend) GetPriorityColor(priority int) string {

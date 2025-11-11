@@ -22,6 +22,8 @@ var configOnce sync.Once
 
 var globalConfig *Config
 
+var customConfigPath string // Custom config path set via --config flag
+
 // var globalConnector *connectors.TaskConnector
 
 //go:embed config.sample.json
@@ -53,6 +55,25 @@ func (c *Config) GetDateFormat() string {
 	return c.DateFormat
 }
 
+// SetCustomConfigPath sets a custom config path to use instead of the default user config directory.
+// If path is empty or ".", it uses "./gosynctasks/config.json" (current directory).
+// If path is a directory, it looks for "config.json" inside it.
+// If path is a file, it uses that file directly.
+// This must be called before GetConfig() is called for the first time.
+func SetCustomConfigPath(path string) {
+	if path == "" || path == "." {
+		customConfigPath = filepath.Join(".", CONFIG_DIR_PATH, CONFIG_FILE_PATH)
+	} else {
+		// Check if path is a directory
+		info, err := os.Stat(path)
+		if err == nil && info.IsDir() {
+			customConfigPath = filepath.Join(path, CONFIG_FILE_PATH)
+		} else {
+			customConfigPath = path
+		}
+	}
+}
+
 func GetConfig() *Config {
 	configOnce.Do(func() {
 		config, err := loadUserOrSampleConfig()
@@ -81,7 +102,17 @@ func loadUserOrSampleConfig() (*Config, error) {
 }
 
 func GetConfigPath() (string, error) {
+	// If a custom config path was set, check if it exists
+	if customConfigPath != "" {
+		if _, err := os.Stat(customConfigPath); err == nil {
+			return customConfigPath, nil
+		}
+		// Custom path was set but doesn't exist, still return it
+		// (allows creation of config in custom location)
+		return customConfigPath, nil
+	}
 
+	// Otherwise, use the default user config directory
 	dir, err := os.UserConfigDir()
 
 	if err != nil {

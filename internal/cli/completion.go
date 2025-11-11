@@ -23,7 +23,7 @@ func SmartCompletion(taskLists []backend.TaskList) func(*cobra.Command, []string
 
 		// Second argument (after list): suggest actions (full names only)
 		if len(args) == 1 {
-			actions := []string{"get", "add", "update", "complete"}
+			actions := []string{"get", "add", "update", "complete", "delete"}
 			for _, action := range actions {
 				if strings.HasPrefix(action, strings.ToLower(toComplete)) {
 					completions = append(completions, action)

@@ -3,17 +3,18 @@ package main
 import (
 	"gosynctasks/internal/app"
 	"gosynctasks/internal/cli"
+	"gosynctasks/internal/config"
 	"log"
 
 	"github.com/spf13/cobra"
 )
 
-func main() {
-	application, err := app.NewApp()
-	if err != nil {
-		log.Fatal("Failed to initialize app:", err)
-	}
+var (
+	configPath  string
+	application *app.App
+)
 
+func main() {
 	rootCmd := &cobra.Command{
 		Use:   "gosynctasks [list-name] [action] [task-summary]",
 		Short: "Task synchronization tool",
@@ -24,6 +25,7 @@ Actions (abbreviations in parentheses):
   add (a)       - Add a new task to a list
   update (u)    - Update an existing task by summary
   complete (c)  - Change task status by summary (defaults to DONE)
+  delete (d)    - Delete a task by summary
 
 Examples:
   gosynctasks                           # Interactive list selection, show tasks
@@ -41,14 +43,46 @@ Examples:
   gosynctasks MyList update "task" -p 5              # Partial match + set priority
 
   gosynctasks MyList complete "Buy groceries"      # Mark as DONE (default)
-  gosynctasks MyList c "groceries" -s TODO         # Mark as TODO
-  gosynctasks MyList c "task" -s PROCESSING        # Mark as PROCESSING
-  gosynctasks MyList c "old task" -s CANCELLED     # Mark as CANCELLED`,
-		Args:              cobra.MaximumNArgs(3),
-		ValidArgsFunction: cli.SmartCompletion(application.GetTaskLists()),
-		RunE:              application.Run,
+  gosynctasks MyList c "groceries"
+
+  gosynctasks MyList delete "Buy groceries"        # Delete a task
+  gosynctasks MyList d "groceries"                 # Same using abbreviation
+
+Config:
+  --config .                            # Use ./gosynctasks/config.json
+  --config /path/to/config.json         # Use specific config file
+  --config /path/to/dir                 # Use /path/to/dir/config.json
+`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			// Set custom config path if specified
+			if configPath != "" {
+				config.SetCustomConfigPath(configPath)
+			}
+
+			// Initialize app after config path is set
+			var err error
+			application, err = app.NewApp()
+			if err != nil {
+				return err
+			}
+			return nil
+		},
+		Args: cobra.MaximumNArgs(3),
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if application == nil {
+				return []string{}, cobra.ShellCompDirectiveNoFileComp
+			}
+			return cli.SmartCompletion(application.GetTaskLists())(cmd, args, toComplete)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return application.Run(cmd, args)
+		},
 	}
 
+	// Persistent flags (available to all commands)
+	rootCmd.PersistentFlags().StringVar(&configPath, "config", "", "config file path (default: $XDG_CONFIG_HOME/gosynctasks/config.json, use '.' for ./gosynctasks/config.json)")
+
+	// Command flags
 	rootCmd.Flags().StringArrayP("status", "s", []string{}, "filter by status (for get) or set status (for update): [T]ODO, [D]ONE, [P]ROCESSING, [C]ANCELLED")
 	rootCmd.Flags().StringP("view", "v", "basic", "view mode (basic, all)")
 	rootCmd.Flags().StringP("description", "d", "", "task description (for add/update)")

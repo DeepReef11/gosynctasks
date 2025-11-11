@@ -492,3 +492,188 @@ func TestNextcloudBackend_GetPriorityColor(t *testing.T) {
 		})
 	}
 }
+
+func TestNextcloudBackend_ParseStatusFlag(t *testing.T) {
+	backend := &NextcloudBackend{}
+
+	tests := []struct {
+		name        string
+		input       string
+		expected    string
+		expectError bool
+	}{
+		// Abbreviations
+		{name: "abbreviation T", input: "T", expected: "NEEDS-ACTION", expectError: false},
+		{name: "abbreviation D", input: "D", expected: "COMPLETED", expectError: false},
+		{name: "abbreviation P", input: "P", expected: "IN-PROCESS", expectError: false},
+		{name: "abbreviation C", input: "C", expected: "CANCELLED", expectError: false},
+
+		// App status names
+		{name: "TODO", input: "TODO", expected: "NEEDS-ACTION", expectError: false},
+		{name: "DONE", input: "DONE", expected: "COMPLETED", expectError: false},
+		{name: "PROCESSING", input: "PROCESSING", expected: "IN-PROCESS", expectError: false},
+		{name: "CANCELLED", input: "CANCELLED", expected: "CANCELLED", expectError: false},
+
+		// CalDAV status names (already in target format)
+		{name: "NEEDS-ACTION", input: "NEEDS-ACTION", expected: "NEEDS-ACTION", expectError: false},
+		{name: "COMPLETED", input: "COMPLETED", expected: "COMPLETED", expectError: false},
+		{name: "IN-PROCESS", input: "IN-PROCESS", expected: "IN-PROCESS", expectError: false},
+
+		// Case insensitive
+		{name: "lowercase todo", input: "todo", expected: "NEEDS-ACTION", expectError: false},
+		{name: "mixed case Done", input: "Done", expected: "COMPLETED", expectError: false},
+		{name: "lowercase t", input: "t", expected: "NEEDS-ACTION", expectError: false},
+
+		// Error cases
+		{name: "empty string", input: "", expected: "", expectError: true},
+		{name: "invalid status", input: "INVALID", expected: "", expectError: true},
+		{name: "invalid abbreviation", input: "X", expected: "", expectError: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := backend.ParseStatusFlag(tt.input)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("ParseStatusFlag(%q) expected error, got nil", tt.input)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("ParseStatusFlag(%q) unexpected error: %v", tt.input, err)
+				return
+			}
+
+			if result != tt.expected {
+				t.Errorf("ParseStatusFlag(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestNextcloudBackend_StatusToDisplayName(t *testing.T) {
+	backend := &NextcloudBackend{}
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		// CalDAV to Display
+		{name: "NEEDS-ACTION to TODO", input: "NEEDS-ACTION", expected: "TODO"},
+		{name: "COMPLETED to DONE", input: "COMPLETED", expected: "DONE"},
+		{name: "IN-PROCESS to PROCESSING", input: "IN-PROCESS", expected: "PROCESSING"},
+		{name: "CANCELLED to CANCELLED", input: "CANCELLED", expected: "CANCELLED"},
+
+		// Case insensitive
+		{name: "lowercase needs-action", input: "needs-action", expected: "TODO"},
+		{name: "mixed case Completed", input: "Completed", expected: "DONE"},
+
+		// Unknown status passes through
+		{name: "unknown status", input: "CUSTOM-STATUS", expected: "CUSTOM-STATUS"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := backend.StatusToDisplayName(tt.input)
+			if result != tt.expected {
+				t.Errorf("StatusToDisplayName(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestNextcloudBackend_DeleteTask(t *testing.T) {
+	tests := []struct {
+		name           string
+		taskUID        string
+		responseStatus int
+		responseBody   string
+		expectError    bool
+		errorContains  string
+	}{
+		{
+			name:           "successful delete with 204",
+			taskUID:        "task-123",
+			responseStatus: 204,
+			responseBody:   "",
+			expectError:    false,
+		},
+		{
+			name:           "successful delete with 200",
+			taskUID:        "task-456",
+			responseStatus: 200,
+			responseBody:   "",
+			expectError:    false,
+		},
+		{
+			name:           "task not found",
+			taskUID:        "nonexistent",
+			responseStatus: 404,
+			responseBody:   "Not Found",
+			expectError:    true,
+			errorContains:  "task not found",
+		},
+		{
+			name:           "unauthorized",
+			taskUID:        "task-789",
+			responseStatus: 401,
+			responseBody:   "Unauthorized",
+			expectError:    true,
+			errorContains:  "request failed with status: 401",
+		},
+		{
+			name:           "server error",
+			taskUID:        "task-error",
+			responseStatus: 500,
+			responseBody:   "Internal Server Error",
+			expectError:    true,
+			errorContains:  "request failed with status: 500",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create mock server
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Verify request method
+				if r.Method != "DELETE" {
+					t.Errorf("Expected DELETE request, got %s", r.Method)
+				}
+
+				// Verify URL contains task UID
+				if !strings.Contains(r.URL.Path, tt.taskUID) {
+					t.Errorf("Expected URL to contain %s, got %s", tt.taskUID, r.URL.Path)
+				}
+
+				// Send mock response
+				w.WriteHeader(tt.responseStatus)
+				w.Write([]byte(tt.responseBody))
+			}))
+			defer server.Close()
+
+			// Create backend with mock server
+			backend := createTestBackend(t, server.URL)
+
+			// Execute DeleteTask
+			err := backend.DeleteTask("test-list", tt.taskUID)
+
+			// Check error expectation
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("DeleteTask() expected error, got nil")
+					return
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("DeleteTask() error = %q, want error containing %q", err.Error(), tt.errorContains)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("DeleteTask() unexpected error: %v", err)
+				}
+			}
+		})
+	}
+}

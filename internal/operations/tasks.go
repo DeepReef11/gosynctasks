@@ -110,7 +110,8 @@ func confirmTask(task *backend.Task, taskManager backend.TaskManager, cfg *confi
 }
 
 // BuildFilter constructs a TaskFilter from cobra command flags
-func BuildFilter(cmd *cobra.Command) *backend.TaskFilter {
+// Uses the backend's ParseStatusFlag to convert user input to backend-specific format
+func BuildFilter(cmd *cobra.Command, taskManager backend.TaskManager) (*backend.TaskFilter, error) {
 	filter := &backend.TaskFilter{}
 
 	statuses, _ := cmd.Flags().GetStringArray("status")
@@ -124,25 +125,17 @@ func BuildFilter(cmd *cobra.Command) *backend.TaskFilter {
 			}
 		}
 
-		// Convert to full status names and uppercase
-		var upperStatuses []string
+		// Parse each status using backend's parser
+		var parsedStatuses []string
 		for _, status := range allStatuses {
-			upperStatus := strings.ToUpper(status)
-			// Handle abbreviations
-			switch upperStatus {
-			case "P":
-				upperStatus = "PROCESSING"
-			case "D":
-				upperStatus = "DONE"
-			case "T":
-				upperStatus = "TODO"
-			case "C":
-				upperStatus = "CANCELLED"
+			parsed, err := taskManager.ParseStatusFlag(status)
+			if err != nil {
+				return nil, fmt.Errorf("invalid status '%s': %w", status, err)
 			}
-			upperStatuses = append(upperStatuses, upperStatus)
+			parsedStatuses = append(parsedStatuses, parsed)
 		}
-		filter.Statuses = &upperStatuses
+		filter.Statuses = &parsedStatuses
 	}
 
-	return filter
+	return filter, nil
 }
