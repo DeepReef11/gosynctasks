@@ -622,7 +622,7 @@ func TestNextcloudBackend_DeleteTask(t *testing.T) {
 			responseStatus: 401,
 			responseBody:   "Unauthorized",
 			expectError:    true,
-			errorContains:  "request failed with status: 401",
+			errorContains:  "failed with status 401",
 		},
 		{
 			name:           "server error",
@@ -630,7 +630,7 @@ func TestNextcloudBackend_DeleteTask(t *testing.T) {
 			responseStatus: 500,
 			responseBody:   "Internal Server Error",
 			expectError:    true,
-			errorContains:  "request failed with status: 500",
+			errorContains:  "failed with status 500",
 		},
 	}
 

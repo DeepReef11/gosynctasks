@@ -43,11 +43,18 @@ func GetSelectedList(taskLists []backend.TaskList, taskManager backend.TaskManag
 	if listName != "" {
 		selectedList := FindListByName(taskLists, listName)
 		if selectedList == nil {
+			// If no task lists were loaded at all, suggest checking connection
+			if len(taskLists) == 0 {
+				return nil, fmt.Errorf("list '%s' not found - no task lists could be loaded. Please check your connection URL, username, and password in the config file", listName)
+			}
 			return nil, fmt.Errorf("list '%s' not found", listName)
 		}
 		return selectedList, nil
 	}
 
 	// No list name provided, use interactive selection
+	if len(taskLists) == 0 {
+		return nil, fmt.Errorf("no task lists available - failed to connect to backend. Please check your connection URL, username, and password in the config file")
+	}
 	return SelectListInteractively(taskLists, taskManager)
 }
