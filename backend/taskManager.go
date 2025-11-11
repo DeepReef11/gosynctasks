@@ -251,6 +251,7 @@ func (t Task) String() string {
 // The output includes ANSI color codes for terminal display:
 //   - Status symbols: ✓ (done), ● (in progress), ✗ (cancelled), ○ (todo)
 //   - Priority colors: determined by backend.GetPriorityColor()
+//   - Start date colors: cyan (past), yellow (within 3 days), gray (future)
 //   - Due date colors: red (overdue), yellow (due soon), gray (future)
 func (t Task) FormatWithView(view string, backend TaskManager, dateFormat string) string {
 	var result strings.Builder
@@ -279,6 +280,25 @@ func (t Task) FormatWithView(view string, backend TaskManager, dateFormat string
 		priorityColor = backend.GetPriorityColor(t.Priority)
 	}
 
+	// Start date
+	startStr := ""
+	if t.StartDate != nil {
+		now := time.Now()
+		start := *t.StartDate
+		hoursDiff := start.Sub(now).Hours()
+
+		if start.Before(now) {
+			// Past: work should have begun (cyan)
+			startStr = fmt.Sprintf(" \033[36m(starts: %s)\033[0m", start.Format(dateFormat))
+		} else if hoursDiff < 72 { // Within 3 days
+			// Within 3 days (yellow)
+			startStr = fmt.Sprintf(" \033[33m(starts: %s)\033[0m", start.Format(dateFormat))
+		} else {
+			// Future (gray)
+			startStr = fmt.Sprintf(" \033[90m(starts: %s)\033[0m", start.Format(dateFormat))
+		}
+	}
+
 	// Due date
 	dueStr := ""
 	if t.DueDate != nil {
@@ -293,15 +313,15 @@ func (t Task) FormatWithView(view string, backend TaskManager, dateFormat string
 		}
 	}
 
-	// Main line: status + colored summary (by priority) + due
+	// Main line: status + colored summary (by priority) + start + due
 	summaryColor := priorityColor
 	if summaryColor == "" {
 		summaryColor = "\033[1m" // Bold if no priority color
 	} else {
 		summaryColor = summaryColor + "\033[1m" // Bold + priority color
 	}
-	result.WriteString(fmt.Sprintf("  %s%s\033[0m %s%s\033[0m%s\n",
-		statusColor, statusSymbol, summaryColor, t.Summary, dueStr))
+	result.WriteString(fmt.Sprintf("  %s%s\033[0m %s%s\033[0m%s%s\n",
+		statusColor, statusSymbol, summaryColor, t.Summary, startStr, dueStr))
 
 	// Description (if present)
 	if t.Description != "" {
