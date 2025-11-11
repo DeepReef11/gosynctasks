@@ -218,14 +218,27 @@ func (nB *NextcloudBackend) GetTaskLists() ([]TaskList, error) {
 		return nil, fmt.Errorf("failed to read response: %v", err)
 	}
 
+	// Check HTTP status code and return structured error for common failures
+	if resp.StatusCode == 401 || resp.StatusCode == 403 {
+		return nil, NewBackendError("GetTaskLists", resp.StatusCode, "Authentication failed. Please check your username and password in the config file").
+			WithBody(string(respBody))
+	}
+	if resp.StatusCode == 404 {
+		return nil, NewBackendError("GetTaskLists", resp.StatusCode, "Calendar endpoint not found. Please check your Nextcloud URL in the config file").
+			WithBody(string(respBody))
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, NewBackendError("GetTaskLists", resp.StatusCode, resp.Status).
+			WithBody(string(respBody))
+	}
+
 	// fmt.Printf("Response status: %d\n", resp.StatusCode)
 	// fmt.Printf("Response body: %s\n", string(respBody))
 
 	return nB.parseTaskLists(string(respBody), calendarURL)
 }
 
-
-func (nB *NextcloudBackend) AddTask(listID string, task Task) (error) {
+func (nB *NextcloudBackend) AddTask(listID string, task Task) error {
 
 	username := nB.getUsername()
 	password := nB.getPassword()
@@ -284,7 +297,7 @@ func (nB *NextcloudBackend) AddTask(listID string, task Task) (error) {
 
 }
 
-func (nB *NextcloudBackend) UpdateTask(listID string, task Task) (error) {
+func (nB *NextcloudBackend) UpdateTask(listID string, task Task) error {
 
 	username := nB.getUsername()
 	password := nB.getPassword()
@@ -338,7 +351,7 @@ func (nB *NextcloudBackend) UpdateTask(listID string, task Task) (error) {
 
 }
 
-func (nB *NextcloudBackend) DeleteTask(listID string, taskUID string) (error) {
+func (nB *NextcloudBackend) DeleteTask(listID string, taskUID string) error {
 
 	username := nB.getUsername()
 	password := nB.getPassword()

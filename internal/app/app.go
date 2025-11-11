@@ -54,6 +54,18 @@ func (a *App) Run(cmd *cobra.Command, args []string) error {
 	// Refresh task lists from remote for actual operations
 	lists, err := cache.RefreshAndCacheTaskLists(a.taskManager)
 	if err != nil {
+		// Check if it's a backend error that should be surfaced to the user
+		if backendErr, ok := err.(*backend.BackendError); ok {
+			// Authentication or connection errors should stop execution
+			if backendErr.IsUnauthorized() {
+				return backendErr
+			}
+			// Other HTTP errors should also stop execution
+			if backendErr.StatusCode >= 400 {
+				return backendErr
+			}
+		}
+		// For other errors, log warning but try to continue
 		log.Printf("Warning: Could not refresh task lists: %v", err)
 	} else {
 		a.taskLists = lists

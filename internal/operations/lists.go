@@ -45,9 +45,9 @@ func GetSelectedList(taskLists []backend.TaskList, taskManager backend.TaskManag
 		if selectedList == nil {
 			// If no task lists were loaded at all, suggest checking connection
 			if len(taskLists) == 0 {
-				return nil, fmt.Errorf("list '%s' not found - no task lists could be loaded. Please check your connection URL, username, and password in the config file", listName)
+				return nil, fmt.Errorf("list '%s' not found - no task lists could be loaded. This usually means a connection or authentication failure. Please check your connection URL, username, and password in the config file", listName)
 			}
-			return nil, fmt.Errorf("list '%s' not found", listName)
+			return nil, fmt.Errorf("list '%s' not found. Available lists: %s", listName, formatAvailableLists(taskLists))
 		}
 		return selectedList, nil
 	}
@@ -57,4 +57,16 @@ func GetSelectedList(taskLists []backend.TaskList, taskManager backend.TaskManag
 		return nil, fmt.Errorf("no task lists available - failed to connect to backend. Please check your connection URL, username, and password in the config file")
 	}
 	return SelectListInteractively(taskLists, taskManager)
+}
+
+// formatAvailableLists creates a comma-separated list of available task list names
+func formatAvailableLists(taskLists []backend.TaskList) string {
+	if len(taskLists) == 0 {
+		return "(none)"
+	}
+	names := make([]string, len(taskLists))
+	for i, list := range taskLists {
+		names[i] = list.Name
+	}
+	return strings.Join(names, ", ")
 }
