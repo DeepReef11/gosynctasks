@@ -511,3 +511,27 @@ When operating offline (remote unreachable):
 - Transactional sync operations (rollback on failure)
 - Retry logic with exponential backoff
 - Preserve failed operations for manual resolution
+
+### Fix
+
+
+- [ ] Fix error message when connection failed.
+    - I tried with wrong user, got the following message. Should be something like wrong user or failed to connect, check url, user, etc.
+    ```
+    Error: list 'tasks' not found
+    Usage:
+      gosynctasks [list-name] [action] [task-summary] [flags]
+
+    Flags:
+      -S, --add-status string    task status when adding (TODO/T, DONE/D, PROCESSING/P, CANCELLED/C)
+          --config string        config file path (default: $XDG_CONFIG_HOME/gosynctasks/config.json, use '.' for ./gosynctasks/config.json)
+      -d, --description string   task description (for add/update)
+      -h, --help                 help for gosynctasks
+      -p, --priority int         task priority (for add/update, 0-9: 0=undefined, 1=highest, 9=lowest)
+      -s, --status stringArray   filter by status (for get) or set status (for update): [T]ODO, [D]ONE, [P]ROCESSING, [C]ANCELLED
+          --summary string       task summary (for update)
+      -v, --view string          view mode (basic, all) (default "basic")
+
+    2025/11/11 09:53:43 list 'tasks' not found
+    
+    ```
