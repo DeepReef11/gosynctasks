@@ -176,6 +176,44 @@ func TestNextcloudBackend_GetTaskLists(t *testing.T) {
 	}
 }
 
+func TestNextcloudBackend_GetTaskLists_AuthenticationError(t *testing.T) {
+	// Create mock CalDAV server that returns 401
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("Unauthorized"))
+	}))
+	defer server.Close()
+
+	// Create backend with test server
+	backend := createTestBackend(t, server.URL)
+
+	// Test GetTaskLists with authentication failure
+	_, err := backend.GetTaskLists()
+	if err == nil {
+		t.Fatal("Expected error for 401 response, got nil")
+	}
+
+	// Verify it's a BackendError
+	backendErr, ok := err.(*BackendError)
+	if !ok {
+		t.Fatalf("Expected BackendError, got %T", err)
+	}
+
+	// Verify it's recognized as unauthorized
+	if !backendErr.IsUnauthorized() {
+		t.Errorf("Expected IsUnauthorized() to be true for 401 error")
+	}
+
+	// Verify error message contains helpful information
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "Authentication failed") {
+		t.Errorf("Expected error message to mention authentication failure, got: %s", errMsg)
+	}
+	if !strings.Contains(errMsg, "username and password") {
+		t.Errorf("Expected error message to mention username and password, got: %s", errMsg)
+	}
+}
+
 func TestNextcloudBackend_GetTasks(t *testing.T) {
 	// Create mock CalDAV server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -450,11 +488,11 @@ func TestNextcloudBackend_SortTasks(t *testing.T) {
 	backend := &NextcloudBackend{}
 
 	tasks := []Task{
-		{Summary: "Task A", Priority: 0},  // Undefined (should be last)
-		{Summary: "Task B", Priority: 5},  // Medium
-		{Summary: "Task C", Priority: 1},  // Highest
-		{Summary: "Task D", Priority: 9},  // Lowest
-		{Summary: "Task E", Priority: 3},  // High
+		{Summary: "Task A", Priority: 0}, // Undefined (should be last)
+		{Summary: "Task B", Priority: 5}, // Medium
+		{Summary: "Task C", Priority: 1}, // Highest
+		{Summary: "Task D", Priority: 9}, // Lowest
+		{Summary: "Task E", Priority: 3}, // High
 	}
 
 	backend.SortTasks(tasks)
@@ -475,12 +513,12 @@ func TestNextcloudBackend_GetPriorityColor(t *testing.T) {
 		priority int
 		expected string
 	}{
-		{1, "\033[31m"},  // Red (highest)
-		{4, "\033[31m"},  // Red
-		{5, "\033[33m"},  // Yellow
-		{6, "\033[34m"},  // Blue
-		{9, "\033[34m"},  // Blue (lowest)
-		{0, ""},          // No color (undefined)
+		{1, "\033[31m"}, // Red (highest)
+		{4, "\033[31m"}, // Red
+		{5, "\033[33m"}, // Yellow
+		{6, "\033[34m"}, // Blue
+		{9, "\033[34m"}, // Blue (lowest)
+		{0, ""},         // No color (undefined)
 	}
 
 	for _, tt := range tests {

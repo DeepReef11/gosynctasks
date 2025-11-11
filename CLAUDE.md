@@ -297,6 +297,7 @@ The NextcloudBackend uses a customized HTTP client:
 - ✓ Custom error types for structured error handling
 - ✓ Comprehensive test coverage for backend methods
 - ✓ Full godoc documentation for public APIs
+- ✓ Clear error messages for connection and authentication failures (with actionable guidance)
 
 ## Future Work: SQLite Sync Implementation
 
@@ -512,29 +513,39 @@ When operating offline (remote unreachable):
 - Retry logic with exponential backoff
 - Preserve failed operations for manual resolution
 
-### Fix
+### Error Handling
 
+The application implements comprehensive error handling for backend operations:
 
-- [ ] Fix error message when connection failed.
-    - I tried with wrong user, got the following message. Should be something like wrong user or failed to connect, check url, user, etc.
-    ```
-    Error: list 'tasks' not found
-    Usage:
-      gosynctasks [list-name] [action] [task-summary] [flags]
+**Connection and Authentication Errors:**
+- HTTP status codes are checked in all backend operations (backend/nextcloudBackend.go)
+- 401/403 errors return clear "Authentication failed" messages with guidance
+- 404 errors indicate URL configuration issues
+- Backend errors are propagated immediately via `BackendError` type (backend/errors.go)
+- Error checking in app.Run() (internal/app/app.go:52-75) stops execution for auth failures
 
-    Flags:
-      -S, --add-status string    task status when adding (TODO/T, DONE/D, PROCESSING/P, CANCELLED/C)
-          --config string        config file path (default: $XDG_CONFIG_HOME/gosynctasks/config.json, use '.' for ./gosynctasks/config.json)
-      -d, --description string   task description (for add/update)
-      -h, --help                 help for gosynctasks
-      -p, --priority int         task priority (for add/update, 0-9: 0=undefined, 1=highest, 9=lowest)
-      -s, --status stringArray   filter by status (for get) or set status (for update): [T]ODO, [D]ONE, [P]ROCESSING, [C]ANCELLED
-          --summary string       task summary (for update)
-      -v, --view string          view mode (basic, all) (default "basic")
+**User-Facing Error Messages:**
+- Connection failures show actionable guidance to check URL/credentials
+- Missing list names show available alternatives
+- Helper function `formatAvailableLists()` provides list of valid options
 
-    2025/11/11 09:53:43 list 'tasks' not found
+**Testing:**
+- Test coverage for authentication failures (backend/nextcloudBackend_test.go:179-215)
+- Validates proper error type conversion and helpful error messages
 
-    ```
+### Recent Fixes
+
+- [x] **Fixed misleading error message for connection failures** (2025-11-11)
+  - **Issue**: Wrong credentials resulted in "list 'tasks' not found" instead of helpful error
+  - **Fix**: Added HTTP status checking in GetTaskLists(), structured error propagation, improved error messages
+  - **Commit**: a2b3141 - "fix: Improve error messages for connection and authentication failures"
+  - **Files changed**:
+    - backend/nextcloudBackend.go (HTTP status checking)
+    - internal/app/app.go (error propagation)
+    - internal/operations/lists.go (improved messages, formatAvailableLists helper)
+    - backend/nextcloudBackend_test.go (test coverage)
+
+### Known Issues
 
 ## Future Work: Multi-Backend Support & Git Backend
 
