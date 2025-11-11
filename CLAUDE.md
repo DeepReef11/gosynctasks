@@ -280,18 +280,23 @@ The NextcloudBackend uses a customized HTTP client:
 
 ### Current Limitations
 - FileBackend is a placeholder (not implemented - only stubs)
-- No DELETE operation for tasks yet
 - FindTasksBySummary uses client-side filtering (could optimize with CalDAV text-match queries)
 - Task list cache doesn't have expiration or CTag-based invalidation
 - No config package tests yet (needs backup/restore functionality)
+- No ETag support for optimistic locking (prevents race conditions in multi-user scenarios)
+- **TODO:** Investigate add action status flag - may not be applying -S flag correctly
 
 ### Completed Features
-- ✓ Full CRUD operations for tasks (Create, Read, Update)
+- ✓ Full CRUD operations for tasks (Create, Read, Update, Delete)
 - ✓ Task search with exact/partial/multiple match handling
-- ✓ Action-based CLI with abbreviations
+- ✓ Action-based CLI with abbreviations (get/g, add/a, update/u, complete/c, delete/d)
 - ✓ Task list caching for faster completion
 - ✓ Rich task formatting with colors and status indicators
 - ✓ Priority-based sorting and coloring
+- ✓ Backend-specific status handling (each backend manages its own status format)
+- ✓ Custom error types for structured error handling
+- ✓ Comprehensive test coverage for backend methods
+- ✓ Full godoc documentation for public APIs
 
 ## Future Work: SQLite Sync Implementation
 
