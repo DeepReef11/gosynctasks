@@ -114,8 +114,8 @@ func (bc *BackendConfig) TaskManager() (TaskManager, error) {
 		return NewFileBackend(connConfig)
 
 	case "git":
-		// Git backend will be implemented in Phase 3
-		return nil, fmt.Errorf("git backend not yet implemented")
+		// Create Git backend
+		return NewGitBackend(*bc)
 
 	case "sqlite":
 		// SQLite backend will be implemented later
