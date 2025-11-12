@@ -37,10 +37,12 @@ Examples:
   gosynctasks MyList a "New task"       # Same using abbreviation
   gosynctasks MyList add                # Add a task (will prompt for summary)
   gosynctasks MyList add "Task" -d "Details" -p 1 -S done  # Add with options
+  gosynctasks MyList add "Report" --due-date 2025-01-31 --start-date 2025-01-15  # With dates
 
   gosynctasks MyList update "Buy groceries" -s DONE  # Update task status
   gosynctasks MyList u "groceries" --summary "Buy milk"  # Partial match + rename
   gosynctasks MyList update "task" -p 5              # Partial match + set priority
+  gosynctasks MyList update "task" --due-date 2025-02-15  # Update due date
 
   gosynctasks MyList complete "Buy groceries"      # Mark as DONE (default)
   gosynctasks MyList c "groceries"
@@ -89,6 +91,8 @@ Config:
 	rootCmd.Flags().IntP("priority", "p", 0, "task priority (for add/update, 0-9: 0=undefined, 1=highest, 9=lowest)")
 	rootCmd.Flags().StringP("add-status", "S", "", "task status when adding (TODO/T, DONE/D, PROCESSING/P, CANCELLED/C)")
 	rootCmd.Flags().String("summary", "", "task summary (for update)")
+	rootCmd.Flags().String("due-date", "", "task due date (for add/update, format: YYYY-MM-DD, empty string to clear)")
+	rootCmd.Flags().String("start-date", "", "task start date (for add/update, format: YYYY-MM-DD, empty string to clear)")
 
 	// Register flag value completion for status flags
 	rootCmd.RegisterFlagCompletionFunc("status", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

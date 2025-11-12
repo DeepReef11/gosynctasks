@@ -131,6 +131,8 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 	description, _ := cmd.Flags().GetString("description")
 	priority, _ := cmd.Flags().GetInt("priority")
 	statusFlag, _ := cmd.Flags().GetString("add-status")
+	dueDateStr, _ := cmd.Flags().GetString("due-date")
+	startDateStr, _ := cmd.Flags().GetString("start-date")
 
 	// Default status: use backend's parser with "TODO" as default
 	var taskStatus string
@@ -149,11 +151,29 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 		return fmt.Errorf("priority must be between 0-9 (0=undefined, 1=highest, 9=lowest)")
 	}
 
+	// Parse dates
+	dueDate, err := ParseDateFlag(dueDateStr)
+	if err != nil {
+		return err
+	}
+
+	startDate, err := ParseDateFlag(startDateStr)
+	if err != nil {
+		return err
+	}
+
+	// Validate dates
+	if err := ValidateDates(startDate, dueDate); err != nil {
+		return err
+	}
+
 	task := backend.Task{
 		Summary:     taskSummary,
 		Description: description,
 		Status:      taskStatus,
 		Priority:    priority,
+		DueDate:     dueDate,
+		StartDate:   startDate,
 	}
 
 	if err := taskManager.AddTask(selectedList.ID, task); err != nil {
@@ -182,6 +202,8 @@ func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 	description, _ := cmd.Flags().GetString("description")
 	priority, _ := cmd.Flags().GetInt("priority")
 	summaryFlag, _ := cmd.Flags().GetString("summary")
+	dueDateStr, _ := cmd.Flags().GetString("due-date")
+	startDateStr, _ := cmd.Flags().GetString("start-date")
 
 	// Update fields if provided
 	// For update action, use first status value if provided
@@ -206,6 +228,28 @@ func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 			return fmt.Errorf("priority must be between 0-9 (0=undefined, 1=highest, 9=lowest)")
 		}
 		taskToUpdate.Priority = priority
+	}
+
+	// Parse and update dates if changed
+	if cmd.Flags().Changed("due-date") {
+		dueDate, err := ParseDateFlag(dueDateStr)
+		if err != nil {
+			return err
+		}
+		taskToUpdate.DueDate = dueDate
+	}
+
+	if cmd.Flags().Changed("start-date") {
+		startDate, err := ParseDateFlag(startDateStr)
+		if err != nil {
+			return err
+		}
+		taskToUpdate.StartDate = startDate
+	}
+
+	// Validate dates (after all updates applied)
+	if err := ValidateDates(taskToUpdate.StartDate, taskToUpdate.DueDate); err != nil {
+		return err
 	}
 
 	// Update the task
