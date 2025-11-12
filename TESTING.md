@@ -1,15 +1,180 @@
 # gosynctasks Testing Guide
 
-Comprehensive testing guide covering unit tests, integration tests, and manual testing.
+Comprehensive testing guide covering Docker test environment setup, unit tests, integration tests, and manual testing.
 
 ## Table of Contents
 
+- [Docker Test Environment](#docker-test-environment)
 - [Quick Start](#quick-start)
 - [Unit Testing](#unit-testing)
 - [Integration Testing](#integration-testing)
 - [Manual Testing](#manual-testing)
 - [Test Coverage](#test-coverage)
 - [Writing Tests](#writing-tests)
+
+## Docker Test Environment
+
+### Nextcloud Test Server (Docker)
+
+#### TL;DR - Quick Commands
+
+```bash
+# Start server
+./scripts/start-test-server.sh
+
+# Update your config with: nextcloud://admin:admin123@localhost:8080
+
+# Test it
+gosynctasks                    # List all task lists
+gosynctasks MyList add "Test"  # Create a task
+
+# Stop server (keeps data)
+./scripts/stop-test-server.sh
+```
+
+#### Prerequisites
+
+- Docker installed and running
+- Docker Compose (or Docker with compose plugin)
+- Port 8080 available on your machine
+
+#### Quick Start
+
+1. **Start the test server:**
+   ```bash
+   ./scripts/start-test-server.sh
+   ```
+
+   This will:
+   - Start Nextcloud, PostgreSQL, and Redis containers
+   - Wait for all services to be healthy
+   - Install the Tasks and Calendar apps automatically
+   - Display connection details when ready
+
+2. **Configure gosynctasks:**
+
+   The script will show you the exact configuration to add. Update your `~/.config/gosynctasks/config.json`:
+
+   ```json
+   {
+     "connector": {
+       "url": "nextcloud://admin:admin123@localhost:8080",
+       "insecure_skip_verify": false
+     },
+     "ui": "cli"
+   }
+   ```
+
+   **Note:** The URL format is `nextcloud://username:password@host:port`
+
+3. **Access Nextcloud web interface (optional):**
+   - URL: http://localhost:8080
+   - Username: `admin`
+   - Password: `admin123`
+
+#### Testing Workflow with Docker
+
+1. **Create a task list in Nextcloud:**
+   - Log in to http://localhost:8080
+   - Go to Tasks app (left sidebar)
+   - Create a new list (e.g., "TestTasks")
+
+2. **Test with gosynctasks:**
+   ```bash
+   # List all task lists
+   gosynctasks
+
+   # View tasks in a list
+   gosynctasks TestTasks
+
+   # Add a task
+   gosynctasks TestTasks add "Test task 1"
+
+   # Add task with details
+   gosynctasks TestTasks add "Important task" -d "This is a test" -p 1
+
+   # Update a task
+   gosynctasks TestTasks update "Test task" -s DONE
+
+   # Complete a task
+   gosynctasks TestTasks complete "Important task"
+   ```
+
+3. **Verify in Nextcloud:**
+   - Refresh the Tasks app in browser
+   - Changes should appear immediately
+
+#### Server Management
+
+**Stop the server:**
+```bash
+./scripts/stop-test-server.sh
+```
+
+You'll be prompted whether to keep or delete data:
+- **Option 1**: Stop server, keep data (default) - You can restart later with your tasks intact
+- **Option 2**: Stop server and delete ALL data - Clean slate for fresh testing
+
+**View logs:**
+```bash
+docker compose logs -f nextcloud
+docker compose logs -f db
+docker compose logs -f redis
+```
+
+**Restart the server (with existing data):**
+```bash
+./scripts/start-test-server.sh
+```
+
+Your tasks and configuration will be preserved.
+
+#### Troubleshooting Docker Setup
+
+**Server won't start:**
+```bash
+# Check if port 8080 is already in use
+lsof -i :8080
+
+# If port is in use, edit docker-compose.yml and change the port
+```
+
+**Tasks app not installed:**
+```bash
+docker compose exec nextcloud php occ app:install tasks
+docker compose exec nextcloud php occ app:enable tasks
+```
+
+**Authentication failures:**
+```bash
+# Reset admin password
+docker compose exec nextcloud php occ user:resetpassword admin
+```
+
+**Connection refused errors:**
+```bash
+# Make sure server is running
+docker compose ps
+
+# Check if Nextcloud is healthy
+docker compose exec nextcloud curl -f http://localhost/status.php
+```
+
+**Clear cache and start fresh:**
+```bash
+./scripts/stop-test-server.sh
+# Select option 2 to delete all data
+./scripts/start-test-server.sh
+```
+
+#### Security Warning
+
+**This is a TEST server only!**
+
+- Default credentials are publicly known (`admin:admin123`)
+- No HTTPS/TLS encryption
+- Should NOT be exposed to the internet
+- Should NOT be used for production data
 
 ## Quick Start
 
