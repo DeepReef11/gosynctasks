@@ -2,6 +2,7 @@ package cli
 
 import (
 	"gosynctasks/backend"
+	"gosynctasks/internal/views"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -39,4 +40,9 @@ func SmartCompletion(taskLists []backend.TaskList) func(*cobra.Command, []string
 
 		return completions, cobra.ShellCompDirectiveNoFileComp
 	}
+}
+
+// ListViewNames returns all available view names for shell completion
+func ListViewNames() ([]string, error) {
+	return views.ListViews()
 }

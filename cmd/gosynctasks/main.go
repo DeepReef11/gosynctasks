@@ -86,7 +86,7 @@ Config:
 
 	// Command flags
 	rootCmd.Flags().StringArrayP("status", "s", []string{}, "filter by status (for get) or set status (for update): [T]ODO, [D]ONE, [P]ROCESSING, [C]ANCELLED")
-	rootCmd.Flags().StringP("view", "v", "basic", "view mode (basic, all)")
+	rootCmd.Flags().StringP("view", "v", "basic", "view mode (basic, all, or custom view name)")
 	rootCmd.Flags().StringP("description", "d", "", "task description (for add/update)")
 	rootCmd.Flags().IntP("priority", "p", 0, "task priority (for add/update, 0-9: 0=undefined, 1=highest, 9=lowest)")
 	rootCmd.Flags().StringP("add-status", "S", "", "task status when adding (TODO/T, DONE/D, PROCESSING/P, CANCELLED/C)")
@@ -101,6 +101,21 @@ Config:
 	rootCmd.RegisterFlagCompletionFunc("add-status", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return []string{"TODO", "DONE", "PROCESSING", "CANCELLED"}, cobra.ShellCompDirectiveNoFileComp
 	})
+
+	// Register view flag completion
+	rootCmd.RegisterFlagCompletionFunc("view", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if application == nil {
+			return []string{"basic", "all"}, cobra.ShellCompDirectiveNoFileComp
+		}
+		viewNames, err := cli.ListViewNames()
+		if err != nil {
+			return []string{"basic", "all"}, cobra.ShellCompDirectiveNoFileComp
+		}
+		return viewNames, cobra.ShellCompDirectiveNoFileComp
+	})
+
+	// Add subcommands
+	rootCmd.AddCommand(newViewCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)
