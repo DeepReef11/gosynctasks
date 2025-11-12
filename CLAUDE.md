@@ -6,6 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 gosynctasks is a Go-based task synchronization tool that interfaces with multiple backends (primarily Nextcloud CalDAV) to manage tasks and task lists. It uses the Cobra CLI framework and supports filtering tasks by status.
 
+After completing working changes, build again.
+After doing TESTING.md, provide one or more command to to test for the user for the added changes
+
 ## Development Commands
 
 ### Building and Running
@@ -50,6 +53,8 @@ go test ./...
 go test ./backend
 go test ./internal/config
 ```
+
+For manual feature testing, see [TESTING.md](TESTING.md) which provides a quick workflow for verifying core functionality using a test configuration.
 
 ### Dependencies
 ```bash
