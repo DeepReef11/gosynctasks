@@ -5,7 +5,6 @@ import (
 	"gosynctasks/internal/views"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"

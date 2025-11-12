@@ -347,7 +347,6 @@ func HandleDeleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 	fmt.Printf("Task '%s' deleted successfully from list '%s'\n", taskToDelete.Summary, selectedList.Name)
 	return nil
 }
-}
 
 // RenderWithCustomView attempts to render tasks using a custom view
 // Returns the rendered output or an error if the view cannot be loaded
