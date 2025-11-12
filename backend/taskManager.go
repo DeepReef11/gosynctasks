@@ -183,6 +183,24 @@ type TaskManager interface {
 	GetPriorityColor(priority int) string
 }
 
+// DetectableBackend extends TaskManager with auto-detection capabilities.
+// Backends implementing this interface can be automatically detected based on
+// the current environment (e.g., git repos, file system state).
+type DetectableBackend interface {
+	TaskManager
+
+	// CanDetect checks if this backend can be used in the current environment.
+	// For example, a Git backend would check for a git repository and TODO.md file.
+	// Returns true if the backend is detected and usable, false otherwise.
+	// This method should be fast and non-destructive.
+	CanDetect() (bool, error)
+
+	// DetectionInfo returns a human-readable description of what was detected.
+	// This is used for informational messages when showing detected backends.
+	// Example: "Git repository with TODO.md at /path/to/repo"
+	DetectionInfo() string
+}
+
 // TaskFilter specifies filtering criteria for task queries.
 // All filter fields are optional (nil means no filtering on that field).
 // Multiple filter criteria are combined with AND logic.

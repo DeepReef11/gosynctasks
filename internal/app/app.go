@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"gosynctasks/backend"
 	"gosynctasks/internal/cache"
 	"gosynctasks/internal/config"
@@ -12,30 +13,45 @@ import (
 
 // App holds the application state
 type App struct {
-	taskLists   []backend.TaskList
-	taskManager backend.TaskManager
-	config      *config.Config
+	taskLists       []backend.TaskList
+	taskManager     backend.TaskManager
+	config          *config.Config
+	registry        *backend.BackendRegistry
+	selector        *backend.BackendSelector
+	selectedBackend string
 }
 
 // NewApp creates and initializes a new App instance
-func NewApp() (*App, error) {
+// explicitBackend can be empty (will use default/auto-detection)
+func NewApp(explicitBackend string) (*App, error) {
 	cfg := config.GetConfig()
 
-	// Get the default backend configuration
-	backendConfig, err := cfg.GetDefaultBackend()
+	// Create backend registry
+	registry, err := backend.NewBackendRegistry(cfg.GetEnabledBackends())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create backend registry: %w", err)
 	}
 
-	// Create task manager from backend config
-	taskManager, err := backendConfig.TaskManager()
+	// Create backend selector
+	selector := backend.NewBackendSelector(registry)
+
+	// Select backend based on priority
+	selectedBackend, taskManager, err := selector.Select(
+		explicitBackend,
+		cfg.AutoDetectBackend,
+		cfg.DefaultBackend,
+		cfg.BackendPriority,
+	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to select backend: %w", err)
 	}
 
 	app := &App{
-		config:      cfg,
-		taskManager: taskManager,
+		config:          cfg,
+		taskManager:     taskManager,
+		registry:        registry,
+		selector:        selector,
+		selectedBackend: selectedBackend,
 	}
 
 	// Load task lists with cache fallback
@@ -55,6 +71,48 @@ func (a *App) GetTaskLists() []backend.TaskList {
 // GetTaskManager returns the task manager
 func (a *App) GetTaskManager() backend.TaskManager {
 	return a.taskManager
+}
+
+// ListBackends displays all configured backends and their status
+func (a *App) ListBackends() error {
+	fmt.Println("\n=== Configured Backends ===")
+
+	infos := a.registry.ListBackends()
+	if len(infos) == 0 {
+		fmt.Println("No backends configured")
+		return nil
+	}
+
+	for _, info := range infos {
+		fmt.Println(info.String())
+		if info.Name == a.selectedBackend {
+			fmt.Println("  ✓ Currently selected")
+		}
+	}
+
+	fmt.Println()
+	return nil
+}
+
+// DetectBackends displays all auto-detected backends
+func (a *App) DetectBackends() error {
+	fmt.Println("\n=== Auto-Detected Backends ===")
+
+	detected := a.selector.DetectAll()
+	if len(detected) == 0 {
+		fmt.Println("No backends detected in current environment")
+		return nil
+	}
+
+	for _, info := range detected {
+		fmt.Printf("%s | %s\n", info.Name, info.Type)
+		if info.DetectionInfo != "" {
+			fmt.Printf("  %s\n", info.DetectionInfo)
+		}
+	}
+
+	fmt.Println()
+	return nil
 }
 
 // Run is a thin wrapper that delegates to operations
