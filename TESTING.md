@@ -80,3 +80,8 @@ All core features working correctly:
 - ✅ Status filtering
 - ✅ Terminal width adaptation
 - ✅ Nextcloud CalDAV backend integration
+
+### 7. Provide test commands
+
+Provide a compact set of test commands for the user using this alias:
+`alias gst="go run ./cmd/gosynctasks --config ./gosynctasks/config"`
