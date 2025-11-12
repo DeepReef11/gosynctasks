@@ -5,6 +5,7 @@ import (
 	"gosynctasks/backend"
 	"gosynctasks/internal/cli"
 	"gosynctasks/internal/config"
+	"gosynctasks/internal/views"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -99,13 +100,24 @@ func HandleGetAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *c
 	// Sort using backend-specific sorting
 	taskManager.SortTasks(tasks)
 
-	view, _ := cmd.Flags().GetString("view")
+	viewName, _ := cmd.Flags().GetString("view")
 	dateFormat := cfg.GetDateFormat()
 	termWidth := cli.GetTerminalWidth()
 
+	// Try to use custom view rendering first
+	rendered, err := RenderWithCustomView(tasks, viewName, taskManager, dateFormat)
+	if err == nil {
+		// Custom view found and rendered successfully
+		fmt.Print(selectedList.StringWithWidth(termWidth))
+		fmt.Print(rendered)
+		fmt.Print(selectedList.BottomBorderWithWidth(termWidth))
+		return nil
+	}
+
+	// Fall back to legacy formatting for built-in views
 	fmt.Print(selectedList.StringWithWidth(termWidth))
 	for _, task := range tasks {
-		fmt.Print(task.FormatWithView(view, taskManager, dateFormat))
+		fmt.Print(task.FormatWithView(viewName, taskManager, dateFormat))
 	}
 	fmt.Print(selectedList.BottomBorderWithWidth(termWidth))
 	return nil
@@ -334,4 +346,24 @@ func HandleDeleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 
 	fmt.Printf("Task '%s' deleted successfully from list '%s'\n", taskToDelete.Summary, selectedList.Name)
 	return nil
+}
+}
+
+// RenderWithCustomView attempts to render tasks using a custom view
+// Returns the rendered output or an error if the view cannot be loaded
+func RenderWithCustomView(tasks []backend.Task, viewName string, taskManager backend.TaskManager, dateFormat string) (string, error) {
+	// Don't use custom rendering for built-in legacy views
+	if viewName == "basic" || viewName == "all" {
+		return "", fmt.Errorf("using legacy view")
+	}
+
+	// Try to resolve the view
+	view, err := views.ResolveView(viewName)
+	if err != nil {
+		return "", err
+	}
+
+	// Create renderer and render tasks
+	renderer := views.NewViewRenderer(view, taskManager, dateFormat)
+	return renderer.RenderTasks(tasks), nil
 }
