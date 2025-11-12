@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"gosynctasks/internal/views"
+	"gosynctasks/internal/views/builder"
 	"os"
 	"os/exec"
 	"strings"
@@ -129,6 +130,7 @@ func newViewShowCmd() *cobra.Command {
 // newViewCreateCmd creates the 'view create' command
 func newViewCreateCmd() *cobra.Command {
 	var templateName string
+	var interactive bool
 
 	cmd := &cobra.Command{
 		Use:   "create <view-name>",
@@ -137,6 +139,7 @@ func newViewCreateCmd() *cobra.Command {
 
 By default, opens your editor ($EDITOR) to create the view.
 Use --template to create from a built-in template.
+Use --interactive to use the interactive builder.
 
 Available templates:
   minimal  - Minimalist view (status, summary, due date)
@@ -155,7 +158,14 @@ Available templates:
 
 			var view *views.View
 
-			if templateName != "" {
+			if interactive {
+				// Use interactive builder
+				built, err := builder.Run(viewName)
+				if err != nil {
+					return err
+				}
+				view = built
+			} else if templateName != "" {
 				// Create from template
 				template, err := getViewTemplate(templateName)
 				if err != nil {
@@ -201,6 +211,7 @@ Available templates:
 	}
 
 	cmd.Flags().StringVarP(&templateName, "template", "t", "", "Create from template (minimal, full, kanban, timeline, compact)")
+	cmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Use interactive builder")
 
 	return cmd
 }
