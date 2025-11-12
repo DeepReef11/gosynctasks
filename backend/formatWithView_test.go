@@ -168,3 +168,155 @@ func TestFormatWithView_StartDateBoundaries(t *testing.T) {
 func timePtr(t time.Time) *time.Time {
 	return &t
 }
+
+// TestFormatWithView_UniformStatusNames tests that FormatWithView correctly handles
+// status names across different backends using StatusToDisplayName translation.
+func TestFormatWithView_UniformStatusNames(t *testing.T) {
+	// Create mock backends
+	nextcloudBackend := &NextcloudBackend{}
+	fileBackend := &FileBackend{}
+
+	tests := []struct {
+		name             string
+		nextcloudStatus  string // CalDAV status used by Nextcloud
+		fileStatus       string // Canonical status used by File backend
+		expectedSymbol   string
+		expectedColor    string
+		description      string
+	}{
+		{
+			name:            "TODO status",
+			nextcloudStatus: "NEEDS-ACTION",
+			fileStatus:      "TODO",
+			expectedSymbol:  "○",
+			expectedColor:   "\033[37m", // White
+			description:     "Both backends should display TODO status the same way",
+		},
+		{
+			name:            "DONE status",
+			nextcloudStatus: "COMPLETED",
+			fileStatus:      "DONE",
+			expectedSymbol:  "✓",
+			expectedColor:   "\033[32m", // Green
+			description:     "Both backends should display DONE status the same way",
+		},
+		{
+			name:            "PROCESSING status",
+			nextcloudStatus: "IN-PROCESS",
+			fileStatus:      "PROCESSING",
+			expectedSymbol:  "●",
+			expectedColor:   "\033[33m", // Yellow
+			description:     "Both backends should display PROCESSING status the same way",
+		},
+		{
+			name:            "CANCELLED status",
+			nextcloudStatus: "CANCELLED",
+			fileStatus:      "CANCELLED",
+			expectedSymbol:  "✗",
+			expectedColor:   "\033[31m", // Red
+			description:     "Both backends should display CANCELLED status the same way",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test with Nextcloud backend (CalDAV status)
+			nextcloudTask := Task{
+				UID:     "test-nextcloud",
+				Summary: "Test task",
+				Status:  tt.nextcloudStatus,
+			}
+			nextcloudResult := nextcloudTask.FormatWithView("basic", nextcloudBackend, "2006-01-02")
+
+			// Test with File backend (canonical status)
+			fileTask := Task{
+				UID:     "test-file",
+				Summary: "Test task",
+				Status:  tt.fileStatus,
+			}
+			fileResult := fileTask.FormatWithView("basic", fileBackend, "2006-01-02")
+
+			// Both should contain the expected symbol
+			if !strings.Contains(nextcloudResult, tt.expectedSymbol) {
+				t.Errorf("Nextcloud backend: Expected symbol %q in output for %s, got:\n%s",
+					tt.expectedSymbol, tt.description, nextcloudResult)
+			}
+			if !strings.Contains(fileResult, tt.expectedSymbol) {
+				t.Errorf("File backend: Expected symbol %q in output for %s, got:\n%s",
+					tt.expectedSymbol, tt.description, fileResult)
+			}
+
+			// Both should contain the expected color
+			if !strings.Contains(nextcloudResult, tt.expectedColor) {
+				t.Errorf("Nextcloud backend: Expected color %q in output for %s, got:\n%s",
+					tt.expectedColor, tt.description, nextcloudResult)
+			}
+			if !strings.Contains(fileResult, tt.expectedColor) {
+				t.Errorf("File backend: Expected color %q in output for %s, got:\n%s",
+					tt.expectedColor, tt.description, fileResult)
+			}
+		})
+	}
+}
+
+// TestStatusToDisplayName_Consistency tests that all backends return
+// the same canonical display names for equivalent statuses.
+func TestStatusToDisplayName_Consistency(t *testing.T) {
+	nextcloudBackend := &NextcloudBackend{}
+	fileBackend := &FileBackend{}
+
+	tests := []struct {
+		name            string
+		nextcloudStatus string
+		fileStatus      string
+		expectedDisplay string
+	}{
+		{
+			name:            "TODO mapping",
+			nextcloudStatus: "NEEDS-ACTION",
+			fileStatus:      "TODO",
+			expectedDisplay: "TODO",
+		},
+		{
+			name:            "DONE mapping",
+			nextcloudStatus: "COMPLETED",
+			fileStatus:      "DONE",
+			expectedDisplay: "DONE",
+		},
+		{
+			name:            "PROCESSING mapping",
+			nextcloudStatus: "IN-PROCESS",
+			fileStatus:      "PROCESSING",
+			expectedDisplay: "PROCESSING",
+		},
+		{
+			name:            "CANCELLED mapping",
+			nextcloudStatus: "CANCELLED",
+			fileStatus:      "CANCELLED",
+			expectedDisplay: "CANCELLED",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nextcloudDisplay := nextcloudBackend.StatusToDisplayName(tt.nextcloudStatus)
+			fileDisplay := fileBackend.StatusToDisplayName(tt.fileStatus)
+
+			if nextcloudDisplay != tt.expectedDisplay {
+				t.Errorf("Nextcloud backend: Expected display name %q, got %q",
+					tt.expectedDisplay, nextcloudDisplay)
+			}
+
+			if fileDisplay != tt.expectedDisplay {
+				t.Errorf("File backend: Expected display name %q, got %q",
+					tt.expectedDisplay, fileDisplay)
+			}
+
+			// Most importantly, both should return the same display name
+			if nextcloudDisplay != fileDisplay {
+				t.Errorf("Inconsistent display names: Nextcloud returned %q, File returned %q",
+					nextcloudDisplay, fileDisplay)
+			}
+		})
+	}
+}
