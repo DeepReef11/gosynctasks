@@ -20,7 +20,15 @@ type App struct {
 // NewApp creates and initializes a new App instance
 func NewApp() (*App, error) {
 	cfg := config.GetConfig()
-	taskManager, err := cfg.Connector.TaskManager()
+
+	// Get the default backend configuration
+	backendConfig, err := cfg.GetDefaultBackend()
+	if err != nil {
+		return nil, err
+	}
+
+	// Create task manager from backend config
+	taskManager, err := backendConfig.TaskManager()
 	if err != nil {
 		return nil, err
 	}

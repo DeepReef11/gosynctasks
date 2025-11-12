@@ -1,8 +1,23 @@
 {
-  "connector": {
-    "url": "nextcloud://username:password@nextcloud.example.com",
-    "insecure_skip_verify": false
+  "backends": {
+    "nextcloud": {
+      "type": "nextcloud",
+      "enabled": true,
+      "url": "nextcloud://username:password@nextcloud.example.com",
+      "insecure_skip_verify": false
+    },
+    "git": {
+      "type": "git",
+      "enabled": false,
+      "file": "TODO.md",
+      "auto_detect": true,
+      "fallback_files": ["todo.md", ".gosynctasks.md"],
+      "auto_commit": false
+    }
   },
+  "default_backend": "nextcloud",
+  "auto_detect_backend": false,
+  "backend_priority": ["git", "nextcloud"],
   "canWriteConfig": true,
   "ui": "cli",
   "date_format": "2006-01-02"

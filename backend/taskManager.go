@@ -16,13 +16,28 @@ func (e *UnsupportedSchemeError) Error() string {
 	return fmt.Sprintf("unsupported scheme: %q", e.Scheme)
 }
 
-// Base config struct
+// Base config struct (deprecated - use BackendConfig for new configurations)
 type ConnectorConfig struct {
 	URL                *url.URL `json:"url"`
 	InsecureSkipVerify bool     `json:"insecure_skip_verify,omitempty"` // WARNING: Only use for self-signed certificates in dev
 	SuppressSSLWarning bool     `json:"suppress_ssl_warning,omitempty"` // Suppress SSL warning when InsecureSkipVerify is true
 	// Type     string `json:"type" validate:"required,oneof=nextcloud local"`
 	//  Timeout  int    `json:"timeout,omitempty"`
+}
+
+// BackendConfig represents configuration for a single backend in the multi-backend system.
+// Each backend has a type (nextcloud, git, file, sqlite) and type-specific configuration.
+type BackendConfig struct {
+	Type               string   `json:"type" validate:"required,oneof=nextcloud git file sqlite"`
+	Enabled            bool     `json:"enabled"`
+	URL                string   `json:"url,omitempty"`                  // Used by: nextcloud, file
+	InsecureSkipVerify bool     `json:"insecure_skip_verify,omitempty"` // Used by: nextcloud
+	SuppressSSLWarning bool     `json:"suppress_ssl_warning,omitempty"` // Used by: nextcloud
+	File               string   `json:"file,omitempty"`                 // Used by: git (default: "TODO.md")
+	AutoDetect         bool     `json:"auto_detect,omitempty"`          // Used by: git
+	FallbackFiles      []string `json:"fallback_files,omitempty"`       // Used by: git
+	AutoCommit         bool     `json:"auto_commit,omitempty"`          // Used by: git
+	DBPath             string   `json:"db_path,omitempty"`              // Used by: sqlite
 }
 
 func (c *ConnectorConfig) UnmarshalJSON(data []byte) error {
@@ -62,6 +77,53 @@ func (c *ConnectorConfig) TaskManager() (TaskManager, error) {
 	default:
 		return nil, &UnsupportedSchemeError{
 			Scheme: c.URL.Scheme,
+		}
+	}
+}
+
+// TaskManager creates a TaskManager instance from BackendConfig.
+// This is the new multi-backend approach for creating task managers.
+func (bc *BackendConfig) TaskManager() (TaskManager, error) {
+	if !bc.Enabled {
+		return nil, fmt.Errorf("backend is disabled")
+	}
+
+	switch bc.Type {
+	case "nextcloud":
+		// Convert BackendConfig to ConnectorConfig for backward compatibility
+		u, err := url.Parse(bc.URL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid URL for nextcloud backend: %w", err)
+		}
+		connConfig := ConnectorConfig{
+			URL:                u,
+			InsecureSkipVerify: bc.InsecureSkipVerify,
+			SuppressSSLWarning: bc.SuppressSSLWarning,
+		}
+		return NewNextcloudBackend(connConfig)
+
+	case "file":
+		// Convert BackendConfig to ConnectorConfig for backward compatibility
+		u, err := url.Parse(bc.URL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid URL for file backend: %w", err)
+		}
+		connConfig := ConnectorConfig{
+			URL: u,
+		}
+		return NewFileBackend(connConfig)
+
+	case "git":
+		// Git backend will be implemented in Phase 3
+		return nil, fmt.Errorf("git backend not yet implemented")
+
+	case "sqlite":
+		// SQLite backend will be implemented later
+		return nil, fmt.Errorf("sqlite backend not yet implemented")
+
+	default:
+		return nil, &UnsupportedSchemeError{
+			Scheme: bc.Type,
 		}
 	}
 }
