@@ -10,11 +10,11 @@ import (
 )
 
 var (
-	configPath      string
-	backendName     string
-	listBackends    bool
-	detectBackends  bool
-	application     *app.App
+	configPath     string
+	backendName    string
+	listBackends   bool
+	detectBackends bool
+	application    *app.App
 )
 
 func main() {

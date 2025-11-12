@@ -337,11 +337,11 @@ func TestGitBackendSortTasks(t *testing.T) {
 	gb := &GitBackend{}
 
 	tasks := []Task{
-		{UID: "3", Priority: 0, Created: time.Now()},                           // undefined priority
-		{UID: "1", Priority: 1, Created: time.Now().Add(-2 * time.Hour)},      // high priority, older
-		{UID: "2", Priority: 1, Created: time.Now().Add(-1 * time.Hour)},      // high priority, newer
-		{UID: "4", Priority: 5, Created: time.Now()},                           // medium priority
-		{UID: "5", Priority: 9, Created: time.Now()},                           // low priority
+		{UID: "3", Priority: 0, Created: time.Now()},                     // undefined priority
+		{UID: "1", Priority: 1, Created: time.Now().Add(-2 * time.Hour)}, // high priority, older
+		{UID: "2", Priority: 1, Created: time.Now().Add(-1 * time.Hour)}, // high priority, newer
+		{UID: "4", Priority: 5, Created: time.Now()},                     // medium priority
+		{UID: "5", Priority: 9, Created: time.Now()},                     // low priority
 	}
 
 	gb.SortTasks(tasks)
@@ -364,13 +364,13 @@ func TestGitBackendGetPriorityColor(t *testing.T) {
 		priority int
 		want     string
 	}{
-		{0, ""},             // undefined - no color
-		{1, "\033[31m"},     // high - red
-		{4, "\033[31m"},     // high - red
-		{5, "\033[33m"},     // medium - yellow
-		{6, "\033[34m"},     // low - blue
-		{9, "\033[34m"},     // low - blue
-		{10, ""},            // out of range - no color
+		{0, ""},         // undefined - no color
+		{1, "\033[31m"}, // high - red
+		{4, "\033[31m"}, // high - red
+		{5, "\033[33m"}, // medium - yellow
+		{6, "\033[34m"}, // low - blue
+		{9, "\033[34m"}, // low - blue
+		{10, ""},        // out of range - no color
 	}
 
 	for _, tt := range tests {

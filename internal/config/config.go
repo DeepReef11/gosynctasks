@@ -44,10 +44,10 @@ type Config struct {
 	CanWriteConfig bool                     `json:"canWriteConfig"`
 
 	// New multi-backend format
-	Backends           map[string]backend.BackendConfig `json:"backends,omitempty"`
-	DefaultBackend     string                           `json:"default_backend,omitempty"`
-	AutoDetectBackend  bool                             `json:"auto_detect_backend,omitempty"`
-	BackendPriority    []string                         `json:"backend_priority,omitempty"`
+	Backends          map[string]backend.BackendConfig `json:"backends,omitempty"`
+	DefaultBackend    string                           `json:"default_backend,omitempty"`
+	AutoDetectBackend bool                             `json:"auto_detect_backend,omitempty"`
+	BackendPriority   []string                         `json:"backend_priority,omitempty"`
 
 	// Common settings
 	UI         string `json:"ui" validate:"oneof=cli tui"`

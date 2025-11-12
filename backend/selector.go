@@ -27,8 +27,7 @@ func NewBackendRegistry(configs map[string]BackendConfig) (*BackendRegistry, err
 
 		taskManager, err := config.TaskManager()
 		if err != nil {
-			// Skip backends that can't be initialized (e.g., git not yet implemented)
-			// but log or track the error
+			// Skip backends that can't be initialized (e.g., git backend when not in a git repo)
 			continue
 		}
 

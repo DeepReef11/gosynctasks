@@ -134,9 +134,9 @@ func TestMigrateConfig(t *testing.T) {
 // TestGetDefaultBackend tests the GetDefaultBackend method
 func TestGetDefaultBackend(t *testing.T) {
 	tests := []struct {
-		name    string
-		config  *Config
-		wantErr bool
+		name     string
+		config   *Config
+		wantErr  bool
 		wantType string
 	}{
 		{
@@ -148,7 +148,7 @@ func TestGetDefaultBackend(t *testing.T) {
 				},
 				DefaultBackend: "nextcloud",
 			},
-			wantErr: false,
+			wantErr:  false,
 			wantType: "nextcloud",
 		},
 		{
@@ -159,7 +159,7 @@ func TestGetDefaultBackend(t *testing.T) {
 				},
 				DefaultBackend: "",
 			},
-			wantErr: false,
+			wantErr:  false,
 			wantType: "git",
 		},
 		{
@@ -169,7 +169,7 @@ func TestGetDefaultBackend(t *testing.T) {
 					URL: mustParseURL("nextcloud://example.com"),
 				},
 			},
-			wantErr: false,
+			wantErr:  false,
 			wantType: "nextcloud",
 		},
 		{
@@ -442,7 +442,7 @@ func TestConfigMigrationIntegration(t *testing.T) {
 	// Create an old format config file
 	oldConfig := map[string]interface{}{
 		"connector": map[string]interface{}{
-			"url":                "nextcloud://user:pass@example.com",
+			"url":                  "nextcloud://user:pass@example.com",
 			"insecure_skip_verify": false,
 		},
 		"canWriteConfig": true,
