@@ -127,6 +127,20 @@ func LoadViewFromBytes(data []byte, name string) (*View, error) {
 		}
 	}
 
+	// Validate field_order references existing fields
+	if len(view.FieldOrder) > 0 {
+		fieldMap := make(map[string]bool)
+		for _, field := range view.Fields {
+			fieldMap[field.Name] = true
+		}
+
+		for _, fieldName := range view.FieldOrder {
+			if !fieldMap[fieldName] {
+				return nil, fmt.Errorf("field_order references undefined field: %s", fieldName)
+			}
+		}
+	}
+
 	if view.Display.DateFormat == "" {
 		view.Display.DateFormat = "2006-01-02"
 	}
