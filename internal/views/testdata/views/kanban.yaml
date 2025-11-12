@@ -1,0 +1,36 @@
+name: kanban
+description: Kanban-style view grouped by status
+fields:
+  - name: status
+    format: emoji
+    show: true
+  - name: summary
+    format: truncate
+    width: 50
+    show: true
+  - name: priority
+    format: color
+    color: true
+    show: true
+  - name: due_date
+    format: relative
+    color: true
+    show: true
+  - name: tags
+    format: comma
+    show: true
+
+field_order:
+  - status
+  - priority
+  - summary
+  - due_date
+  - tags
+
+display:
+  show_header: true
+  show_border: true
+  compact_mode: true
+  date_format: "Jan 02"
+  sort_by: status
+  sort_order: asc
