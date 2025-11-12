@@ -10,8 +10,11 @@ import (
 )
 
 var (
-	configPath  string
-	application *app.App
+	configPath     string
+	backendName    string
+	listBackends   bool
+	detectBackends bool
+	application    *app.App
 )
 
 func main() {
@@ -63,10 +66,21 @@ Config:
 
 			// Initialize app after config path is set
 			var err error
-			application, err = app.NewApp()
+			application, err = app.NewApp(backendName)
 			if err != nil {
 				return err
 			}
+
+			// Handle --list-backends flag
+			if listBackends {
+				return application.ListBackends()
+			}
+
+			// Handle --detect-backend flag
+			if detectBackends {
+				return application.DetectBackends()
+			}
+
 			return nil
 		},
 		Args: cobra.MaximumNArgs(3),
@@ -83,6 +97,9 @@ Config:
 
 	// Persistent flags (available to all commands)
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", "", "config file path (default: $XDG_CONFIG_HOME/gosynctasks/config.json, use '.' for ./gosynctasks/config.json)")
+	rootCmd.PersistentFlags().StringVar(&backendName, "backend", "", "backend to use (overrides config default and auto-detection)")
+	rootCmd.PersistentFlags().BoolVar(&listBackends, "list-backends", false, "list all configured backends and exit")
+	rootCmd.PersistentFlags().BoolVar(&detectBackends, "detect-backend", false, "show auto-detected backends and exit")
 
 	// Command flags
 	rootCmd.Flags().StringArrayP("status", "s", []string{}, "filter by status (for get) or set status (for update): [T]ODO, [D]ONE, [P]ROCESSING, [C]ANCELLED")

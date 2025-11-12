@@ -1,10 +1,10 @@
 package backend
 
 import (
-	"time"
-	"strconv"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 )
 
 func (nB *NextcloudBackend) parseVTODOs(xmlData string) ([]Task, error) {
@@ -158,118 +158,115 @@ func parseInt(s string) int {
 	return 0
 }
 
-
-
 func (nB *NextcloudBackend) parseTaskLists(xmlData, baseURL string) ([]TaskList, error) {
-    var taskLists []TaskList
+	var taskLists []TaskList
 
-    responses := extractResponses(xmlData)
+	responses := extractResponses(xmlData)
 
-    for _, response := range responses {
-        // Only include calendars with 200 OK status and VTODO support
-        if !strings.Contains(response, "HTTP/1.1 200 OK") {
-            continue
-        }
+	for _, response := range responses {
+		// Only include calendars with 200 OK status and VTODO support
+		if !strings.Contains(response, "HTTP/1.1 200 OK") {
+			continue
+		}
 
-        taskList := parseTaskListResponse(response, baseURL)
+		taskList := parseTaskListResponse(response, baseURL)
 
-        // Only include calendars that actually support VTODO
-        if taskList.ID != "" && strings.Contains(response, `<cal:comp name="VTODO"/>`) {
-            taskLists = append(taskLists, taskList)
-        }
-    }
+		// Only include calendars that actually support VTODO
+		if taskList.ID != "" && strings.Contains(response, `<cal:comp name="VTODO"/>`) {
+			taskLists = append(taskLists, taskList)
+		}
+	}
 
-    return taskLists, nil
+	return taskLists, nil
 }
 
 func containsVTODO(response string) bool {
-    return strings.Contains(response, `<cal:comp name="VTODO"/>`)
+	return strings.Contains(response, `<cal:comp name="VTODO"/>`)
 }
 
 func extractResponses(xmlData string) []string {
-    var responses []string
+	var responses []string
 
-    // Try different response tag patterns
-    patterns := []string{
-        "<d:response>",
-        "<response>",
-        "<D:response>",
-    }
+	// Try different response tag patterns
+	patterns := []string{
+		"<d:response>",
+		"<response>",
+		"<D:response>",
+	}
 
-    for _, startTag := range patterns {
-        endTag := strings.Replace(startTag, "<", "</", 1)
+	for _, startTag := range patterns {
+		endTag := strings.Replace(startTag, "<", "</", 1)
 
-        data := xmlData
-        for {
-            start := strings.Index(data, startTag)
-            if start == -1 {
-                break
-            }
+		data := xmlData
+		for {
+			start := strings.Index(data, startTag)
+			if start == -1 {
+				break
+			}
 
-            end := strings.Index(data[start:], endTag)
-            if end == -1 {
-                break
-            }
+			end := strings.Index(data[start:], endTag)
+			if end == -1 {
+				break
+			}
 
-            response := data[start : start+end+len(endTag)]
-            responses = append(responses, response)
-            data = data[start+end+len(endTag):]
-        }
+			response := data[start : start+end+len(endTag)]
+			responses = append(responses, response)
+			data = data[start+end+len(endTag):]
+		}
 
-        if len(responses) > 0 {
-            break
-        }
-    }
+		if len(responses) > 0 {
+			break
+		}
+	}
 
-    // fmt.Printf("extractResponses found %d responses\n", len(responses))
-    return responses
+	// fmt.Printf("extractResponses found %d responses\n", len(responses))
+	return responses
 }
 
 func parseTaskListResponse(response, baseURL string) TaskList {
-    taskList := TaskList{}
+	taskList := TaskList{}
 
-    // Extract href (calendar ID)
-    if href := extractXMLValue(response, "href"); href != "" {
-        // Extract calendar ID from href path
-        parts := strings.Split(strings.Trim(href, "/"), "/")
-        if len(parts) > 0 {
-            taskList.ID = parts[len(parts)-1]
-        }
-        taskList.URL = href
-    }
+	// Extract href (calendar ID)
+	if href := extractXMLValue(response, "href"); href != "" {
+		// Extract calendar ID from href path
+		parts := strings.Split(strings.Trim(href, "/"), "/")
+		if len(parts) > 0 {
+			taskList.ID = parts[len(parts)-1]
+		}
+		taskList.URL = href
+	}
 
-    // Extract displayname
-    taskList.Name = extractXMLValue(response, "displayname")
+	// Extract displayname
+	taskList.Name = extractXMLValue(response, "displayname")
 
-    // Extract ctag
-    taskList.CTags = extractXMLValue(response, "getctag")
+	// Extract ctag
+	taskList.CTags = extractXMLValue(response, "getctag")
 
-    // Extract color
-    taskList.Color = extractXMLValue(response, "calendar-color")
+	// Extract color
+	taskList.Color = extractXMLValue(response, "calendar-color")
 
-    return taskList
+	return taskList
 }
 
 func extractXMLValue(xml, tag string) string {
-    // Try without namespace prefix first
-    if start := strings.Index(xml, fmt.Sprintf("<%s>", tag)); start != -1 {
-        start += len(tag) + 2
-        if end := strings.Index(xml[start:], fmt.Sprintf("</%s>", tag)); end != -1 {
-            return strings.TrimSpace(xml[start : start+end])
-        }
-    }
+	// Try without namespace prefix first
+	if start := strings.Index(xml, fmt.Sprintf("<%s>", tag)); start != -1 {
+		start += len(tag) + 2
+		if end := strings.Index(xml[start:], fmt.Sprintf("</%s>", tag)); end != -1 {
+			return strings.TrimSpace(xml[start : start+end])
+		}
+	}
 
-    // Try with namespace prefixes
-    for _, prefix := range []string{"d:", "cs:", "ic:"} {
-        fullTag := prefix + tag
-        if start := strings.Index(xml, fmt.Sprintf("<%s>", fullTag)); start != -1 {
-            start += len(fullTag) + 2
-            if end := strings.Index(xml[start:], fmt.Sprintf("</%s>", fullTag)); end != -1 {
-                return strings.TrimSpace(xml[start : start+end])
-            }
-        }
-    }
+	// Try with namespace prefixes
+	for _, prefix := range []string{"d:", "cs:", "ic:"} {
+		fullTag := prefix + tag
+		if start := strings.Index(xml, fmt.Sprintf("<%s>", fullTag)); start != -1 {
+			start += len(fullTag) + 2
+			if end := strings.Index(xml[start:], fmt.Sprintf("</%s>", fullTag)); end != -1 {
+				return strings.TrimSpace(xml[start : start+end])
+			}
+		}
+	}
 
-    return ""
+	return ""
 }
-

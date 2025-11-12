@@ -16,13 +16,28 @@ func (e *UnsupportedSchemeError) Error() string {
 	return fmt.Sprintf("unsupported scheme: %q", e.Scheme)
 }
 
-// Base config struct
+// Base config struct (deprecated - use BackendConfig for new configurations)
 type ConnectorConfig struct {
 	URL                *url.URL `json:"url"`
 	InsecureSkipVerify bool     `json:"insecure_skip_verify,omitempty"` // WARNING: Only use for self-signed certificates in dev
 	SuppressSSLWarning bool     `json:"suppress_ssl_warning,omitempty"` // Suppress SSL warning when InsecureSkipVerify is true
 	// Type     string `json:"type" validate:"required,oneof=nextcloud local"`
 	//  Timeout  int    `json:"timeout,omitempty"`
+}
+
+// BackendConfig represents configuration for a single backend in the multi-backend system.
+// Each backend has a type (nextcloud, git, file, sqlite) and type-specific configuration.
+type BackendConfig struct {
+	Type               string   `json:"type" validate:"required,oneof=nextcloud git file sqlite"`
+	Enabled            bool     `json:"enabled"`
+	URL                string   `json:"url,omitempty"`                  // Used by: nextcloud, file
+	InsecureSkipVerify bool     `json:"insecure_skip_verify,omitempty"` // Used by: nextcloud
+	SuppressSSLWarning bool     `json:"suppress_ssl_warning,omitempty"` // Used by: nextcloud
+	File               string   `json:"file,omitempty"`                 // Used by: git (default: "TODO.md")
+	AutoDetect         bool     `json:"auto_detect,omitempty"`          // Used by: git
+	FallbackFiles      []string `json:"fallback_files,omitempty"`       // Used by: git
+	AutoCommit         bool     `json:"auto_commit,omitempty"`          // Used by: git
+	DBPath             string   `json:"db_path,omitempty"`              // Used by: sqlite
 }
 
 func (c *ConnectorConfig) UnmarshalJSON(data []byte) error {
@@ -62,6 +77,53 @@ func (c *ConnectorConfig) TaskManager() (TaskManager, error) {
 	default:
 		return nil, &UnsupportedSchemeError{
 			Scheme: c.URL.Scheme,
+		}
+	}
+}
+
+// TaskManager creates a TaskManager instance from BackendConfig.
+// This is the new multi-backend approach for creating task managers.
+func (bc *BackendConfig) TaskManager() (TaskManager, error) {
+	if !bc.Enabled {
+		return nil, fmt.Errorf("backend is disabled")
+	}
+
+	switch bc.Type {
+	case "nextcloud":
+		// Convert BackendConfig to ConnectorConfig for backward compatibility
+		u, err := url.Parse(bc.URL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid URL for nextcloud backend: %w", err)
+		}
+		connConfig := ConnectorConfig{
+			URL:                u,
+			InsecureSkipVerify: bc.InsecureSkipVerify,
+			SuppressSSLWarning: bc.SuppressSSLWarning,
+		}
+		return NewNextcloudBackend(connConfig)
+
+	case "file":
+		// Convert BackendConfig to ConnectorConfig for backward compatibility
+		u, err := url.Parse(bc.URL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid URL for file backend: %w", err)
+		}
+		connConfig := ConnectorConfig{
+			URL: u,
+		}
+		return NewFileBackend(connConfig)
+
+	case "git":
+		// Create Git backend
+		return NewGitBackend(*bc)
+
+	case "sqlite":
+		// SQLite backend will be implemented later
+		return nil, fmt.Errorf("sqlite backend not yet implemented")
+
+	default:
+		return nil, &UnsupportedSchemeError{
+			Scheme: bc.Type,
 		}
 	}
 }
@@ -119,6 +181,24 @@ type TaskManager interface {
 	// Returns an empty string if no color should be applied.
 	// Priority range: 0-9 (0=undefined, 1=highest, 9=lowest)
 	GetPriorityColor(priority int) string
+}
+
+// DetectableBackend extends TaskManager with auto-detection capabilities.
+// Backends implementing this interface can be automatically detected based on
+// the current environment (e.g., git repos, file system state).
+type DetectableBackend interface {
+	TaskManager
+
+	// CanDetect checks if this backend can be used in the current environment.
+	// For example, a Git backend would check for a git repository and TODO.md file.
+	// Returns true if the backend is detected and usable, false otherwise.
+	// This method should be fast and non-destructive.
+	CanDetect() (bool, error)
+
+	// DetectionInfo returns a human-readable description of what was detected.
+	// This is used for informational messages when showing detected backends.
+	// Example: "Git repository with TODO.md at /path/to/repo"
+	DetectionInfo() string
 }
 
 // TaskFilter specifies filtering criteria for task queries.
@@ -259,17 +339,19 @@ func (t Task) FormatWithView(view string, backend TaskManager, dateFormat string
 	// Status indicator
 	statusColor := ""
 	statusSymbol := "○"
+	// TODO: Implement uniform status names across all backends (see issue #36)
+	// Currently supporting both CalDAV names (COMPLETED, IN-PROCESS) and app names (DONE, PROCESSING)
 	switch t.Status {
-	case "COMPLETED":
+	case "COMPLETED", "DONE":
 		statusColor = "\033[32m" // Green
 		statusSymbol = "✓"
-	case "IN-PROCESS":
+	case "IN-PROCESS", "PROCESSING":
 		statusColor = "\033[33m" // Yellow
 		statusSymbol = "●"
 	case "CANCELLED":
 		statusColor = "\033[31m" // Red
 		statusSymbol = "✗"
-	default: // NEEDS-ACTION
+	default: // NEEDS-ACTION, TODO
 		statusColor = "\033[37m" // White
 		statusSymbol = "○"
 	}
