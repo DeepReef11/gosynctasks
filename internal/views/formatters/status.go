@@ -164,25 +164,24 @@ func truncate(s string, width int) string {
 
 // stripAnsi removes ANSI color codes from a string
 func stripAnsi(s string) string {
-	result := ""
+	var result []rune
 	inEscape := false
 
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\033' && i+1 < len(s) && s[i+1] == '[' {
+	for _, r := range s {
+		if r == '\033' {
 			inEscape = true
-			i++ // Skip '['
 			continue
 		}
 
 		if inEscape {
-			if s[i] == 'm' {
+			if r == 'm' {
 				inEscape = false
 			}
 			continue
 		}
 
-		result += string(s[i])
+		result = append(result, r)
 	}
 
-	return result
+	return string(result)
 }
