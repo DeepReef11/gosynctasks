@@ -438,6 +438,11 @@ func (nb *NextcloudBackend) buildICalContent(task Task) string {
 		icalContent.WriteString(fmt.Sprintf("DUE:%s\r\n", due))
 	}
 
+	if task.StartDate != nil {
+		start := task.StartDate.UTC().Format("20060102T150405Z")
+		icalContent.WriteString(fmt.Sprintf("DTSTART:%s\r\n", start))
+	}
+
 	// Add COMPLETED timestamp if status is COMPLETED
 	if task.Status == "COMPLETED" && task.Completed != nil {
 		completed := task.Completed.UTC().Format("20060102T150405Z")

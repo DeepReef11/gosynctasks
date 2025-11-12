@@ -14,8 +14,8 @@ func ParseDateFlag(dateStr string) (*time.Time, error) {
 		return nil, nil
 	}
 
-	// Parse ISO date format (YYYY-MM-DD)
-	parsedDate, err := time.Parse("2006-01-02", dateStr)
+	// Parse ISO date format (YYYY-MM-DD) in local timezone
+	parsedDate, err := time.ParseInLocation("2006-01-02", dateStr, time.Local)
 	if err != nil {
 		return nil, fmt.Errorf("invalid date format '%s': expected YYYY-MM-DD (e.g., 2025-01-31)", dateStr)
 	}
