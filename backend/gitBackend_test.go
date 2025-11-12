@@ -99,7 +99,7 @@ func TestMarkdownWriter(t *testing.T) {
 				Summary:  "Review PR #123",
 				Status:   "TODO",
 				Priority: 1,
-				DueDate:  time.Date(2025, 1, 20, 0, 0, 0, 0, time.UTC),
+				DueDate:  &[]time.Time{time.Date(2025, 1, 20, 0, 0, 0, 0, time.UTC)}[0],
 				Created:  time.Date(2025, 1, 10, 0, 0, 0, 0, time.UTC),
 			},
 			{
@@ -107,7 +107,7 @@ func TestMarkdownWriter(t *testing.T) {
 				Summary:     "Deploy to staging",
 				Status:      "DONE",
 				Description: "Completed successfully",
-				Completed:   time.Date(2025, 1, 10, 0, 0, 0, 0, time.UTC),
+				Completed:   &[]time.Time{time.Date(2025, 1, 10, 0, 0, 0, 0, time.UTC)}[0],
 			},
 		},
 	}
@@ -392,9 +392,9 @@ func TestGitBackendFilterTasks(t *testing.T) {
 	tomorrow := now.Add(24 * time.Hour)
 
 	tasks := []Task{
-		{UID: "1", Status: "TODO", DueDate: tomorrow, Created: yesterday},
-		{UID: "2", Status: "DONE", DueDate: yesterday, Created: yesterday},
-		{UID: "3", Status: "TODO", DueDate: now, Created: now},
+		{UID: "1", Status: "TODO", DueDate: &tomorrow, Created: yesterday},
+		{UID: "2", Status: "DONE", DueDate: &yesterday, Created: yesterday},
+		{UID: "3", Status: "TODO", DueDate: &now, Created: now},
 	}
 
 	tests := []struct {

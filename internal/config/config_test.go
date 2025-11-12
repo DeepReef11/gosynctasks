@@ -387,14 +387,13 @@ func TestBackendConfigTaskManager(t *testing.T) {
 			errMsg:  "disabled",
 		},
 		{
-			name: "git backend not implemented",
+			name: "git backend implemented",
 			backend: backend.BackendConfig{
 				Type:    "git",
 				Enabled: true,
 				File:    "TODO.md",
 			},
-			wantErr: true,
-			errMsg:  "not yet implemented",
+			wantErr: false,
 		},
 		{
 			name: "sqlite backend not implemented",

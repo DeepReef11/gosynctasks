@@ -401,7 +401,7 @@ func (gb *GitBackend) UpdateTask(listID string, task Task) error {
 	}
 
 	if !found {
-		return NewBackendError(fmt.Errorf("task %q not found", task.UID), 404)
+		return NewBackendError("UpdateTask", 404, fmt.Sprintf("task %q not found", task.UID))
 	}
 
 	gb.taskLists[listID] = tasks
@@ -433,7 +433,7 @@ func (gb *GitBackend) DeleteTask(listID string, taskUID string) error {
 	}
 
 	if !found {
-		return NewBackendError(fmt.Errorf("task %q not found", taskUID), 404)
+		return NewBackendError("DeleteTask", 404, fmt.Sprintf("task %q not found", taskUID))
 	}
 
 	gb.taskLists[listID] = tasks

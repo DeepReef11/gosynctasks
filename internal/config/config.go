@@ -92,7 +92,7 @@ func (c *Config) GetDefaultBackend() (*backend.BackendConfig, error) {
 
 	if c.DefaultBackend == "" {
 		// Try to find the first enabled backend
-		for name, backendConfig := range c.Backends {
+		for _, backendConfig := range c.Backends {
 			if backendConfig.Enabled {
 				return &backendConfig, nil
 			}
@@ -330,8 +330,8 @@ func parseConfig(configData []byte, configPath string) (*Config, error) {
 		}
 
 		fmt.Printf("✓ Config migrated successfully\n")
-		fmt.Printf("✓ New config written to: %s\n")
-		fmt.Println("======================\n")
+		fmt.Printf("✓ New config written to: %s\n", configPath)
+		fmt.Println("======================")
 
 		return migratedConfig, nil
 	}

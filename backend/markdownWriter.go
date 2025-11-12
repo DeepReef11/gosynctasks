@@ -86,20 +86,26 @@ func (w *MarkdownWriter) formatTags(task Task) string {
 	}
 
 	// Include dates if set
-	if !task.DueDate.IsZero() {
-		tags = append(tags, fmt.Sprintf("@due:%s", task.DueDate.Format("2006-01-02")))
+	if task.DueDate != nil {
+		if !task.DueDate.IsZero() {
+			tags = append(tags, fmt.Sprintf("@due:%s", task.DueDate.Format("2006-01-02")))
+		}
 	}
 
-	if !task.StartDate.IsZero() {
-		tags = append(tags, fmt.Sprintf("@start:%s", task.StartDate.Format("2006-01-02")))
+	if task.StartDate != nil {
+		if !task.StartDate.IsZero() {
+			tags = append(tags, fmt.Sprintf("@start:%s", task.StartDate.Format("2006-01-02")))
+		}
 	}
 
 	if !task.Created.IsZero() {
 		tags = append(tags, fmt.Sprintf("@created:%s", task.Created.Format("2006-01-02")))
 	}
 
-	if !task.Completed.IsZero() {
-		tags = append(tags, fmt.Sprintf("@completed:%s", task.Completed.Format("2006-01-02")))
+	if task.Completed != nil {
+		if !task.Completed.IsZero() {
+			tags = append(tags, fmt.Sprintf("@completed:%s", task.Completed.Format("2006-01-02")))
+		}
 	}
 
 	return strings.Join(tags, " ")

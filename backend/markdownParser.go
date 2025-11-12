@@ -82,11 +82,11 @@ func (p *MarkdownParser) Parse(content string) (map[string][]Task, error) {
 					fmt.Sscanf(value, "%d", &task.Priority)
 				case "due":
 					if t, err := time.Parse("2006-01-02", value); err == nil {
-						task.DueDate = t
+						task.DueDate = &t
 					}
 				case "start":
 					if t, err := time.Parse("2006-01-02", value); err == nil {
-						task.StartDate = t
+						task.StartDate = &t
 					}
 				case "created":
 					if t, err := time.Parse("2006-01-02", value); err == nil {
@@ -94,7 +94,7 @@ func (p *MarkdownParser) Parse(content string) (map[string][]Task, error) {
 					}
 				case "completed":
 					if t, err := time.Parse("2006-01-02", value); err == nil {
-						task.Completed = t
+						task.Completed = &t
 					}
 				case "status":
 					task.Status = value
