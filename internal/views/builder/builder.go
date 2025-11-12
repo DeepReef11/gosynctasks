@@ -7,7 +7,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// Run starts the interactive view builder
+// Run starts the interactive view builder and returns the built view or an error.
+// The viewName parameter sets the name of the view being created.
+// Returns an error if the user cancels or if validation fails.
 func Run(viewName string) (*views.View, error) {
 	builder := NewViewBuilder(viewName)
 	model := newModel(builder)

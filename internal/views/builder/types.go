@@ -1,21 +1,35 @@
+// Package builder provides an interactive TUI for creating custom task views.
+// It uses the Charm Bubbletea framework to guide users through a step-by-step
+// wizard for configuring view options, selecting fields, and customizing display.
 package builder
 
 import (
+	"fmt"
 	"gosynctasks/internal/views"
 )
 
-// BuilderState represents the current state in the view builder state machine
+// BuilderState represents the current state in the view builder state machine.
+// The builder progresses through these states in sequence from Welcome to Done/Cancelled.
 type BuilderState int
 
 const (
+	// StateWelcome is the initial welcome screen
 	StateWelcome BuilderState = iota
+	// StateBasicInfo collects view name and description
 	StateBasicInfo
+	// StateFieldSelection allows selecting which fields to display
 	StateFieldSelection
+	// StateFieldOrdering allows reordering selected fields
 	StateFieldOrdering
+	// StateFieldConfig configures format and color for each field
 	StateFieldConfig
+	// StateDisplayOptions configures view-level display options
 	StateDisplayOptions
+	// StateConfirm shows final configuration for confirmation
 	StateConfirm
+	// StateDone indicates successful completion
 	StateDone
+	// StateCancelled indicates user cancelled the builder
 	StateCancelled
 )
 
@@ -45,63 +59,88 @@ func (s BuilderState) String() string {
 	}
 }
 
-// FieldItem represents a field with its selection state
+// FieldItem represents a field with its selection and configuration state.
+// It tracks whether a field is selected for display and its formatting options.
 type FieldItem struct {
-	Name        string
-	Description string
-	Selected    bool
-	Format      string
-	Width       int
-	Color       bool
-	Label       string
+	Name        string // Field name (e.g., "status", "summary")
+	Description string // Human-readable description from field registry
+	Selected    bool   // Whether this field is selected for display
+	Format      string // Display format (e.g., "symbol", "text")
+	Width       int    // Display width (for truncation)
+	Color       bool   // Whether to use color
+	Label       string // Custom label override
 }
 
-// ViewBuilder holds the state for building a view
+// ViewBuilder holds the state for building a custom view through the interactive wizard.
+// It maintains all configuration choices across the different builder states and produces
+// the final View when complete.
 type ViewBuilder struct {
 	// View being built
-	ViewName        string
-	ViewDescription string
+	ViewName        string // Name of the view being created
+	ViewDescription string // Optional description
 
 	// Field selection and ordering
-	AvailableFields []FieldItem
-	SelectedFields  []string
-	FieldOrder      []string
+	AvailableFields []FieldItem // All available fields from registry
+	SelectedFields  []string    // Names of selected fields
+	FieldOrder      []string    // Order of selected fields
 
 	// Current field being configured
-	CurrentFieldIndex int
+	CurrentFieldIndex int // Index for field configuration state
 
 	// Display options
-	ShowHeader  bool
-	ShowBorder  bool
-	CompactMode bool
-	DateFormat  string
-	SortBy      string
-	SortOrder   string
+	ShowHeader  bool   // Whether to show column headers
+	ShowBorder  bool   // Whether to show borders
+	CompactMode bool   // Whether to use compact single-line display
+	DateFormat  string // Date format string
+	SortBy      string // Field to sort by
+	SortOrder   string // Sort order ("asc" or "desc")
 
 	// State management
-	CurrentState BuilderState
+	CurrentState BuilderState // Current state in the wizard
 
 	// Result
-	View *views.View
-	Err  error
+	View *views.View // Built view (populated on success)
+	Err  error       // Error encountered during building
 }
 
-// NewViewBuilder creates a new view builder
+// NewViewBuilder creates a new view builder with the given view name.
+// It initializes all available fields from the field registry with sensible defaults.
+// Status and summary fields are pre-selected as they are the most commonly used.
 func NewViewBuilder(name string) *ViewBuilder {
 	// Initialize available fields from field registry
-	availableFields := []FieldItem{
-		{Name: "status", Description: "Task completion status (TODO, DONE, PROCESSING, CANCELLED)", Selected: true, Format: "symbol"},
-		{Name: "summary", Description: "Task title/summary", Selected: true, Format: "full"},
-		{Name: "description", Description: "Task detailed description", Selected: false, Format: "truncate", Width: 70},
-		{Name: "priority", Description: "Task priority (0-9, 1=highest)", Selected: false, Format: "number", Color: true},
-		{Name: "due_date", Description: "Task due date/deadline", Selected: false, Format: "full", Color: true},
-		{Name: "start_date", Description: "Task start date", Selected: false, Format: "full", Color: true},
-		{Name: "created", Description: "Task creation timestamp", Selected: false, Format: "full"},
-		{Name: "modified", Description: "Task last modified timestamp", Selected: false, Format: "full"},
-		{Name: "completed", Description: "Task completion timestamp", Selected: false, Format: "full"},
-		{Name: "tags", Description: "Task categories/labels", Selected: false, Format: "comma"},
-		{Name: "uid", Description: "Unique task identifier", Selected: false, Format: "short"},
-		{Name: "parent", Description: "Parent task UID (for subtasks)", Selected: false, Format: "short"},
+	// This ensures single source of truth and maintains consistency
+	fieldOrder := []string{"status", "summary", "description", "priority",
+		"due_date", "start_date", "created", "modified", "completed",
+		"tags", "uid", "parent"}
+
+	availableFields := make([]FieldItem, 0, len(fieldOrder))
+
+	for _, fieldName := range fieldOrder {
+		def, ok := views.GetFieldDefinition(fieldName)
+		if !ok {
+			continue // Skip fields not in registry
+		}
+
+		// Pre-select status and summary as they're most commonly used
+		selected := (fieldName == "status" || fieldName == "summary")
+
+		// Set sensible defaults
+		item := FieldItem{
+			Name:        fieldName,
+			Description: def.Description,
+			Selected:    selected,
+			Format:      def.DefaultFormat,
+			Width:       0,  // Will use default
+			Color:       false, // User can toggle in config
+			Label:       "",  // Will use default
+		}
+
+		// Description field gets special treatment for width
+		if fieldName == "description" {
+			item.Width = 70
+		}
+
+		availableFields = append(availableFields, item)
 	}
 
 	return &ViewBuilder{
@@ -120,23 +159,28 @@ func NewViewBuilder(name string) *ViewBuilder {
 	}
 }
 
-// BuildView constructs the final View from the builder state
+// BuildView constructs the final View from the builder state.
+// It validates the configuration and returns an error if invalid.
+// At minimum, at least one field must be selected.
 func (b *ViewBuilder) BuildView() (*views.View, error) {
+	// Validate: must have at least one selected field
+	if len(b.FieldOrder) == 0 {
+		return nil, fmt.Errorf("at least one field must be selected")
+	}
+
 	// Collect selected fields
 	var fields []views.FieldConfig
 
 	for _, fieldName := range b.FieldOrder {
-		// Find the field item
-		var item *FieldItem
-		for i := range b.AvailableFields {
-			if b.AvailableFields[i].Name == fieldName {
-				item = &b.AvailableFields[i]
-				break
-			}
-		}
-
+		// Find the field item using helper
+		item := b.getFieldItem(fieldName)
 		if item == nil || !item.Selected {
 			continue
+		}
+
+		// Validate format against field registry
+		if !views.ValidateFieldFormat(item.Name, item.Format) {
+			return nil, fmt.Errorf("invalid format %q for field %q", item.Format, item.Name)
 		}
 
 		field := views.FieldConfig{
@@ -157,6 +201,11 @@ func (b *ViewBuilder) BuildView() (*views.View, error) {
 		fields = append(fields, field)
 	}
 
+	// Final validation: ensure we have at least one field configured
+	if len(fields) == 0 {
+		return nil, fmt.Errorf("no valid fields configured")
+	}
+
 	view := &views.View{
 		Name:        b.ViewName,
 		Description: b.ViewDescription,
@@ -175,7 +224,8 @@ func (b *ViewBuilder) BuildView() (*views.View, error) {
 	return view, nil
 }
 
-// UpdateSelectedFields updates the list of selected field names
+// UpdateSelectedFields updates the list of selected field names from AvailableFields.
+// This should be called after field selection changes.
 func (b *ViewBuilder) UpdateSelectedFields() {
 	b.SelectedFields = []string{}
 	for _, field := range b.AvailableFields {
@@ -185,37 +235,76 @@ func (b *ViewBuilder) UpdateSelectedFields() {
 	}
 }
 
-// UpdateFieldOrder sets the field order from selected fields
+// UpdateFieldOrder sets the field order from selected fields.
+// It preserves existing order for fields that remain selected and appends newly selected fields.
+// This is optimized to O(n) using a map for lookups.
 func (b *ViewBuilder) UpdateFieldOrder() {
 	if len(b.FieldOrder) == 0 {
 		// Initialize field order with currently selected fields
 		b.FieldOrder = append([]string{}, b.SelectedFields...)
-	} else {
-		// Remove unselected fields from order
-		newOrder := []string{}
-		for _, fieldName := range b.FieldOrder {
-			for _, selected := range b.SelectedFields {
-				if fieldName == selected {
-					newOrder = append(newOrder, fieldName)
-					break
-				}
-			}
-		}
-
-		// Add newly selected fields that aren't in order yet
-		for _, selected := range b.SelectedFields {
-			found := false
-			for _, ordered := range newOrder {
-				if selected == ordered {
-					found = true
-					break
-				}
-			}
-			if !found {
-				newOrder = append(newOrder, selected)
-			}
-		}
-
-		b.FieldOrder = newOrder
+		return
 	}
+
+	// Build a map of selected fields for O(1) lookup
+	selectedMap := make(map[string]bool, len(b.SelectedFields))
+	for _, name := range b.SelectedFields {
+		selectedMap[name] = true
+	}
+
+	// Keep fields that are still selected, preserving order
+	newOrder := make([]string, 0, len(b.SelectedFields))
+	for _, fieldName := range b.FieldOrder {
+		if selectedMap[fieldName] {
+			newOrder = append(newOrder, fieldName)
+			delete(selectedMap, fieldName) // Mark as processed
+		}
+	}
+
+	// Append newly selected fields that weren't in the old order
+	for _, selected := range b.SelectedFields {
+		if selectedMap[selected] { // If still in map, it's new
+			newOrder = append(newOrder, selected)
+		}
+	}
+
+	b.FieldOrder = newOrder
+}
+
+// Validate checks if the current builder state is valid.
+// Returns an error describing what is invalid, or nil if valid.
+func (b *ViewBuilder) Validate() error {
+	// View name required
+	if b.ViewName == "" {
+		return fmt.Errorf("view name is required")
+	}
+
+	// At least one field must be selected
+	if len(b.SelectedFields) == 0 {
+		return fmt.Errorf("at least one field must be selected")
+	}
+
+	// Validate each selected field's format
+	for _, fieldName := range b.SelectedFields {
+		item := b.getFieldItem(fieldName)
+		if item == nil {
+			continue
+		}
+
+		if !views.ValidateFieldFormat(item.Name, item.Format) {
+			return fmt.Errorf("invalid format %q for field %q", item.Format, item.Name)
+		}
+	}
+
+	return nil
+}
+
+// getFieldItem is a helper that finds a FieldItem by name.
+// Returns nil if not found. This reduces code duplication.
+func (b *ViewBuilder) getFieldItem(name string) *FieldItem {
+	for i := range b.AvailableFields {
+		if b.AvailableFields[i].Name == name {
+			return &b.AvailableFields[i]
+		}
+	}
+	return nil
 }

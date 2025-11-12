@@ -9,7 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// builderModel is the bubbletea builderModel for the view builder
+// builderModel is the bubbletea model for the view builder.
+// It manages UI state including cursor position, text input, and error messages.
 type builderModel struct {
 	builder       *ViewBuilder
 	textInput     textinput.Model
@@ -18,6 +19,7 @@ type builderModel struct {
 	quitting      bool
 	width         int
 	height        int
+	errorMsg      string // Error message to display to user
 }
 
 // newModel creates a new bubbletea builderModel
@@ -145,6 +147,16 @@ func (m builderModel) View() string {
 	}
 
 	s.WriteString("\n\n")
+
+	// Show error message if any
+	if m.errorMsg != "" {
+		errorStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("196")).
+			Bold(true)
+		s.WriteString(errorStyle.Render("❌ " + m.errorMsg))
+		s.WriteString("\n\n")
+	}
+
 	s.WriteString(m.renderHelp())
 
 	return s.String()
@@ -228,6 +240,14 @@ func (m builderModel) handleEnter() (tea.Model, tea.Cmd) {
 
 	case StateFieldSelection:
 		m.builder.UpdateSelectedFields()
+
+		// Validation: At least one field must be selected
+		if len(m.builder.SelectedFields) == 0 {
+			m.errorMsg = "Please select at least one field"
+			return m, nil
+		}
+
+		m.errorMsg = "" // Clear any previous error
 		m.builder.UpdateFieldOrder()
 		m.builder.CurrentState = StateFieldOrdering
 		m.cursor = 0
@@ -288,11 +308,9 @@ func (m builderModel) handleSpace() (tea.Model, tea.Cmd) {
 		// Toggle color for current field
 		if m.cursor < len(m.builder.FieldOrder) {
 			fieldName := m.builder.FieldOrder[m.cursor]
-			for i := range m.builder.AvailableFields {
-				if m.builder.AvailableFields[i].Name == fieldName {
-					m.builder.AvailableFields[i].Color = !m.builder.AvailableFields[i].Color
-					break
-				}
+			item := m.builder.getFieldItem(fieldName)
+			if item != nil {
+				item.Color = !item.Color
 			}
 		}
 
