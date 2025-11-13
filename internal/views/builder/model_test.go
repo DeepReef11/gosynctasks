@@ -292,16 +292,20 @@ func TestModelDisplayOptionsToggle(t *testing.T) {
 func TestModelConfirmAccept(t *testing.T) {
 	builder := NewViewBuilder("test")
 	m := newModel(builder)
+
+	// Set up valid builder state (status and summary are pre-selected)
+	builder.UpdateSelectedFields()
+	builder.UpdateFieldOrder()
 	m.builder.CurrentState = StateConfirm
-	
+
 	// Press Y
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
 	m = updated.(builderModel)
-	
+
 	if m.builder.CurrentState != StateDone {
 		t.Error("Y at Confirm should go to StateDone")
 	}
-	
+
 	if m.builder.View == nil {
 		t.Error("View should be built after confirmation")
 	}

@@ -172,6 +172,11 @@ func (b *ViewBuilder) BuildView() (*views.View, error) {
 		},
 	}
 
+	// Validate the complete view
+	if err := views.ValidateView(view); err != nil {
+		return nil, err
+	}
+
 	return view, nil
 }
 
@@ -218,4 +223,79 @@ func (b *ViewBuilder) UpdateFieldOrder() {
 
 		b.FieldOrder = newOrder
 	}
+}
+
+// Validation methods
+
+// ValidateViewName validates the view name
+func (b *ViewBuilder) ValidateViewName() error {
+	return views.ValidateViewName(b.ViewName)
+}
+
+// ValidateFieldSelection validates that at least one field is selected
+func (b *ViewBuilder) ValidateFieldSelection() error {
+	selectedCount := 0
+	for _, field := range b.AvailableFields {
+		if field.Selected {
+			selectedCount++
+		}
+	}
+
+	if selectedCount == 0 {
+		return &views.ValidationError{
+			Field:   "fields",
+			Message: "at least one field must be selected",
+		}
+	}
+
+	return nil
+}
+
+// ValidateFieldConfigs validates field configurations against the field registry
+func (b *ViewBuilder) ValidateFieldConfigs() error {
+	for _, field := range b.AvailableFields {
+		if !field.Selected {
+			continue
+		}
+
+		// Validate field name exists in registry
+		_, ok := views.GetFieldDefinition(field.Name)
+		if !ok {
+			return &views.ValidationError{
+				Field:   field.Name,
+				Message: "unknown field",
+			}
+		}
+
+		// Validate format if specified
+		if field.Format != "" && !views.ValidateFieldFormat(field.Name, field.Format) {
+			def, _ := views.GetFieldDefinition(field.Name)
+			return &views.ValidationError{
+				Field:   field.Name,
+				Message: "invalid format '" + field.Format + "' (valid: " + joinFormats(def.Formats) + ")",
+			}
+		}
+
+		// Validate width
+		if field.Width < 0 || field.Width > 200 {
+			return &views.ValidationError{
+				Field:   field.Name,
+				Message: "width must be between 0 and 200",
+			}
+		}
+	}
+
+	return nil
+}
+
+// Helper function to join format strings
+func joinFormats(formats []string) string {
+	result := ""
+	for i, f := range formats {
+		if i > 0 {
+			result += ", "
+		}
+		result += f
+	}
+	return result
 }

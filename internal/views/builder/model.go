@@ -18,6 +18,7 @@ type builderModel struct {
 	quitting      bool
 	width         int
 	height        int
+	errorMsg      string // Validation error message to display
 }
 
 // newModel creates a new bubbletea builderModel
@@ -126,6 +127,15 @@ func (m builderModel) View() string {
 	s.WriteString(m.renderHeader())
 	s.WriteString("\n\n")
 
+	// Error message if present
+	if m.errorMsg != "" {
+		errorStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("196")).
+			Bold(true)
+		s.WriteString(errorStyle.Render("⚠ " + m.errorMsg))
+		s.WriteString("\n\n")
+	}
+
 	// Current state view
 	switch m.builder.CurrentState {
 	case StateWelcome:
@@ -215,6 +225,9 @@ func (m builderModel) renderHelp() string {
 // State transition handlers
 
 func (m builderModel) handleEnter() (tea.Model, tea.Cmd) {
+	// Clear any previous error message
+	m.errorMsg = ""
+
 	switch m.builder.CurrentState {
 	case StateWelcome:
 		m.builder.CurrentState = StateBasicInfo
@@ -222,11 +235,21 @@ func (m builderModel) handleEnter() (tea.Model, tea.Cmd) {
 		m.textInput.Focus()
 
 	case StateBasicInfo:
+		// Validate view name
+		if err := m.validateViewName(); err != nil {
+			m.errorMsg = err.Error()
+			return m, nil
+		}
 		m.builder.ViewDescription = m.textInput.Value()
 		m.builder.CurrentState = StateFieldSelection
 		m.cursor = 0
 
 	case StateFieldSelection:
+		// Validate field selection
+		if err := m.validateFieldSelection(); err != nil {
+			m.errorMsg = err.Error()
+			return m, nil
+		}
 		m.builder.UpdateSelectedFields()
 		m.builder.UpdateFieldOrder()
 		m.builder.CurrentState = StateFieldOrdering
@@ -238,6 +261,11 @@ func (m builderModel) handleEnter() (tea.Model, tea.Cmd) {
 		m.selectedIndex = 0
 
 	case StateFieldConfig:
+		// Validate field configurations
+		if err := m.validateFieldConfigs(); err != nil {
+			m.errorMsg = err.Error()
+			return m, nil
+		}
 		m.builder.CurrentState = StateDisplayOptions
 		m.cursor = 0
 
@@ -246,7 +274,7 @@ func (m builderModel) handleEnter() (tea.Model, tea.Cmd) {
 		m.cursor = 0
 
 	case StateConfirm:
-		// Build and save
+		// Build and validate complete view
 		view, err := m.builder.BuildView()
 		if err != nil {
 			m.builder.Err = err
@@ -361,4 +389,18 @@ func (m builderModel) getMaxCursor() int {
 	default:
 		return 0
 	}
+}
+
+// Validation methods
+
+func (m builderModel) validateViewName() error {
+	return m.builder.ValidateViewName()
+}
+
+func (m builderModel) validateFieldSelection() error {
+	return m.builder.ValidateFieldSelection()
+}
+
+func (m builderModel) validateFieldConfigs() error {
+	return m.builder.ValidateFieldConfigs()
 }
