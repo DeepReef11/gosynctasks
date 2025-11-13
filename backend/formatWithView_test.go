@@ -122,14 +122,20 @@ func TestFormatWithView_StartDateBoundaries(t *testing.T) {
 		{
 			name:          "exactly 72 hours (3 days) future",
 			hoursOffset:   72,
-			expectedColor: "\033[90m", // Gray (>= 72 hours = future)
-			description:   "Exactly 3 days should be gray",
+			expectedColor: "\033[33m", // Yellow (<= 72 hours = within 3 days)
+			description:   "Exactly 3 days should be yellow (within 3 days)",
 		},
 		{
 			name:          "just under 72 hours",
 			hoursOffset:   71.5,
-			expectedColor: "\033[33m", // Yellow (< 72 hours)
+			expectedColor: "\033[33m", // Yellow (<= 72 hours)
 			description:   "Just under 3 days should be yellow",
+		},
+		{
+			name:          "just over 72 hours",
+			hoursOffset:   72.5,
+			expectedColor: "\033[90m", // Gray (> 72 hours = beyond 3 days)
+			description:   "Just over 3 days should be gray",
 		},
 		{
 			name:          "exactly now",

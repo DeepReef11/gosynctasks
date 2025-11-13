@@ -373,14 +373,14 @@ func (t Task) FormatWithView(view string, backend TaskManager, dateFormat string
 		start := *t.StartDate
 		hoursDiff := start.Sub(now).Hours()
 
-		if start.Before(now) {
-			// Past: work should have begun (cyan)
+		if start.Before(now) || start.Equal(now) {
+			// Past/present: work should have begun (cyan)
 			startStr = fmt.Sprintf(" \033[36m(starts: %s)\033[0m", start.Format(dateFormat))
-		} else if hoursDiff < 72 { // Within 3 days
-			// Within 3 days (yellow)
+		} else if hoursDiff <= 72 { // Within 3 days (inclusive)
+			// Within 3 days (yellow) - includes exactly 72 hours
 			startStr = fmt.Sprintf(" \033[33m(starts: %s)\033[0m", start.Format(dateFormat))
 		} else {
-			// Future (gray)
+			// Future beyond 3 days (gray)
 			startStr = fmt.Sprintf(" \033[90m(starts: %s)\033[0m", start.Format(dateFormat))
 		}
 	}
