@@ -2,7 +2,7 @@ package backend
 
 import (
 	"database/sql"
-	_ "modernc.org/sqlite"
+	// _ "modernc.org/sqlite" // Commented out due to network issues - TODO: uncomment when implementing
 )
 
 // SQLiteBackend implements TaskManager interface for local SQLite storage
