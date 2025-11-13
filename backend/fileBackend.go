@@ -56,8 +56,21 @@ func (fB *FileBackend) ParseStatusFlag(statusFlag string) (string, error) {
 }
 
 func (fB *FileBackend) StatusToDisplayName(backendStatus string) string {
-	// FileBackend already uses display names, so just return as-is
-	return strings.ToUpper(backendStatus)
+	// FileBackend uses canonical display names internally
+	// Normalize to ensure we return one of the canonical names
+	switch strings.ToUpper(backendStatus) {
+	case "TODO":
+		return "TODO"
+	case "DONE":
+		return "DONE"
+	case "PROCESSING":
+		return "PROCESSING"
+	case "CANCELLED":
+		return "CANCELLED"
+	default:
+		// Unknown status, return as-is (uppercase)
+		return strings.ToUpper(backendStatus)
+	}
 }
 
 func (fB *FileBackend) SortTasks(tasks []Task) {
