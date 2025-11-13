@@ -105,6 +105,8 @@ func HandleGetAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *c
 	termWidth := cli.GetTerminalWidth()
 
 	// Try to use custom view rendering first
+	// Note: Custom views currently don't support hierarchical display
+	// This will be added in a future enhancement
 	rendered, err := RenderWithCustomView(tasks, viewName, taskManager, dateFormat)
 	if err == nil {
 		// Custom view found and rendered successfully
@@ -116,9 +118,13 @@ func HandleGetAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *c
 
 	// Fall back to legacy formatting for built-in views
 	fmt.Print(selectedList.StringWithWidth(termWidth))
-	for _, task := range tasks {
-		fmt.Print(task.FormatWithView(viewName, taskManager, dateFormat))
+
+	// Organize tasks hierarchically to display subtasks under their parents
+	organizedTasks := backend.OrganizeTasksHierarchically(tasks)
+	for _, taskWithLevel := range organizedTasks {
+		fmt.Print(taskWithLevel.Task.FormatWithIndentLevel(viewName, taskManager, dateFormat, taskWithLevel.Level))
 	}
+
 	fmt.Print(selectedList.BottomBorderWithWidth(termWidth))
 	return nil
 }
