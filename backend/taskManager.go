@@ -336,22 +336,26 @@ func (t Task) String() string {
 func (t Task) FormatWithView(view string, backend TaskManager, dateFormat string) string {
 	var result strings.Builder
 
-	// Status indicator
+	// Convert backend-specific status to canonical display name
+	displayStatus := t.Status
+	if backend != nil {
+		displayStatus = backend.StatusToDisplayName(t.Status)
+	}
+
+	// Status indicator (using canonical status names)
 	statusColor := ""
 	statusSymbol := "○"
-	// TODO: Implement uniform status names across all backends (see issue #36)
-	// Currently supporting both CalDAV names (COMPLETED, IN-PROCESS) and app names (DONE, PROCESSING)
-	switch t.Status {
-	case "COMPLETED", "DONE":
+	switch displayStatus {
+	case "DONE":
 		statusColor = "\033[32m" // Green
 		statusSymbol = "✓"
-	case "IN-PROCESS", "PROCESSING":
+	case "PROCESSING":
 		statusColor = "\033[33m" // Yellow
 		statusSymbol = "●"
 	case "CANCELLED":
 		statusColor = "\033[31m" // Red
 		statusSymbol = "✗"
-	default: // NEEDS-ACTION, TODO
+	default: // TODO or any other status
 		statusColor = "\033[37m" // White
 		statusSymbol = "○"
 	}
