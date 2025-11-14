@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gosynctasks/backend"
 	"gosynctasks/internal/config"
+	"gosynctasks/internal/utils"
 	"strings"
 	"time"
 )
@@ -216,18 +217,9 @@ func selectTaskWithPath(tasks []backend.Task, searchSummary string, taskManager 
 		fmt.Print(task.FormatWithView("all", taskManager, dateFormat))
 	}
 
-	fmt.Printf("\nSelect task (1-%d) or 0 to cancel: ", len(tasks))
-	var choice int
-	if _, err := fmt.Scanf("%d", &choice); err != nil {
-		return nil, fmt.Errorf("invalid input: %w", err)
-	}
-
-	if choice == 0 {
-		return nil, fmt.Errorf("operation cancelled")
-	}
-
-	if choice < 1 || choice > len(tasks) {
-		return nil, fmt.Errorf("invalid choice: %d", choice)
+	choice, err := utils.PromptChoice(fmt.Sprintf("\nSelect task (1-%d) or 0 to cancel: ", len(tasks)), 1, len(tasks))
+	if err != nil {
+		return nil, err
 	}
 
 	return &tasks[choice-1], nil

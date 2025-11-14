@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gosynctasks/backend"
 	"gosynctasks/internal/config"
+	"gosynctasks/internal/utils"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -92,18 +93,9 @@ func selectTask(tasks []backend.Task, searchSummary string, taskManager backend.
 		fmt.Print(task.FormatWithView("all", taskManager, dateFormat))
 	}
 
-	fmt.Printf("\nSelect task (1-%d) or 0 to cancel: ", len(tasks))
-	var choice int
-	if _, err := fmt.Scanf("%d", &choice); err != nil {
-		return nil, fmt.Errorf("invalid input: %w", err)
-	}
-
-	if choice == 0 {
-		return nil, fmt.Errorf("operation cancelled")
-	}
-
-	if choice < 1 || choice > len(tasks) {
-		return nil, fmt.Errorf("invalid choice: %d", choice)
+	choice, err := utils.PromptChoice(fmt.Sprintf("\nSelect task (1-%d) or 0 to cancel: ", len(tasks)), 1, len(tasks))
+	if err != nil {
+		return nil, err
 	}
 
 	return &tasks[choice-1], nil
@@ -119,18 +111,9 @@ func selectTaskSimple(tasks []backend.Task, searchSummary string, taskManager ba
 		fmt.Print(task.FormatWithView("all", taskManager, dateFormat))
 	}
 
-	fmt.Printf("\nSelect task (1-%d) or 0 to cancel: ", len(tasks))
-	var choice int
-	if _, err := fmt.Scanf("%d", &choice); err != nil {
-		return nil, fmt.Errorf("invalid input: %w", err)
-	}
-
-	if choice == 0 {
-		return nil, fmt.Errorf("operation cancelled")
-	}
-
-	if choice < 1 || choice > len(tasks) {
-		return nil, fmt.Errorf("invalid choice: %d", choice)
+	choice, err := utils.PromptChoice(fmt.Sprintf("\nSelect task (1-%d) or 0 to cancel: ", len(tasks)), 1, len(tasks))
+	if err != nil {
+		return nil, err
 	}
 
 	return &tasks[choice-1], nil
@@ -159,15 +142,8 @@ func confirmTask(task *backend.Task, taskManager backend.TaskManager, cfg *confi
 	dateFormat := cfg.GetDateFormat()
 	fmt.Println("\nTask found:")
 	fmt.Print(task.FormatWithView("all", taskManager, dateFormat))
-	fmt.Print("\nProceed with this task? (y/n): ")
 
-	var response string
-	if _, err := fmt.Scanf("%s", &response); err != nil {
-		return false, fmt.Errorf("invalid input: %w", err)
-	}
-
-	response = strings.ToLower(strings.TrimSpace(response))
-	return response == "y" || response == "yes", nil
+	return utils.PromptYesNo("\nProceed with this task?"), nil
 }
 
 // BuildFilter constructs a TaskFilter from cobra command flags
