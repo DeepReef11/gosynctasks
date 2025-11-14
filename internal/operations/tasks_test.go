@@ -85,6 +85,18 @@ func (m *mockTaskManagerForOperations) RenameTaskList(listID, newName string) er
 	return nil
 }
 
+func (m *mockTaskManagerForOperations) GetDeletedTaskLists() ([]backend.TaskList, error) {
+	return nil, nil
+}
+
+func (m *mockTaskManagerForOperations) RestoreTaskList(listID string) error {
+	return nil
+}
+
+func (m *mockTaskManagerForOperations) PermanentlyDeleteTaskList(listID string) error {
+	return nil
+}
+
 func (m *mockTaskManagerForOperations) StatusToDisplayName(backendStatus string) string {
 	return backendStatus
 }

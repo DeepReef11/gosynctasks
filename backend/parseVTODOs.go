@@ -176,6 +176,43 @@ func (nB *NextcloudBackend) parseTaskLists(xmlData, baseURL string) ([]TaskList,
 			continue
 		}
 
+		// Skip deleted calendars (those with DeletedAt field set)
+		if taskList.DeletedAt != "" {
+			continue
+		}
+
+		// Only include calendars that actually support VTODO
+		if taskList.ID != "" && strings.Contains(response, `<cal:comp name="VTODO"/>`) {
+			taskLists = append(taskLists, taskList)
+		}
+	}
+
+	return taskLists, nil
+}
+
+func (nB *NextcloudBackend) parseDeletedTaskLists(xmlData, baseURL string) ([]TaskList, error) {
+	var taskLists []TaskList
+
+	responses := extractResponses(xmlData)
+
+	for _, response := range responses {
+		// Only include calendars with 200 OK status and VTODO support
+		if !strings.Contains(response, "HTTP/1.1 200 OK") {
+			continue
+		}
+
+		taskList := parseTaskListResponse(response, baseURL)
+
+		// Skip trashbin, inbox, outbox, and other special collections
+		if taskList.ID == "trashbin" || taskList.ID == "inbox" || taskList.ID == "outbox" {
+			continue
+		}
+
+		// Only include deleted calendars (those with DeletedAt field set)
+		if taskList.DeletedAt == "" {
+			continue
+		}
+
 		// Only include calendars that actually support VTODO
 		if taskList.ID != "" && strings.Contains(response, `<cal:comp name="VTODO"/>`) {
 			taskLists = append(taskLists, taskList)

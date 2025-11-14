@@ -175,6 +175,22 @@ type TaskManager interface {
 	// Returns an error if the list doesn't exist or the new name is already in use.
 	RenameTaskList(listID, newName string) error
 
+	// GetDeletedTaskLists retrieves all task lists that have been moved to trash.
+	// This is backend-specific and may not be supported by all backends.
+	// For Nextcloud, returns calendars with the DeletedAt field set.
+	// Returns an empty list if trash is not supported or empty.
+	GetDeletedTaskLists() ([]TaskList, error)
+
+	// RestoreTaskList restores a deleted task list from trash.
+	// The listID parameter identifies the list to restore.
+	// Returns an error if the list doesn't exist in trash or cannot be restored.
+	RestoreTaskList(listID string) error
+
+	// PermanentlyDeleteTaskList permanently deletes a task list from trash.
+	// This operation is irreversible and removes the list completely.
+	// Returns an error if the list doesn't exist in trash or cannot be deleted.
+	PermanentlyDeleteTaskList(listID string) error
+
 	// ParseStatusFlag converts user input (abbreviations, app names, or backend names)
 	// to the backend's internal status format.
 	// Examples: "T" → "NEEDS-ACTION" (Nextcloud), "T" → "TODO" (File)
