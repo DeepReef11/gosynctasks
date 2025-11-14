@@ -178,7 +178,12 @@ func (nB *NextcloudBackend) parseTaskLists(xmlData, baseURL string) ([]TaskList,
 
 		// Skip deleted calendars (those with deleted-calendar resourcetype)
 		// Check for <deleted-calendar xmlns="http://nextcloud.com/ns"/>
-		if isDeletedCalendar(response) {
+		isDeleted := isDeletedCalendar(response)
+
+		// Debug: uncomment to see what's being detected
+		fmt.Printf("DEBUG parseTaskLists: List=%s, IsDeleted=%v\n", taskList.Name, isDeleted)
+
+		if isDeleted {
 			continue
 		}
 
@@ -211,7 +216,12 @@ func (nB *NextcloudBackend) parseDeletedTaskLists(xmlData, baseURL string) ([]Ta
 
 		// Only include deleted calendars (those with deleted-calendar resourcetype)
 		// Check for <deleted-calendar xmlns="http://nextcloud.com/ns"/>
-		if !isDeletedCalendar(response) {
+		isDeleted := isDeletedCalendar(response)
+
+		// Debug: uncomment to see what's being detected
+		fmt.Printf("DEBUG parseDeletedTaskLists: List=%s, IsDeleted=%v\n", taskList.Name, isDeleted)
+
+		if !isDeleted {
 			continue
 		}
 
@@ -227,11 +237,35 @@ func (nB *NextcloudBackend) parseDeletedTaskLists(xmlData, baseURL string) ([]Ta
 // isDeletedCalendar checks if a calendar response contains the deleted-calendar resourcetype
 func isDeletedCalendar(response string) bool {
 	// Check for the deleted-calendar element in resourcetype
-	// Can appear as:
-	// <deleted-calendar xmlns="http://nextcloud.com/ns"/>
-	// or with namespace prefix like:
-	// <nc:deleted-calendar/>
-	return strings.Contains(response, `deleted-calendar`)
+	// The element can appear in several forms:
+	// 1. <deleted-calendar xmlns="http://nextcloud.com/ns"/>
+	// 2. <nc:deleted-calendar/>
+	// 3. Within a resourcetype: <d:resourcetype>...<deleted-calendar/>...</d:resourcetype>
+
+	// First, try to find the resourcetype section
+	resourceTypeStart := strings.Index(response, "<resourcetype>")
+	if resourceTypeStart == -1 {
+		resourceTypeStart = strings.Index(response, "<d:resourcetype>")
+	}
+
+	if resourceTypeStart != -1 {
+		// Find the end of resourcetype
+		resourceTypeEnd := strings.Index(response[resourceTypeStart:], "</resourcetype>")
+		if resourceTypeEnd == -1 {
+			resourceTypeEnd = strings.Index(response[resourceTypeStart:], "</d:resourcetype>")
+		}
+
+		if resourceTypeEnd != -1 {
+			// Extract the resourcetype content
+			resourceTypeContent := response[resourceTypeStart : resourceTypeStart+resourceTypeEnd]
+
+			// Check if deleted-calendar is present in resourcetype
+			return strings.Contains(resourceTypeContent, "deleted-calendar")
+		}
+	}
+
+	// Fallback: check anywhere in response (less accurate but safer)
+	return strings.Contains(response, "deleted-calendar")
 }
 
 func containsVTODO(response string) bool {
