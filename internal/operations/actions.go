@@ -151,6 +151,7 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 	dueDateStr, _ := cmd.Flags().GetString("due-date")
 	startDateStr, _ := cmd.Flags().GetString("start-date")
 	parentRef, _ := cmd.Flags().GetString("parent")
+	literal, _ := cmd.Flags().GetBool("literal")
 
 	// Default status: use backend's parser with "TODO" as default
 	var taskStatus string
@@ -197,15 +198,16 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 			return fmt.Errorf("failed to resolve parent task: %w", err)
 		}
 		actualTaskName = taskSummary
-	} else if strings.Contains(taskSummary, "/") {
+	} else if !literal && strings.Contains(taskSummary, "/") {
 		// Path-based shorthand: "parent/child/task" creates hierarchy automatically
+		// Skip if --literal flag is set
 		fmt.Printf("Detected path-based task creation: '%s'\n", taskSummary)
 		parentUID, actualTaskName, err = CreateOrFindTaskPath(taskManager, cfg, selectedList.ID, taskSummary, taskStatus)
 		if err != nil {
 			return fmt.Errorf("failed to create task path: %w", err)
 		}
 	} else {
-		// Simple task with no parent
+		// Simple task with no parent (or literal mode)
 		actualTaskName = taskSummary
 	}
 

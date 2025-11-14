@@ -44,6 +44,7 @@ Examples:
   gosynctasks MyList add "Subtask" -P "Parent Task"  # Add subtask under parent
   gosynctasks MyList add "Fix bug" -P "Feature/Code"  # Path-based parent reference
   gosynctasks MyList add "parent/child/grandchild"  # Shorthand: auto-creates hierarchy
+  gosynctasks MyList add -l "be a good/generous person"  # Use -l to disable path parsing
 
   gosynctasks MyList update "Buy groceries" -s DONE  # Update task status
   gosynctasks MyList u "groceries" --summary "Buy milk"  # Partial match + rename
@@ -114,6 +115,7 @@ Config:
 	rootCmd.Flags().String("due-date", "", "task due date (for add/update, format: YYYY-MM-DD, empty string to clear)")
 	rootCmd.Flags().String("start-date", "", "task start date (for add/update, format: YYYY-MM-DD, empty string to clear)")
 	rootCmd.Flags().StringP("parent", "P", "", "parent task reference (for add): task summary or path like 'Parent/Child'")
+	rootCmd.Flags().BoolP("literal", "l", false, "treat task summary literally (for add): disable automatic path-based hierarchy creation")
 
 	// Register flag value completion for status flags
 	rootCmd.RegisterFlagCompletionFunc("status", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

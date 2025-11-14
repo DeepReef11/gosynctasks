@@ -38,6 +38,8 @@ gosynctasks MyList add "Fix bug" -P "Feature X/Write code"     # Deep nesting su
 # Path-based task creation shorthand (auto-creates missing parents)
 gosynctasks MyList add "parent/child/grandchild"               # Creates entire hierarchy automatically
 gosynctasks MyList add "Feature X/Write code/Fix auth bug"     # Creates Feature X, Write code, then Fix auth bug
+gosynctasks MyList add -l "be a good/generous person"          # Use -l/--literal to disable path parsing
+gosynctasks MyList add --literal "URL: http://example.com"     # Literal flag prevents "/" from being parsed
 
 # Updating tasks
 gosynctasks MyList update "task name" -s DONE     # Find and update status (u also works)
@@ -221,6 +223,7 @@ The application supports hierarchical task organization with parent-child relati
 - **Parent reference via -P flag**: Add subtasks using `-P "Parent Task"` or `-P "Parent/Child/Grandchild"` for deep nesting
 - **Path-based task creation shorthand**: Use `gosynctasks List add "parent/child/grandchild"` to automatically create the entire hierarchy
 - **Auto-create missing parents**: When using path syntax, intermediate tasks are created automatically if they don't exist
+- **Literal mode (-l/--literal flag)**: Disable path parsing for task summaries containing "/" (e.g., `gosynctasks List add -l "be a good/generous person"`)
 - **Path-based resolution**: Supports hierarchical paths like `"Feature X/Write code"` to reference nested tasks
 - **Tree-based display**: Tasks are displayed with box-drawing characters (├─, └─, │) showing hierarchy
 - **Enhanced disambiguation**: When multiple tasks match, displays hierarchical path `[Parent / Child]` for clarity
