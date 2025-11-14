@@ -506,6 +506,104 @@ func TestConfigMigrationIntegration(t *testing.T) {
 	}
 }
 
+// TestSetCustomConfigPath tests the SetCustomConfigPath function
+func TestSetCustomConfigPath(t *testing.T) {
+	// Save original state
+	originalCustomPath := customConfigPath
+	defer func() {
+		customConfigPath = originalCustomPath
+	}()
+
+	// Create temporary directory for testing
+	tmpDir := t.TempDir()
+
+	tests := []struct {
+		name     string
+		path     string
+		setup    func() string // Returns the path to use for testing
+		expected string
+	}{
+		{
+			name:     "empty path defaults to current dir",
+			path:     "",
+			expected: filepath.Join(".", CONFIG_DIR_PATH, CONFIG_FILE_PATH),
+		},
+		{
+			name:     "dot path defaults to current dir",
+			path:     ".",
+			expected: filepath.Join(".", CONFIG_DIR_PATH, CONFIG_FILE_PATH),
+		},
+		{
+			name:     "json file path used as-is",
+			path:     "/path/to/myconfig.json",
+			expected: "/path/to/myconfig.json",
+		},
+		{
+			name:     "uppercase JSON file path used as-is",
+			path:     "/path/to/MYCONFIG.JSON",
+			expected: "/path/to/MYCONFIG.JSON",
+		},
+		{
+			name: "existing directory appends config.json",
+			setup: func() string {
+				// Create a test directory
+				dir := filepath.Join(tmpDir, "existing_dir")
+				os.MkdirAll(dir, 0755)
+				return dir
+			},
+			expected: "", // Will be set dynamically
+		},
+		{
+			name: "existing file used as-is",
+			setup: func() string {
+				// Create a test file
+				file := filepath.Join(tmpDir, "existing_config")
+				os.WriteFile(file, []byte("{}"), 0644)
+				return file
+			},
+			expected: "", // Will be set dynamically
+		},
+		{
+			name:     "non-existent directory path (no .json) appends config.json",
+			path:     "/path/to/nonexistent/dir",
+			expected: filepath.Join("/path/to/nonexistent/dir", CONFIG_FILE_PATH),
+		},
+		{
+			name:     "non-existent path with .json treated as file",
+			path:     "/path/to/nonexistent/config.json",
+			expected: "/path/to/nonexistent/config.json",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Reset custom path before each test
+			customConfigPath = ""
+
+			path := tt.path
+			expected := tt.expected
+
+			// Run setup if provided
+			if tt.setup != nil {
+				path = tt.setup()
+				if tt.name == "existing directory appends config.json" {
+					expected = filepath.Join(path, CONFIG_FILE_PATH)
+				} else if tt.name == "existing file used as-is" {
+					expected = path
+				}
+			}
+
+			// Set custom config path
+			SetCustomConfigPath(path)
+
+			// Verify result
+			if customConfigPath != expected {
+				t.Errorf("SetCustomConfigPath(%q)\n  got:  %q\n  want: %q", path, customConfigPath, expected)
+			}
+		})
+	}
+}
+
 // Helper function to parse URL without error handling
 func mustParseURL(rawURL string) *url.URL {
 	u, err := url.Parse(rawURL)

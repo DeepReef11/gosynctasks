@@ -30,6 +30,17 @@ gosynctasks MyList add "Task summary"    # Create task (a also works)
 gosynctasks MyList add                   # Will prompt for summary
 gosynctasks MyList add "Task" -d "Details" -p 1 -S done  # With description, priority, status
 
+# Adding subtasks (hierarchical tasks)
+gosynctasks MyList add "Subtask" -P "Parent Task"              # Add subtask under parent
+gosynctasks MyList add "Sub-subtask" -P "Parent/Subtask"       # Path-based parent reference
+gosynctasks MyList add "Fix bug" -P "Feature X/Write code"     # Deep nesting support
+
+# Path-based task creation shorthand (auto-creates missing parents)
+gosynctasks MyList add "parent/child/grandchild"               # Creates entire hierarchy automatically
+gosynctasks MyList add "Feature X/Write code/Fix auth bug"     # Creates Feature X, Write code, then Fix auth bug
+gosynctasks MyList add -l "be a good/generous person"          # Use -l/--literal to disable path parsing
+gosynctasks MyList add --literal "URL: http://example.com"     # Literal flag prevents "/" from being parsed
+
 # Updating tasks
 gosynctasks MyList update "task name" -s DONE     # Find and update status (u also works)
 gosynctasks MyList update "partial" -p 5          # Partial match, update priority
@@ -204,6 +215,41 @@ Follows iCalendar VTODO spec:
 - `parseVTODO()`: Parses individual VTODO into Task struct
 - `parseICalTime()`: Handles multiple iCal date/time formats (UTC, local, date-only)
 - `unescapeText()`: Handles iCalendar escape sequences (\n, \,, \;, \\)
+
+### Subtask Support (internal/operations/subtasks.go)
+The application supports hierarchical task organization with parent-child relationships:
+
+**Features:**
+- **Parent reference via -P flag**: Add subtasks using `-P "Parent Task"` or `-P "Parent/Child/Grandchild"` for deep nesting
+- **Path-based task creation shorthand**: Use `gosynctasks List add "parent/child/grandchild"` to automatically create the entire hierarchy
+- **Auto-create missing parents**: When using path syntax, intermediate tasks are created automatically if they don't exist
+- **Literal mode (-l/--literal flag)**: Disable path parsing for task summaries containing "/" (e.g., `gosynctasks List add -l "be a good/generous person"`)
+- **Path-based resolution**: Supports hierarchical paths like `"Feature X/Write code"` to reference nested tasks
+- **Tree-based display**: Tasks are displayed with box-drawing characters (├─, └─, │) showing hierarchy
+- **Enhanced disambiguation**: When multiple tasks match, displays hierarchical path `[Parent / Child]` for clarity
+
+**Key Functions:**
+- `CreateOrFindTaskPath()` (subtasks.go:10-64): Auto-creates hierarchical path of tasks from "parent/child/task" syntax
+- `ResolveParentTask()` (subtasks.go:66+): Resolves parent reference (simple or path-based) to task UID
+- `resolveParentPath()`: Handles path-based parent references like "A/B/C"
+- `findTaskByParent()`: Finds task matching summary with specific parent UID
+- `BuildTaskTree()`: Converts flat task list to hierarchical tree structure
+- `FormatTaskTree()`: Renders tree with box-drawing characters and indentation
+- `GetTaskPath()` (tasks.go): Returns hierarchical path string for a task (exported)
+
+**Task Display:**
+- Root tasks display normally
+- Subtasks show with tree characters: `├─ Subtask` or `└─ Last subtask`
+- Multi-line task output preserves tree structure with continuation characters
+- Unlimited nesting depth supported
+- Preserves status symbols, priority colors, and metadata display
+
+**Parent Resolution Logic:**
+1. Simple reference ("Parent") → Direct search by summary
+2. Path reference ("A/B") → Walk hierarchy level by level
+3. Multiple matches → Interactive selection with hierarchical paths shown
+4. Single partial match → Confirmation prompt
+5. Exact match → Proceed immediately
 
 ## Common Patterns
 

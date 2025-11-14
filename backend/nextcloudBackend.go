@@ -630,6 +630,11 @@ func (nb *NextcloudBackend) buildICalContent(task Task) string {
 		icalContent.WriteString(fmt.Sprintf("COMPLETED:%s\r\n", completed))
 	}
 
+	// Add RELATED-TO for parent-child relationships
+	if task.ParentUID != "" {
+		icalContent.WriteString(fmt.Sprintf("RELATED-TO:%s\r\n", task.ParentUID))
+	}
+
 	icalContent.WriteString("END:VTODO\r\n")
 	icalContent.WriteString("END:VCALENDAR\r\n")
 

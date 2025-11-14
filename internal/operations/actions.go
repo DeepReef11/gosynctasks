@@ -116,14 +116,15 @@ func HandleGetAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *c
 		return nil
 	}
 
-	// Fall back to legacy formatting for built-in views
+	// Fall back to tree-based hierarchical display
 	fmt.Print(selectedList.StringWithWidth(termWidth))
 
-	// Organize tasks hierarchically to display subtasks under their parents
-	organizedTasks := backend.OrganizeTasksHierarchically(tasks)
-	for _, taskWithLevel := range organizedTasks {
-		fmt.Print(taskWithLevel.Task.FormatWithIndentLevel(viewName, taskManager, dateFormat, taskWithLevel.Level))
-	}
+	// Build task tree
+	tree := BuildTaskTree(tasks)
+
+	// Format and display tree
+	treeOutput := FormatTaskTree(tree, viewName, taskManager, dateFormat)
+	fmt.Print(treeOutput)
 
 	fmt.Print(selectedList.BottomBorderWithWidth(termWidth))
 	return nil
@@ -151,6 +152,8 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 	statusFlag, _ := cmd.Flags().GetString("add-status")
 	dueDateStr, _ := cmd.Flags().GetString("due-date")
 	startDateStr, _ := cmd.Flags().GetString("start-date")
+	parentRef, _ := cmd.Flags().GetString("parent")
+	literal, _ := cmd.Flags().GetBool("literal")
 
 	// Default status: use backend's parser with "TODO" as default
 	var taskStatus string
@@ -185,20 +188,46 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 		return err
 	}
 
+	cfg := config.GetConfig()
+	var parentUID string
+	var actualTaskName string
+
+	// Handle path-based task creation or parent resolution
+	if parentRef != "" {
+		// Explicit parent provided via -P flag
+		parentUID, err = ResolveParentTask(taskManager, cfg, selectedList.ID, parentRef)
+		if err != nil {
+			return fmt.Errorf("failed to resolve parent task: %w", err)
+		}
+		actualTaskName = taskSummary
+	} else if !literal && strings.Contains(taskSummary, "/") {
+		// Path-based shorthand: "parent/child/task" creates hierarchy automatically
+		// Skip if --literal flag is set
+		fmt.Printf("Detected path-based task creation: '%s'\n", taskSummary)
+		parentUID, actualTaskName, err = CreateOrFindTaskPath(taskManager, cfg, selectedList.ID, taskSummary, taskStatus)
+		if err != nil {
+			return fmt.Errorf("failed to create task path: %w", err)
+		}
+	} else {
+		// Simple task with no parent (or literal mode)
+		actualTaskName = taskSummary
+	}
+
 	task := backend.Task{
-		Summary:     taskSummary,
+		Summary:     actualTaskName,
 		Description: description,
 		Status:      taskStatus,
 		Priority:    priority,
 		DueDate:     dueDate,
 		StartDate:   startDate,
+		ParentUID:   parentUID,
 	}
 
 	if err := taskManager.AddTask(selectedList.ID, task); err != nil {
 		return fmt.Errorf("error adding task: %w", err)
 	}
 
-	fmt.Printf("Task '%s' added successfully to list '%s'\n", taskSummary, selectedList.Name)
+	fmt.Printf("Task '%s' added successfully to list '%s'\n", actualTaskName, selectedList.Name)
 	return nil
 }
 
