@@ -92,7 +92,7 @@ func selectTask(tasks []backend.Task, searchSummary string, taskManager backend.
 		fmt.Print(task.FormatWithView("all", taskManager, dateFormat))
 	}
 
-	fmt.Printf("\nSelect task (1-%d) or 0 to cancel: ", len(tasks))
+	fmt.Printf("\nSelect task (1-%d) or 0 to skip: ", len(tasks))
 	var choice int
 	if _, err := fmt.Scanf("%d", &choice); err != nil {
 		return nil, fmt.Errorf("invalid input: %w", err)
@@ -119,7 +119,7 @@ func selectTaskSimple(tasks []backend.Task, searchSummary string, taskManager ba
 		fmt.Print(task.FormatWithView("all", taskManager, dateFormat))
 	}
 
-	fmt.Printf("\nSelect task (1-%d) or 0 to cancel: ", len(tasks))
+	fmt.Printf("\nSelect task (1-%d) or 0 to skip: ", len(tasks))
 	var choice int
 	if _, err := fmt.Scanf("%d", &choice); err != nil {
 		return nil, fmt.Errorf("invalid input: %w", err)

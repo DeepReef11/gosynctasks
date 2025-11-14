@@ -82,6 +82,10 @@ func ResolveParentTask(taskManager backend.TaskManager, cfg *config.Config, list
 	// Simple reference - find the task by summary
 	task, err := FindTaskBySummary(taskManager, cfg, listID, parentRef)
 	if err != nil {
+		// If user chose to skip selection (entered 0), create as root task
+		if strings.Contains(err.Error(), "operation cancelled") {
+			return "", nil
+		}
 		return "", fmt.Errorf("failed to find parent task '%s': %w", parentRef, err)
 	}
 
@@ -107,6 +111,10 @@ func resolveParentPath(taskManager backend.TaskManager, cfg *config.Config, list
 		// Find task matching this part with the current parent
 		task, err := findTaskByParent(taskManager, cfg, listID, part, currentParentUID)
 		if err != nil {
+			// If user chose to skip selection (entered 0), create as root task
+			if strings.Contains(err.Error(), "operation cancelled") {
+				return "", nil
+			}
 			pathSoFar := strings.Join(parts[:i+1], "/")
 			return "", fmt.Errorf("failed to resolve '%s' in path '%s': %w", pathSoFar, path, err)
 		}
@@ -216,7 +224,7 @@ func selectTaskWithPath(tasks []backend.Task, searchSummary string, taskManager 
 		fmt.Print(task.FormatWithView("all", taskManager, dateFormat))
 	}
 
-	fmt.Printf("\nSelect task (1-%d) or 0 to cancel: ", len(tasks))
+	fmt.Printf("\nSelect task (1-%d) or 0 to skip parent: ", len(tasks))
 	var choice int
 	if _, err := fmt.Scanf("%d", &choice); err != nil {
 		return nil, fmt.Errorf("invalid input: %w", err)
