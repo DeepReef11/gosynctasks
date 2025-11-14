@@ -162,6 +162,19 @@ type TaskManager interface {
 	// Returns a BackendError with IsNotFound() == true if the task doesn't exist.
 	DeleteTask(listID string, taskUID string) error
 
+	// CreateTaskList creates a new task list with the given name and optional description.
+	// The color parameter is optional and may be ignored by backends that don't support it.
+	// Returns the ID of the newly created list or an error if creation fails.
+	CreateTaskList(name, description, color string) (string, error)
+
+	// DeleteTaskList permanently removes a task list and all tasks within it.
+	// Returns an error if the list doesn't exist or cannot be deleted.
+	DeleteTaskList(listID string) error
+
+	// RenameTaskList changes the name of an existing task list.
+	// Returns an error if the list doesn't exist or the new name is already in use.
+	RenameTaskList(listID, newName string) error
+
 	// ParseStatusFlag converts user input (abbreviations, app names, or backend names)
 	// to the backend's internal status format.
 	// Examples: "T" → "NEEDS-ACTION" (Nextcloud), "T" → "TODO" (File)
