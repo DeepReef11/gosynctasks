@@ -45,6 +45,19 @@ func (fB *FileBackend) RenameTaskList(listID, newName string) error {
 	return fmt.Errorf("FileBackend.RenameTaskList not yet implemented")
 }
 
+func (fB *FileBackend) GetDeletedTaskLists() ([]TaskList, error) {
+	// FileBackend doesn't support trash functionality
+	return []TaskList{}, nil
+}
+
+func (fB *FileBackend) RestoreTaskList(listID string) error {
+	return fmt.Errorf("FileBackend.RestoreTaskList not supported")
+}
+
+func (fB *FileBackend) PermanentlyDeleteTaskList(listID string) error {
+	return fmt.Errorf("FileBackend.PermanentlyDeleteTaskList not supported")
+}
+
 func (fB *FileBackend) ParseStatusFlag(statusFlag string) (string, error) {
 	if statusFlag == "" {
 		return "", fmt.Errorf("status flag cannot be empty")

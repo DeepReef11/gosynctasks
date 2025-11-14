@@ -584,3 +584,19 @@ func (gb *GitBackend) GetPriorityColor(priority int) string {
 		return "" // No color (undefined priority)
 	}
 }
+
+// GetDeletedTaskLists retrieves deleted task lists (not supported for Git backend).
+func (gb *GitBackend) GetDeletedTaskLists() ([]TaskList, error) {
+	// Git backend doesn't support trash functionality
+	return []TaskList{}, nil
+}
+
+// RestoreTaskList restores a deleted task list (not supported for Git backend).
+func (gb *GitBackend) RestoreTaskList(listID string) error {
+	return fmt.Errorf("GitBackend.RestoreTaskList not supported")
+}
+
+// PermanentlyDeleteTaskList permanently deletes a task list (not supported for Git backend).
+func (gb *GitBackend) PermanentlyDeleteTaskList(listID string) error {
+	return fmt.Errorf("GitBackend.PermanentlyDeleteTaskList not supported")
+}

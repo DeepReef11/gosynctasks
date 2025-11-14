@@ -10,7 +10,7 @@ After completing working changes, build again.
 After doing TESTING.md, provide one or more command to test for the user for the added changes.
 
 **IMPORTANT - Testing with Docker:**
-When providing test commands or when test commands fail with connection errors, ALWAYS remind the user to ensure the Docker test server is running:
+When providing test commands or when test commands fail with connection errors, ALWAYS remind the user to ensure the Docker test server is running. You should not launch that command, it's the user:
 ```bash
 ./scripts/start-test-server.sh
 ```
@@ -89,10 +89,18 @@ gosynctasks list info MyList                  # Show list details (i also works)
 gosynctasks list rename "Old Name" "New Name" # Rename list (r also works)
 gosynctasks list delete "List Name"           # Delete list (d also works)
 
+# List trash management (view and restore deleted lists)
+gosynctasks list trash                        # Show all deleted lists in trash
+gosynctasks list trash restore "List Name"    # Restore a deleted list from trash
+gosynctasks list trash empty "List Name"      # Permanently delete a list from trash
+gosynctasks list trash empty --all            # Empty entire trash (WARNING: irreversible!)
+
 # List management with test server (using gst)
 gst list create "New List"               # Create list on test server
 gst list info Test                       # Show test list details
 gst list                                 # List all lists on test server
+gst list trash                           # Show deleted lists on test server
+gst list trash restore "Old List"        # Restore deleted list on test server
 ```
 
 ### Testing

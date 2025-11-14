@@ -176,6 +176,14 @@ func (nB *NextcloudBackend) parseTaskLists(xmlData, baseURL string) ([]TaskList,
 			continue
 		}
 
+		// Skip deleted calendars (those with deleted-calendar resourcetype)
+		// Check for <deleted-calendar xmlns="http://nextcloud.com/ns"/>
+		isDeleted := isDeletedCalendar(response)
+
+		if isDeleted {
+			continue
+		}
+
 		// Only include calendars that actually support VTODO
 		if taskList.ID != "" && strings.Contains(response, `<cal:comp name="VTODO"/>`) {
 			taskLists = append(taskLists, taskList)
@@ -183,6 +191,75 @@ func (nB *NextcloudBackend) parseTaskLists(xmlData, baseURL string) ([]TaskList,
 	}
 
 	return taskLists, nil
+}
+
+func (nB *NextcloudBackend) parseDeletedTaskLists(xmlData, baseURL string) ([]TaskList, error) {
+	var taskLists []TaskList
+
+	responses := extractResponses(xmlData)
+
+	for _, response := range responses {
+		// Only include calendars with 200 OK status and VTODO support
+		if !strings.Contains(response, "HTTP/1.1 200 OK") {
+			continue
+		}
+
+		taskList := parseTaskListResponse(response, baseURL)
+
+		// Skip trashbin, inbox, outbox, and other special collections
+		if taskList.ID == "trashbin" || taskList.ID == "inbox" || taskList.ID == "outbox" {
+			continue
+		}
+
+		// Only include deleted calendars (those with deleted-calendar resourcetype)
+		// Check for <deleted-calendar xmlns="http://nextcloud.com/ns"/>
+		isDeleted := isDeletedCalendar(response)
+
+		if !isDeleted {
+			continue
+		}
+
+		// Only include calendars that actually support VTODO
+		if taskList.ID != "" && strings.Contains(response, `<cal:comp name="VTODO"/>`) {
+			taskLists = append(taskLists, taskList)
+		}
+	}
+
+	return taskLists, nil
+}
+
+// isDeletedCalendar checks if a calendar response contains the deleted-calendar resourcetype
+func isDeletedCalendar(response string) bool {
+	// Check for the deleted-calendar element in resourcetype
+	// The element can appear in several forms:
+	// 1. <deleted-calendar xmlns="http://nextcloud.com/ns"/>
+	// 2. <nc:deleted-calendar/>
+	// 3. Within a resourcetype: <d:resourcetype>...<deleted-calendar/>...</d:resourcetype>
+
+	// First, try to find the resourcetype section
+	resourceTypeStart := strings.Index(response, "<resourcetype>")
+	if resourceTypeStart == -1 {
+		resourceTypeStart = strings.Index(response, "<d:resourcetype>")
+	}
+
+	if resourceTypeStart != -1 {
+		// Find the end of resourcetype
+		resourceTypeEnd := strings.Index(response[resourceTypeStart:], "</resourcetype>")
+		if resourceTypeEnd == -1 {
+			resourceTypeEnd = strings.Index(response[resourceTypeStart:], "</d:resourcetype>")
+		}
+
+		if resourceTypeEnd != -1 {
+			// Extract the resourcetype content
+			resourceTypeContent := response[resourceTypeStart : resourceTypeStart+resourceTypeEnd]
+
+			// Check if deleted-calendar is present in resourcetype
+			return strings.Contains(resourceTypeContent, "deleted-calendar")
+		}
+	}
+
+	// Fallback: check anywhere in response (less accurate but safer)
+	return strings.Contains(response, "deleted-calendar")
 }
 
 func containsVTODO(response string) bool {
@@ -266,7 +343,7 @@ func extractXMLValue(xml, tag string) string {
 	}
 
 	// Try with namespace prefixes
-	for _, prefix := range []string{"d:", "cs:", "ic:"} {
+	for _, prefix := range []string{"d:", "cs:", "ic:", "nc:"} {
 		fullTag := prefix + tag
 		if start := strings.Index(xml, fmt.Sprintf("<%s>", fullTag)); start != -1 {
 			start += len(fullTag) + 2

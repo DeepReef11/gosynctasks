@@ -288,8 +288,9 @@ func (nB *NextcloudBackend) GetTaskLists() ([]TaskList, error) {
 
 	// Build request body
 	propfindBody := `<?xml version="1.0" encoding="utf-8" ?>
-<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:ic="http://apple.com/ns/ical/" xmlns:nc="http://nextcloud.org/ns">
+<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:ic="http://apple.com/ns/ical/" xmlns:nc="http://nextcloud.com/ns">
   <d:prop>
+    <d:resourcetype />
     <d:displayname />
     <cs:getctag />
     <c:supported-calendar-component-set />
@@ -321,6 +322,47 @@ func (nB *NextcloudBackend) GetTaskLists() ([]TaskList, error) {
 	}
 
 	return nB.parseTaskLists(string(respBody), calendarURL)
+}
+
+func (nB *NextcloudBackend) GetDeletedTaskLists() ([]TaskList, error) {
+	calendarURL := nB.buildCalendarURL()
+
+	// Build request body (same as GetTaskLists)
+	propfindBody := `<?xml version="1.0" encoding="utf-8" ?>
+<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:ic="http://apple.com/ns/ical/" xmlns:nc="http://nextcloud.com/ns">
+  <d:prop>
+    <d:resourcetype />
+    <d:displayname />
+    <cs:getctag />
+    <c:supported-calendar-component-set />
+    <ic:calendar-color />
+    <nc:deleted-at />
+  </d:prop>
+</d:propfind>`
+
+	// Make authenticated request
+	headers := map[string]string{
+		"Content-Type": "application/xml",
+		"Depth":        "1",
+	}
+	resp, err := nB.makeAuthenticatedRequest("PROPFIND", calendarURL, strings.NewReader(propfindBody), headers)
+	if err != nil {
+		return nil, fmt.Errorf("HTTP request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if err := nB.checkHTTPResponse(resp, "GetDeletedTaskLists"); err != nil {
+		return nil, err
+	}
+
+	// Parse response
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	return nB.parseDeletedTaskLists(string(respBody), calendarURL)
 }
 
 func (nB *NextcloudBackend) AddTask(listID string, task Task) error {
@@ -537,6 +579,78 @@ func (nB *NextcloudBackend) RenameTaskList(listID, newName string) error {
 
 	// Check for other errors
 	if err := nB.checkHTTPResponse(resp, "RenameTaskList", 200, 207); err != nil {
+		if backendErr, ok := err.(*BackendError); ok {
+			return backendErr.WithListID(listID)
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (nB *NextcloudBackend) RestoreTaskList(listID string) error {
+	// Build the MOVE request to restore from trash
+	// Nextcloud uses MOVE method to restore deleted calendars
+	// Source: deleted calendar URL, Destination: restored calendar URL
+
+	// Build source URL (current location in trash)
+	sourceURL := nB.buildListURL(listID)
+
+	// Build destination URL (where to restore - use the deleted-suffix format)
+	// Nextcloud appends a suffix to deleted calendars, we need to remove it
+	restoredListID := strings.TrimSuffix(listID, "-deleted")
+	if restoredListID == listID {
+		// If no -deleted suffix, try restoring to same location
+		restoredListID = listID
+	}
+	destURL := nB.buildListURL(restoredListID)
+
+	// Make authenticated MOVE request
+	headers := map[string]string{
+		"Destination": destURL,
+		"Overwrite":   "F", // Don't overwrite existing calendars
+	}
+	resp, err := nB.makeAuthenticatedRequest("MOVE", sourceURL, nil, headers)
+	if err != nil {
+		return fmt.Errorf("failed to restore list: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status - 201 Created or 204 No Content are success statuses
+	if resp.StatusCode == 404 {
+		return NewBackendError("RestoreTaskList", 404, "list not found in trash").
+			WithListID(listID)
+	}
+
+	if err := nB.checkHTTPResponse(resp, "RestoreTaskList", 201, 204); err != nil {
+		if backendErr, ok := err.(*BackendError); ok {
+			return backendErr.WithListID(listID)
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (nB *NextcloudBackend) PermanentlyDeleteTaskList(listID string) error {
+	// Build DELETE request with special header to permanently delete from trash
+	// For Nextcloud, we need to delete the calendar completely
+
+	// Make authenticated DELETE request
+	resp, err := nB.makeAuthenticatedRequest("DELETE", nB.buildListURL(listID), nil, nil)
+	if err != nil {
+		return fmt.Errorf("failed to permanently delete list: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status - handle 404 specifically for list not found
+	if resp.StatusCode == 404 {
+		return NewBackendError("PermanentlyDeleteTaskList", 404, "list not found in trash").
+			WithListID(listID)
+	}
+
+	// Check for other errors - 200 OK or 204 No Content are success statuses
+	if err := nB.checkHTTPResponse(resp, "PermanentlyDeleteTaskList", 200, 204); err != nil {
 		if backendErr, ok := err.(*BackendError); ok {
 			return backendErr.WithListID(listID)
 		}

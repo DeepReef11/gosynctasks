@@ -61,6 +61,7 @@ Examples:
 	listCmd.AddCommand(newListDeleteCmd())
 	listCmd.AddCommand(newListRenameCmd())
 	listCmd.AddCommand(newListInfoCmd())
+	listCmd.AddCommand(newListTrashCmd())
 
 	return listCmd
 }
@@ -436,4 +437,229 @@ func printListInfo(info map[string]interface{}) {
 	if ctag, ok := info["ctag"].(string); ok && ctag != "" {
 		fmt.Printf("CTag: %s\n", ctag)
 	}
+}
+
+// newListTrashCmd creates the 'list trash' command with subcommands
+func newListTrashCmd() *cobra.Command {
+	trashCmd := &cobra.Command{
+		Use:   "trash",
+		Short: "Manage deleted task lists (trash)",
+		Long: `View and manage task lists that have been deleted (moved to trash).
+
+Subcommands:
+  gosynctasks list trash              # Show all deleted lists
+  gosynctasks list trash restore <name>  # Restore a deleted list
+  gosynctasks list trash empty <name>    # Permanently delete a list from trash
+  gosynctasks list trash empty --all     # Empty entire trash (dangerous!)`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Default action: show deleted lists
+			taskManager := application.GetTaskManager()
+			if taskManager == nil {
+				return fmt.Errorf("task manager not initialized")
+			}
+
+			// Get deleted lists
+			deletedLists, err := taskManager.GetDeletedTaskLists()
+			if err != nil {
+				return fmt.Errorf("failed to get deleted lists: %w", err)
+			}
+
+			if len(deletedLists) == 0 {
+				fmt.Println("No deleted lists in trash.")
+				return nil
+			}
+
+			fmt.Println("\nDeleted task lists (in trash):")
+			for _, list := range deletedLists {
+				deletedInfo := ""
+				if list.DeletedAt != "" {
+					deletedInfo = fmt.Sprintf(" (deleted: %s)", list.DeletedAt)
+				}
+
+				if list.Description != "" {
+					fmt.Printf("  • %s - %s%s\n", list.Name, list.Description, deletedInfo)
+				} else {
+					fmt.Printf("  • %s%s\n", list.Name, deletedInfo)
+				}
+			}
+			fmt.Println()
+			return nil
+		},
+	}
+
+	// Add subcommands
+	trashCmd.AddCommand(newListTrashRestoreCmd())
+	trashCmd.AddCommand(newListTrashEmptyCmd())
+
+	return trashCmd
+}
+
+// newListTrashRestoreCmd creates the 'list trash restore' command
+func newListTrashRestoreCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "restore <name>",
+		Short: "Restore a deleted list from trash",
+		Long: `Restore a task list from trash, bringing back all its tasks.
+
+The list will be restored to its original state before deletion.`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+
+			// Get task manager from application
+			taskManager := application.GetTaskManager()
+			if taskManager == nil {
+				return fmt.Errorf("task manager not initialized")
+			}
+
+			// Find the list in trash by name
+			deletedLists, err := taskManager.GetDeletedTaskLists()
+			if err != nil {
+				return fmt.Errorf("failed to get deleted lists: %w", err)
+			}
+
+			var listID string
+			for _, list := range deletedLists {
+				if list.Name == name {
+					listID = list.ID
+					break
+				}
+			}
+
+			if listID == "" {
+				return fmt.Errorf("list '%s' not found in trash", name)
+			}
+
+			// Restore the list
+			if err := taskManager.RestoreTaskList(listID); err != nil {
+				return fmt.Errorf("failed to restore list: %w", err)
+			}
+
+			// Clear cache
+			if err := application.RefreshTaskLists(); err != nil {
+				// Non-fatal, just warn
+				fmt.Printf("Warning: failed to refresh cache: %v\n", err)
+			}
+
+			fmt.Printf("List '%s' restored successfully.\n", name)
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+// newListTrashEmptyCmd creates the 'list trash empty' command
+func newListTrashEmptyCmd() *cobra.Command {
+	var emptyAll bool
+	var force bool
+
+	cmd := &cobra.Command{
+		Use:   "empty [name]",
+		Short: "Permanently delete a list from trash",
+		Long: `Permanently delete a task list from trash. This operation is irreversible.
+
+By default, prompts for confirmation.
+Use --all to empty the entire trash (WARNING: very dangerous!).
+Use --force to skip the confirmation prompt.
+
+WARNING: This permanently and irreversibly deletes the list and all its tasks.`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Get task manager from application
+			taskManager := application.GetTaskManager()
+			if taskManager == nil {
+				return fmt.Errorf("task manager not initialized")
+			}
+
+			// Get deleted lists
+			deletedLists, err := taskManager.GetDeletedTaskLists()
+			if err != nil {
+				return fmt.Errorf("failed to get deleted lists: %w", err)
+			}
+
+			if len(deletedLists) == 0 {
+				fmt.Println("Trash is already empty.")
+				return nil
+			}
+
+			// Determine which lists to delete
+			var listsToDelete []backend.TaskList
+
+			if emptyAll {
+				// Delete all lists in trash
+				listsToDelete = deletedLists
+			} else {
+				// Delete specific list
+				if len(args) == 0 {
+					return fmt.Errorf("list name required (or use --all)")
+				}
+
+				name := args[0]
+				var found bool
+				for _, list := range deletedLists {
+					if list.Name == name {
+						listsToDelete = append(listsToDelete, list)
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					return fmt.Errorf("list '%s' not found in trash", name)
+				}
+			}
+
+			// Confirm deletion unless --force
+			if !force {
+				if emptyAll {
+					fmt.Printf("This will PERMANENTLY delete ALL %d lists in trash.\n", len(listsToDelete))
+					fmt.Println("This operation is IRREVERSIBLE and will delete all tasks in these lists.")
+				} else {
+					fmt.Printf("This will PERMANENTLY delete the list '%s' from trash.\n", listsToDelete[0].Name)
+					fmt.Println("This operation is IRREVERSIBLE and will delete all tasks in this list.")
+				}
+				fmt.Print("Are you sure? (y/n): ")
+				var response string
+				if _, err := fmt.Scanf("%s", &response); err != nil {
+					return fmt.Errorf("invalid input: %w", err)
+				}
+
+				response = strings.ToLower(strings.TrimSpace(response))
+				if response != "y" && response != "yes" {
+					fmt.Println("Operation cancelled.")
+					return nil
+				}
+			}
+
+			// Delete the lists
+			deletedCount := 0
+			for _, list := range listsToDelete {
+				if err := taskManager.PermanentlyDeleteTaskList(list.ID); err != nil {
+					fmt.Printf("Warning: failed to delete '%s': %v\n", list.Name, err)
+					continue
+				}
+				deletedCount++
+			}
+
+			// Clear cache
+			if err := application.RefreshTaskLists(); err != nil {
+				// Non-fatal, just warn
+				fmt.Printf("Warning: failed to refresh cache: %v\n", err)
+			}
+
+			if emptyAll {
+				fmt.Printf("Successfully permanently deleted %d lists from trash.\n", deletedCount)
+			} else {
+				fmt.Printf("List '%s' permanently deleted from trash.\n", listsToDelete[0].Name)
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&emptyAll, "all", false, "Empty entire trash (delete all lists permanently)")
+	cmd.Flags().BoolVarP(&force, "force", "f", false, "Skip confirmation prompt")
+
+	return cmd
 }
