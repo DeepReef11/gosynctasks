@@ -24,13 +24,14 @@ The test config at `./gosynctasks/config/config.json` is pre-configured for the 
 go build -o gosynctasks ./cmd/gosynctasks
 
 # Run directly
-go run ./cmd/gosynctasks/main.go
+go run ./cmd/gosynctasks
 
 # For testing with the Docker test server, use the gst function:
 gst() {
-    ./gosynctasks --config ./gosynctasks/config/config.json "$@"
-}
-# See Shell Completion section for autocompletion setup with gst
+      go run ./cmd/gosynctasks --config ./gosynctasks/config "$@"
+  }
+eval "$(./gosynctasks/gosynctasks completion zsh)"
+compdef gst=gosynctasks# See Shell Completion section for autocompletion setup with gst
 
 # Basic usage patterns
 gosynctasks                              # Interactive list selection
