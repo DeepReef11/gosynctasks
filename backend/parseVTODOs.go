@@ -176,6 +176,11 @@ func (nB *NextcloudBackend) parseTaskLists(xmlData, baseURL string) ([]TaskList,
 			continue
 		}
 
+		// Skip trashed/deleted calendars (have nc:deleted-at set)
+		if taskList.DeletedAt != "" {
+			continue
+		}
+
 		// Only include calendars that actually support VTODO
 		if taskList.ID != "" && strings.Contains(response, `<cal:comp name="VTODO"/>`) {
 			taskLists = append(taskLists, taskList)
