@@ -56,7 +56,18 @@ func (nB *NextcloudBackend) getPassword() string {
 func (nB *NextcloudBackend) getBaseURL() string {
 	if nB.baseURL == "" {
 		if nB.Connector.URL != nil {
-			nB.baseURL = fmt.Sprintf("https://%s", nB.Connector.URL.Host) //TODO: Test for uncomplete and complete url like nextloud.com/remote.php/... and just nextcloud.com
+			// Determine HTTP vs HTTPS based on port
+			// Common HTTP ports: 80, 8080, 8000
+			// Everything else uses HTTPS by default
+			protocol := "https"
+			host := nB.Connector.URL.Host
+
+			// Check if port is specified and is a common HTTP port
+			if strings.Contains(host, ":80") || strings.Contains(host, ":8080") || strings.Contains(host, ":8000") {
+				protocol = "http"
+			}
+
+			nB.baseURL = fmt.Sprintf("%s://%s", protocol, host)
 		}
 	}
 	return nB.baseURL
@@ -196,12 +207,13 @@ func (nB *NextcloudBackend) GetTaskLists() ([]TaskList, error) {
 	req.Header.Set("Depth", "1")
 
 	body := `<?xml version="1.0" encoding="utf-8" ?>
-<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:ic="http://apple.com/ns/ical/">
+<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:ic="http://apple.com/ns/ical/" xmlns:nc="http://nextcloud.org/ns">
   <d:prop>
     <d:displayname />
     <cs:getctag />
     <c:supported-calendar-component-set />
     <ic:calendar-color />
+    <nc:deleted-at />
   </d:prop>
 </d:propfind>`
 

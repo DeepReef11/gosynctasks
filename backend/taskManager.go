@@ -477,6 +477,11 @@ type TaskList struct {
 	// CTags is a synchronization token that changes when the list is modified.
 	// Used for efficient sync operations (CalDAV-specific, optional).
 	CTags string `json:"ctags,omitempty"`
+
+	// DeletedAt indicates when the list was deleted (moved to trash).
+	// Empty string means the list is not deleted.
+	// Used by Nextcloud to track trashed calendars (Nextcloud-specific, optional).
+	DeletedAt string `json:"deleted_at,omitempty"`
 }
 
 func (t TaskList) String() string {

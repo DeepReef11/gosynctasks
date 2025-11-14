@@ -22,6 +22,7 @@ calendars that support VTODO components. In Git backend, these are
 markdown headers (##).
 
 Examples:
+  gosynctasks list                                      # Show all lists (simple)
   gosynctasks list create "Work Tasks"                  # Create new list
   gosynctasks list create "Project" -d "Tasks for XYZ"  # With description
   gosynctasks list create "Urgent" --color "#ff0000"    # With color (Nextcloud)
@@ -32,8 +33,27 @@ Examples:
   gosynctasks list rename "Old Name" "New Name"         # Rename list
 
   gosynctasks list info "Work Tasks"                    # Show list details
-  gosynctasks list info --all                           # Show all lists
+  gosynctasks list info --all                           # Show all lists with details
   gosynctasks list info "Work Tasks" --json             # JSON output`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Default action: show all lists (simple view)
+			taskLists := application.GetTaskLists()
+			if len(taskLists) == 0 {
+				fmt.Println("No task lists found.")
+				return nil
+			}
+
+			fmt.Println("\nAvailable task lists:")
+			for _, list := range taskLists {
+				if list.Description != "" {
+					fmt.Printf("  • %s - %s\n", list.Name, list.Description)
+				} else {
+					fmt.Printf("  • %s\n", list.Name)
+				}
+			}
+			fmt.Println()
+			return nil
+		},
 	}
 
 	// Add subcommands

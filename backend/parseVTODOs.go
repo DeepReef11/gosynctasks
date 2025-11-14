@@ -171,6 +171,11 @@ func (nB *NextcloudBackend) parseTaskLists(xmlData, baseURL string) ([]TaskList,
 
 		taskList := parseTaskListResponse(response, baseURL)
 
+		// Skip trashbin, inbox, outbox, and other special collections
+		if taskList.ID == "trashbin" || taskList.ID == "inbox" || taskList.ID == "outbox" {
+			continue
+		}
+
 		// Only include calendars that actually support VTODO
 		if taskList.ID != "" && strings.Contains(response, `<cal:comp name="VTODO"/>`) {
 			taskLists = append(taskLists, taskList)
@@ -244,6 +249,9 @@ func parseTaskListResponse(response, baseURL string) TaskList {
 
 	// Extract color
 	taskList.Color = extractXMLValue(response, "calendar-color")
+
+	// Extract deleted-at timestamp (Nextcloud trash)
+	taskList.DeletedAt = extractXMLValue(response, "deleted-at")
 
 	return taskList
 }
