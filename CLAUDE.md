@@ -30,6 +30,11 @@ gosynctasks MyList add "Task summary"    # Create task (a also works)
 gosynctasks MyList add                   # Will prompt for summary
 gosynctasks MyList add "Task" -d "Details" -p 1 -S done  # With description, priority, status
 
+# Adding subtasks (hierarchical tasks)
+gosynctasks MyList add "Subtask" -P "Parent Task"              # Add subtask under parent
+gosynctasks MyList add "Sub-subtask" -P "Parent/Subtask"       # Path-based parent reference
+gosynctasks MyList add "Fix bug" -P "Feature X/Write code"     # Deep nesting support
+
 # Updating tasks
 gosynctasks MyList update "task name" -s DONE     # Find and update status (u also works)
 gosynctasks MyList update "partial" -p 5          # Partial match, update priority
@@ -204,6 +209,37 @@ Follows iCalendar VTODO spec:
 - `parseVTODO()`: Parses individual VTODO into Task struct
 - `parseICalTime()`: Handles multiple iCal date/time formats (UTC, local, date-only)
 - `unescapeText()`: Handles iCalendar escape sequences (\n, \,, \;, \\)
+
+### Subtask Support (internal/operations/subtasks.go)
+The application supports hierarchical task organization with parent-child relationships:
+
+**Features:**
+- **Parent reference via -P flag**: Add subtasks using `-P "Parent Task"` or `-P "Parent/Child/Grandchild"` for deep nesting
+- **Path-based resolution**: Supports hierarchical paths like `"Feature X/Write code"` to reference nested tasks
+- **Tree-based display**: Tasks are displayed with box-drawing characters (├─, └─, │) showing hierarchy
+- **Enhanced disambiguation**: When multiple tasks match, displays hierarchical path `[Parent / Child]` for clarity
+
+**Key Functions:**
+- `ResolveParentTask()` (subtasks.go:14-30): Resolves parent reference (simple or path-based) to task UID
+- `resolveParentPath()` (subtasks.go:32-60): Handles path-based parent references like "A/B/C"
+- `findTaskByParent()` (subtasks.go:62-125): Finds task matching summary with specific parent UID
+- `BuildTaskTree()` (subtasks.go:176-217): Converts flat task list to hierarchical tree structure
+- `FormatTaskTree()` (subtasks.go:219-262): Renders tree with box-drawing characters and indentation
+- `GetTaskPath()` (tasks.go:139-155): Returns hierarchical path string for a task (exported)
+
+**Task Display:**
+- Root tasks display normally
+- Subtasks show with tree characters: `├─ Subtask` or `└─ Last subtask`
+- Multi-line task output preserves tree structure with continuation characters
+- Unlimited nesting depth supported
+- Preserves status symbols, priority colors, and metadata display
+
+**Parent Resolution Logic:**
+1. Simple reference ("Parent") → Direct search by summary
+2. Path reference ("A/B") → Walk hierarchy level by level
+3. Multiple matches → Interactive selection with hierarchical paths shown
+4. Single partial match → Confirmation prompt
+5. Exact match → Proceed immediately
 
 ## Common Patterns
 

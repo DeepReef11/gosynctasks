@@ -114,11 +114,16 @@ func HandleGetAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *c
 		return nil
 	}
 
-	// Fall back to legacy formatting for built-in views
+	// Fall back to tree-based hierarchical display
 	fmt.Print(selectedList.StringWithWidth(termWidth))
-	for _, task := range tasks {
-		fmt.Print(task.FormatWithView(viewName, taskManager, dateFormat))
-	}
+
+	// Build task tree
+	tree := BuildTaskTree(tasks)
+
+	// Format and display tree
+	treeOutput := FormatTaskTree(tree, viewName, taskManager, dateFormat)
+	fmt.Print(treeOutput)
+
 	fmt.Print(selectedList.BottomBorderWithWidth(termWidth))
 	return nil
 }
@@ -145,6 +150,7 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 	statusFlag, _ := cmd.Flags().GetString("add-status")
 	dueDateStr, _ := cmd.Flags().GetString("due-date")
 	startDateStr, _ := cmd.Flags().GetString("start-date")
+	parentRef, _ := cmd.Flags().GetString("parent")
 
 	// Default status: use backend's parser with "TODO" as default
 	var taskStatus string
@@ -179,6 +185,16 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 		return err
 	}
 
+	// Resolve parent task if provided
+	var parentUID string
+	if parentRef != "" {
+		cfg := config.GetConfig()
+		parentUID, err = ResolveParentTask(taskManager, cfg, selectedList.ID, parentRef)
+		if err != nil {
+			return fmt.Errorf("failed to resolve parent task: %w", err)
+		}
+	}
+
 	task := backend.Task{
 		Summary:     taskSummary,
 		Description: description,
@@ -186,6 +202,7 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 		Priority:    priority,
 		DueDate:     dueDate,
 		StartDate:   startDate,
+		ParentUID:   parentUID,
 	}
 
 	if err := taskManager.AddTask(selectedList.ID, task); err != nil {

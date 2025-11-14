@@ -41,6 +41,8 @@ Examples:
   gosynctasks MyList add                # Add a task (will prompt for summary)
   gosynctasks MyList add "Task" -d "Details" -p 1 -S done  # Add with options
   gosynctasks MyList add "Report" --due-date 2025-01-31 --start-date 2025-01-15  # With dates
+  gosynctasks MyList add "Subtask" -P "Parent Task"  # Add subtask under parent
+  gosynctasks MyList add "Fix bug" -P "Feature/Code"  # Path-based parent reference
 
   gosynctasks MyList update "Buy groceries" -s DONE  # Update task status
   gosynctasks MyList u "groceries" --summary "Buy milk"  # Partial match + rename
@@ -110,6 +112,7 @@ Config:
 	rootCmd.Flags().String("summary", "", "task summary (for update)")
 	rootCmd.Flags().String("due-date", "", "task due date (for add/update, format: YYYY-MM-DD, empty string to clear)")
 	rootCmd.Flags().String("start-date", "", "task start date (for add/update, format: YYYY-MM-DD, empty string to clear)")
+	rootCmd.Flags().StringP("parent", "P", "", "parent task reference (for add): task summary or path like 'Parent/Child'")
 
 	// Register flag value completion for status flags
 	rootCmd.RegisterFlagCompletionFunc("status", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
