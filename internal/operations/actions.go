@@ -5,6 +5,7 @@ import (
 	"gosynctasks/backend"
 	"gosynctasks/internal/cli"
 	"gosynctasks/internal/config"
+	"gosynctasks/internal/utils"
 	"gosynctasks/internal/views"
 	"strings"
 
@@ -168,23 +169,22 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 	}
 
 	// Validate priority
-	if priority < 0 || priority > 9 {
-		return fmt.Errorf("priority must be between 0-9 (0=undefined, 1=highest, 9=lowest)")
+	if err := utils.ValidatePriority(priority); err != nil {
+		return err
 	}
 
-	// Parse dates
-	dueDate, err := ParseDateFlag(dueDateStr)
+	// Parse and validate dates
+	dueDate, err := utils.ParseDateFlag(dueDateStr)
 	if err != nil {
 		return err
 	}
 
-	startDate, err := ParseDateFlag(startDateStr)
+	startDate, err := utils.ParseDateFlag(startDateStr)
 	if err != nil {
 		return err
 	}
 
-	// Validate dates
-	if err := ValidateDates(startDate, dueDate); err != nil {
+	if err := utils.ValidateDates(startDate, dueDate); err != nil {
 		return err
 	}
 
@@ -271,15 +271,15 @@ func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 	}
 
 	if cmd.Flags().Changed("priority") {
-		if priority < 0 || priority > 9 {
-			return fmt.Errorf("priority must be between 0-9 (0=undefined, 1=highest, 9=lowest)")
+		if err := utils.ValidatePriority(priority); err != nil {
+			return err
 		}
 		taskToUpdate.Priority = priority
 	}
 
 	// Parse and update dates if changed
 	if cmd.Flags().Changed("due-date") {
-		dueDate, err := ParseDateFlag(dueDateStr)
+		dueDate, err := utils.ParseDateFlag(dueDateStr)
 		if err != nil {
 			return err
 		}
@@ -287,7 +287,7 @@ func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 	}
 
 	if cmd.Flags().Changed("start-date") {
-		startDate, err := ParseDateFlag(startDateStr)
+		startDate, err := utils.ParseDateFlag(startDateStr)
 		if err != nil {
 			return err
 		}
@@ -295,7 +295,7 @@ func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 	}
 
 	// Validate dates (after all updates applied)
-	if err := ValidateDates(taskToUpdate.StartDate, taskToUpdate.DueDate); err != nil {
+	if err := utils.ValidateDates(taskToUpdate.StartDate, taskToUpdate.DueDate); err != nil {
 		return err
 	}
 

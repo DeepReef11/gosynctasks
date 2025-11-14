@@ -20,6 +20,29 @@ type NextcloudBackend struct {
 	client    *http.Client
 }
 
+// Status mapping: user-friendly names and abbreviations to CalDAV standard
+var statusToCalDAV = map[string]string{
+	"T":             "NEEDS-ACTION",
+	"TODO":          "NEEDS-ACTION",
+	"D":             "COMPLETED",
+	"DONE":          "COMPLETED",
+	"P":             "IN-PROCESS",
+	"PROCESSING":    "IN-PROCESS",
+	"C":             "CANCELLED",
+	"CANCELLED":     "CANCELLED",
+	"NEEDS-ACTION":  "NEEDS-ACTION",
+	"COMPLETED":     "COMPLETED",
+	"IN-PROCESS":    "IN-PROCESS",
+}
+
+// CalDAV status to display name mapping
+var calDAVToDisplay = map[string]string{
+	"NEEDS-ACTION": "TODO",
+	"COMPLETED":    "DONE",
+	"IN-PROCESS":   "PROCESSING",
+	"CANCELLED":    "CANCELLED",
+}
+
 func (nB *NextcloudBackend) getClient() *http.Client {
 	if nB.client == nil {
 		nB.client = &http.Client{
@@ -71,6 +94,82 @@ func (nB *NextcloudBackend) getBaseURL() string {
 		}
 	}
 	return nB.baseURL
+}
+
+// buildCalendarURL constructs the CalDAV calendar collection URL
+func (nB *NextcloudBackend) buildCalendarURL() string {
+	return fmt.Sprintf("%s/remote.php/dav/calendars/%s/", nB.getBaseURL(), nB.getUsername())
+}
+
+// buildListURL constructs the CalDAV URL for a specific task list
+func (nB *NextcloudBackend) buildListURL(listID string) string {
+	return fmt.Sprintf("%s/remote.php/dav/calendars/%s/%s/", nB.getBaseURL(), nB.getUsername(), listID)
+}
+
+// buildTaskURL constructs the CalDAV URL for a specific task
+func (nB *NextcloudBackend) buildTaskURL(listID, taskUID string) string {
+	return fmt.Sprintf("%s/remote.php/dav/calendars/%s/%s/%s.ics", nB.getBaseURL(), nB.getUsername(), listID, taskUID)
+}
+
+// makeAuthenticatedRequest creates and executes an authenticated HTTP request
+func (nB *NextcloudBackend) makeAuthenticatedRequest(method, url string, body io.Reader, headers map[string]string) (*http.Response, error) {
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set basic auth
+	req.SetBasicAuth(nB.getUsername(), nB.getPassword())
+
+	// Set custom headers
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+
+	// Send request
+	client := nB.getClient()
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+
+	return resp, nil
+}
+
+// checkHTTPResponse checks HTTP response status and returns appropriate errors
+func (nB *NextcloudBackend) checkHTTPResponse(resp *http.Response, operation string, allowedStatuses ...int) error {
+	// If specific statuses are allowed, check against them
+	if len(allowedStatuses) > 0 {
+		for _, status := range allowedStatuses {
+			if resp.StatusCode == status {
+				return nil
+			}
+		}
+	} else {
+		// Default: allow 2xx status codes
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return nil
+		}
+	}
+
+	// Read response body for error details
+	body, _ := io.ReadAll(resp.Body)
+
+	// Common error cases
+	switch resp.StatusCode {
+	case 401, 403:
+		return NewBackendError(operation, resp.StatusCode, "Authentication failed. Please check your username and password in the config file").
+			WithBody(string(body))
+	case 404:
+		return NewBackendError(operation, resp.StatusCode, "Resource not found. Please check your configuration").
+			WithBody(string(body))
+	case 405:
+		return NewBackendError(operation, resp.StatusCode, "Operation not allowed or resource already exists").
+			WithBody(string(body))
+	default:
+		return NewBackendError(operation, resp.StatusCode, resp.Status).
+			WithBody(string(body))
+	}
 }
 
 func (nB *NextcloudBackend) buildCalendarQuery(filter *TaskFilter) string {
@@ -126,36 +225,30 @@ func (nB *NextcloudBackend) buildCalendarQuery(filter *TaskFilter) string {
 	return query
 }
 func (nB *NextcloudBackend) GetTasks(listID string, taskFilter *TaskFilter) ([]Task, error) {
-
 	if nB.Connector.URL.User == nil {
 		return nil, fmt.Errorf("no user credentials in URL")
 	}
-	username := nB.getUsername()
-	password := nB.getPassword()
-	baseURL := nB.getBaseURL()
 
-	calendarURL := fmt.Sprintf("%s/remote.php/dav/calendars/%s/%s/", baseURL, username, listID)
+	// Build request body
+	queryBody := nB.buildCalendarQuery(taskFilter)
 
-	client := nB.getClient()
-
-	req, err := http.NewRequest("REPORT", calendarURL, nil)
-	if err != nil {
-		return nil, err
+	// Make authenticated request
+	headers := map[string]string{
+		"Content-Type": "application/xml",
+		"Depth":        "1",
 	}
-
-	req.SetBasicAuth(username, password)
-	req.Header.Set("Content-Type", "application/xml")
-	req.Header.Set("Depth", "1")
-
-	body := nB.buildCalendarQuery(taskFilter)
-	req.Body = io.NopCloser(strings.NewReader(body))
-
-	resp, err := client.Do(req)
+	resp, err := nB.makeAuthenticatedRequest("REPORT", nB.buildListURL(listID), strings.NewReader(queryBody), headers)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
+	// Check response status
+	if err := nB.checkHTTPResponse(resp, "GetTasks"); err != nil {
+		return nil, err
+	}
+
+	// Parse response
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
@@ -191,22 +284,10 @@ func (nB *NextcloudBackend) FindTasksBySummary(listID string, summary string) ([
 }
 
 func (nB *NextcloudBackend) GetTaskLists() ([]TaskList, error) {
-	username := nB.getUsername()
-	password := nB.getPassword()
-	baseURL := nB.getBaseURL()
-	calendarURL := fmt.Sprintf("%s/remote.php/dav/calendars/%s/", baseURL, username)
+	calendarURL := nB.buildCalendarURL()
 
-	client := nB.getClient()
-	req, err := http.NewRequest("PROPFIND", calendarURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.SetBasicAuth(username, password)
-	req.Header.Set("Content-Type", "application/xml")
-	req.Header.Set("Depth", "1")
-
-	body := `<?xml version="1.0" encoding="utf-8" ?>
+	// Build request body
+	propfindBody := `<?xml version="1.0" encoding="utf-8" ?>
 <d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:ic="http://apple.com/ns/ical/" xmlns:nc="http://nextcloud.org/ns">
   <d:prop>
     <d:displayname />
@@ -217,54 +298,39 @@ func (nB *NextcloudBackend) GetTaskLists() ([]TaskList, error) {
   </d:prop>
 </d:propfind>`
 
-	req.Body = io.NopCloser(strings.NewReader(body))
-
-	resp, err := client.Do(req)
+	// Make authenticated request
+	headers := map[string]string{
+		"Content-Type": "application/xml",
+		"Depth":        "1",
+	}
+	resp, err := nB.makeAuthenticatedRequest("PROPFIND", calendarURL, strings.NewReader(propfindBody), headers)
 	if err != nil {
-		return nil, fmt.Errorf("HTTP request failed: %v", err)
+		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
+	// Check response status
+	if err := nB.checkHTTPResponse(resp, "GetTaskLists"); err != nil {
+		return nil, err
+	}
+
+	// Parse response
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %v", err)
+		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
-
-	// Check HTTP status code and return structured error for common failures
-	if resp.StatusCode == 401 || resp.StatusCode == 403 {
-		return nil, NewBackendError("GetTaskLists", resp.StatusCode, "Authentication failed. Please check your username and password in the config file").
-			WithBody(string(respBody))
-	}
-	if resp.StatusCode == 404 {
-		return nil, NewBackendError("GetTaskLists", resp.StatusCode, "Calendar endpoint not found. Please check your Nextcloud URL in the config file").
-			WithBody(string(respBody))
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, NewBackendError("GetTaskLists", resp.StatusCode, resp.Status).
-			WithBody(string(respBody))
-	}
-
-	// fmt.Printf("Response status: %d\n", resp.StatusCode)
-	// fmt.Printf("Response body: %s\n", string(respBody))
 
 	return nB.parseTaskLists(string(respBody), calendarURL)
 }
 
 func (nB *NextcloudBackend) AddTask(listID string, task Task) error {
-
-	username := nB.getUsername()
-	password := nB.getPassword()
-	baseURL := nB.getBaseURL()
+	// Set defaults
 	if task.UID == "" {
 		task.UID = fmt.Sprintf("task-%d", time.Now().Unix())
 	}
-
-	// Set created time if not provided
 	if task.Created.IsZero() {
 		task.Created = time.Now()
 	}
-
-	// Default status
 	if task.Status == "" {
 		task.Status = "NEEDS-ACTION"
 	}
@@ -272,49 +338,28 @@ func (nB *NextcloudBackend) AddTask(listID string, task Task) error {
 	// Build the iCalendar content
 	icalContent := nB.buildICalContent(task)
 
-	// Construct the URL
-
-	url := fmt.Sprintf("%s/remote.php/dav/calendars/%s/%s/%s.ics",
-		baseURL, username, listID, task.UID)
-
-	// Create HTTP request
-	req, err := http.NewRequest("PUT", url, bytes.NewBufferString(icalContent))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+	// Make authenticated request
+	headers := map[string]string{
+		"Content-Type": "text/calendar; charset=utf-8",
 	}
-
-	// Set headers
-	req.Header.Set("Content-Type", "text/calendar; charset=utf-8")
-	req.SetBasicAuth(username, password)
-
-	// Send request
-	client := nB.getClient()
-	resp, err := client.Do(req)
+	resp, err := nB.makeAuthenticatedRequest("PUT", nB.buildTaskURL(listID, task.UID), bytes.NewBufferString(icalContent), headers)
 	if err != nil {
-		return fmt.Errorf("failed to send request: %w", err)
+		return err
 	}
-
 	defer resp.Body.Close()
 
 	// Check response status
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return NewBackendError("AddTask", resp.StatusCode, resp.Status).
-			WithTaskUID(task.UID).
-			WithListID(listID).
-			WithBody(string(body))
+	if err := nB.checkHTTPResponse(resp, "AddTask"); err != nil {
+		if backendErr, ok := err.(*BackendError); ok {
+			return backendErr.WithTaskUID(task.UID).WithListID(listID)
+		}
+		return err
 	}
 
 	return nil
-
 }
 
 func (nB *NextcloudBackend) UpdateTask(listID string, task Task) error {
-
-	username := nB.getUsername()
-	password := nB.getPassword()
-	baseURL := nB.getBaseURL()
-
 	// Set modified time to now
 	task.Modified = time.Now()
 
@@ -327,102 +372,59 @@ func (nB *NextcloudBackend) UpdateTask(listID string, task Task) error {
 	// Build the iCalendar content
 	icalContent := nB.buildICalContent(task)
 
-	// Construct the URL (same as AddTask - CalDAV uses PUT for both create and update)
-	url := fmt.Sprintf("%s/remote.php/dav/calendars/%s/%s/%s.ics",
-		baseURL, username, listID, task.UID)
-
-	// Create HTTP request
-	req, err := http.NewRequest("PUT", url, bytes.NewBufferString(icalContent))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+	// Make authenticated request (CalDAV uses PUT for both create and update)
+	headers := map[string]string{
+		"Content-Type": "text/calendar; charset=utf-8",
 	}
-
-	// Set headers
-	req.Header.Set("Content-Type", "text/calendar; charset=utf-8")
-	req.SetBasicAuth(username, password)
-
-	// Send request
-	client := nB.getClient()
-	resp, err := client.Do(req)
+	resp, err := nB.makeAuthenticatedRequest("PUT", nB.buildTaskURL(listID, task.UID), bytes.NewBufferString(icalContent), headers)
 	if err != nil {
-		return fmt.Errorf("failed to send request: %w", err)
+		return err
 	}
-
 	defer resp.Body.Close()
 
 	// Check response status
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return NewBackendError("UpdateTask", resp.StatusCode, resp.Status).
-			WithTaskUID(task.UID).
-			WithListID(listID).
-			WithBody(string(body))
+	if err := nB.checkHTTPResponse(resp, "UpdateTask"); err != nil {
+		if backendErr, ok := err.(*BackendError); ok {
+			return backendErr.WithTaskUID(task.UID).WithListID(listID)
+		}
+		return err
 	}
 
 	return nil
-
 }
 
 func (nB *NextcloudBackend) DeleteTask(listID string, taskUID string) error {
-
-	username := nB.getUsername()
-	password := nB.getPassword()
-	baseURL := nB.getBaseURL()
-
-	// Construct the URL for the task
-	url := fmt.Sprintf("%s/remote.php/dav/calendars/%s/%s/%s.ics",
-		baseURL, username, listID, taskUID)
-
-	// Create HTTP DELETE request
-	req, err := http.NewRequest("DELETE", url, nil)
+	// Make authenticated DELETE request
+	// 204 No Content is the typical success status for DELETE
+	resp, err := nB.makeAuthenticatedRequest("DELETE", nB.buildTaskURL(listID, taskUID), nil, nil)
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return err
 	}
-
-	// Set authentication
-	req.SetBasicAuth(username, password)
-
-	// Send request
-	client := nB.getClient()
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send request: %w", err)
-	}
-
 	defer resp.Body.Close()
 
-	// Check response status
-	// 204 No Content is the success status for DELETE
-	// 404 Not Found means the task doesn't exist (could be already deleted)
+	// Check response status - handle 404 specifically for task not found
 	if resp.StatusCode == 404 {
 		return NewBackendError("DeleteTask", 404, "task not found (may have been already deleted)").
 			WithTaskUID(taskUID).
 			WithListID(listID)
 	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return NewBackendError("DeleteTask", resp.StatusCode, resp.Status).
-			WithTaskUID(taskUID).
-			WithListID(listID).
-			WithBody(string(body))
+
+	// Check for other errors
+	if err := nB.checkHTTPResponse(resp, "DeleteTask", 200, 204); err != nil {
+		if backendErr, ok := err.(*BackendError); ok {
+			return backendErr.WithTaskUID(taskUID).WithListID(listID)
+		}
+		return err
 	}
 
 	return nil
-
 }
 
 func (nB *NextcloudBackend) CreateTaskList(name, description, color string) (string, error) {
-	username := nB.getUsername()
-	password := nB.getPassword()
-	baseURL := nB.getBaseURL()
-
 	// Generate a unique list ID from the name (lowercase, replace spaces with dashes)
 	listID := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
 	// Add timestamp to ensure uniqueness
 	listID = fmt.Sprintf("%s-%d", listID, time.Now().Unix())
-
-	// Construct the URL for the new calendar
-	calendarURL := fmt.Sprintf("%s/remote.php/dav/calendars/%s/%s/", baseURL, username, listID)
 
 	// Build the MKCALENDAR request body
 	mkcolBody := `<?xml version="1.0" encoding="utf-8" ?>
@@ -453,89 +455,59 @@ func (nB *NextcloudBackend) CreateTaskList(name, description, color string) (str
   </d:set>
 </d:mkcol>`
 
-	// Create HTTP request
-	req, err := http.NewRequest("MKCOL", calendarURL, bytes.NewBufferString(mkcolBody))
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
+	// Make authenticated request
+	// 201 Created is the success status for MKCOL
+	headers := map[string]string{
+		"Content-Type": "application/xml; charset=utf-8",
 	}
-
-	// Set headers
-	req.Header.Set("Content-Type", "application/xml; charset=utf-8")
-	req.SetBasicAuth(username, password)
-
-	// Send request
-	client := nB.getClient()
-	resp, err := client.Do(req)
+	resp, err := nB.makeAuthenticatedRequest("MKCOL", nB.buildListURL(listID), bytes.NewBufferString(mkcolBody), headers)
 	if err != nil {
-		return "", fmt.Errorf("failed to send request: %w", err)
+		return "", err
 	}
 	defer resp.Body.Close()
 
-	// Check response status
-	// 201 Created is the success status for MKCOL
+	// Check response status - handle 405 specifically for list already exists
 	if resp.StatusCode == 405 {
 		body, _ := io.ReadAll(resp.Body)
 		return "", NewBackendError("CreateTaskList", 405, "list already exists or name conflict").
 			WithBody(string(body))
 	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return "", NewBackendError("CreateTaskList", resp.StatusCode, resp.Status).
-			WithBody(string(body))
+
+	// Check for other errors
+	if err := nB.checkHTTPResponse(resp, "CreateTaskList", 201); err != nil {
+		return "", err
 	}
 
 	return listID, nil
 }
 
 func (nB *NextcloudBackend) DeleteTaskList(listID string) error {
-	username := nB.getUsername()
-	password := nB.getPassword()
-	baseURL := nB.getBaseURL()
-
-	// Construct the URL for the calendar to delete
-	calendarURL := fmt.Sprintf("%s/remote.php/dav/calendars/%s/%s/", baseURL, username, listID)
-
-	// Create HTTP DELETE request
-	req, err := http.NewRequest("DELETE", calendarURL, nil)
+	// Make authenticated DELETE request
+	// 204 No Content is the success status for DELETE
+	resp, err := nB.makeAuthenticatedRequest("DELETE", nB.buildListURL(listID), nil, nil)
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Set authentication
-	req.SetBasicAuth(username, password)
-
-	// Send request
-	client := nB.getClient()
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send request: %w", err)
+		return err
 	}
 	defer resp.Body.Close()
 
-	// Check response status
-	// 204 No Content is the success status for DELETE
+	// Check response status - handle 404 specifically for list not found
 	if resp.StatusCode == 404 {
 		return NewBackendError("DeleteTaskList", 404, "list not found").
 			WithListID(listID)
 	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return NewBackendError("DeleteTaskList", resp.StatusCode, resp.Status).
-			WithListID(listID).
-			WithBody(string(body))
+
+	// Check for other errors
+	if err := nB.checkHTTPResponse(resp, "DeleteTaskList", 200, 204); err != nil {
+		if backendErr, ok := err.(*BackendError); ok {
+			return backendErr.WithListID(listID)
+		}
+		return err
 	}
 
 	return nil
 }
 
 func (nB *NextcloudBackend) RenameTaskList(listID, newName string) error {
-	username := nB.getUsername()
-	password := nB.getPassword()
-	baseURL := nB.getBaseURL()
-
-	// Construct the URL for the calendar to rename
-	calendarURL := fmt.Sprintf("%s/remote.php/dav/calendars/%s/%s/", baseURL, username, listID)
-
 	// Build the PROPPATCH request body to update displayname
 	proppatchBody := `<?xml version="1.0" encoding="utf-8" ?>
 <d:propertyupdate xmlns:d="DAV:">
@@ -546,35 +518,29 @@ func (nB *NextcloudBackend) RenameTaskList(listID, newName string) error {
   </d:set>
 </d:propertyupdate>`
 
-	// Create HTTP request
-	req, err := http.NewRequest("PROPPATCH", calendarURL, bytes.NewBufferString(proppatchBody))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+	// Make authenticated request
+	// 207 Multi-Status is the typical success status for PROPPATCH
+	headers := map[string]string{
+		"Content-Type": "application/xml; charset=utf-8",
 	}
-
-	// Set headers
-	req.Header.Set("Content-Type", "application/xml; charset=utf-8")
-	req.SetBasicAuth(username, password)
-
-	// Send request
-	client := nB.getClient()
-	resp, err := client.Do(req)
+	resp, err := nB.makeAuthenticatedRequest("PROPPATCH", nB.buildListURL(listID), bytes.NewBufferString(proppatchBody), headers)
 	if err != nil {
-		return fmt.Errorf("failed to send request: %w", err)
+		return err
 	}
 	defer resp.Body.Close()
 
-	// Check response status
-	// 207 Multi-Status is the typical success status for PROPPATCH
+	// Check response status - handle 404 specifically for list not found
 	if resp.StatusCode == 404 {
 		return NewBackendError("RenameTaskList", 404, "list not found").
 			WithListID(listID)
 	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return NewBackendError("RenameTaskList", resp.StatusCode, resp.Status).
-			WithListID(listID).
-			WithBody(string(body))
+
+	// Check for other errors
+	if err := nB.checkHTTPResponse(resp, "RenameTaskList", 200, 207); err != nil {
+		if backendErr, ok := err.(*BackendError); ok {
+			return backendErr.WithListID(listID)
+		}
+		return err
 	}
 
 	return nil
@@ -664,41 +630,22 @@ func (nB *NextcloudBackend) ParseStatusFlag(statusFlag string) (string, error) {
 		return "", fmt.Errorf("status flag cannot be empty")
 	}
 
+	// Convert to uppercase and look up in map
 	upperStatus := strings.ToUpper(statusFlag)
-
-	// Handle app status names and abbreviations
-	// Convert to CalDAV standard status
-	switch upperStatus {
-	case "T", "TODO":
-		return "NEEDS-ACTION", nil
-	case "D", "DONE":
-		return "COMPLETED", nil
-	case "P", "PROCESSING":
-		return "IN-PROCESS", nil
-	case "C", "CANCELLED":
-		return "CANCELLED", nil
-	// Also accept CalDAV status names directly
-	case "NEEDS-ACTION", "COMPLETED", "IN-PROCESS":
-		return upperStatus, nil
-	default:
-		return "", fmt.Errorf("invalid status: %s (valid: TODO/T, DONE/D, PROCESSING/P, CANCELLED/C)", statusFlag)
+	if calDAVStatus, ok := statusToCalDAV[upperStatus]; ok {
+		return calDAVStatus, nil
 	}
+
+	return "", fmt.Errorf("invalid status: %s (valid: TODO/T, DONE/D, PROCESSING/P, CANCELLED/C)", statusFlag)
 }
 
 func (nB *NextcloudBackend) StatusToDisplayName(backendStatus string) string {
 	// Convert CalDAV status to display name
-	switch strings.ToUpper(backendStatus) {
-	case "NEEDS-ACTION":
-		return "TODO"
-	case "COMPLETED":
-		return "DONE"
-	case "IN-PROCESS":
-		return "PROCESSING"
-	case "CANCELLED":
-		return "CANCELLED"
-	default:
-		return backendStatus
+	upperStatus := strings.ToUpper(backendStatus)
+	if displayName, ok := calDAVToDisplay[upperStatus]; ok {
+		return displayName
 	}
+	return backendStatus
 }
 
 func (nB *NextcloudBackend) GetPriorityColor(priority int) string {

@@ -1,6 +1,7 @@
 package operations
 
 import (
+	"gosynctasks/internal/utils"
 	"strings"
 	"testing"
 	"time"
@@ -87,29 +88,29 @@ func TestParseDateFlag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := ParseDateFlag(tt.input)
+			result, err := utils.ParseDateFlag(tt.input)
 
 			// Check error expectation
 			if tt.expectErr && err == nil {
-				t.Errorf("ParseDateFlag(%q) expected error, got nil", tt.input)
+				t.Errorf("utils.ParseDateFlag(%q) expected error, got nil", tt.input)
 			}
 			if !tt.expectErr && err != nil {
-				t.Errorf("ParseDateFlag(%q) unexpected error: %v", tt.input, err)
+				t.Errorf("utils.ParseDateFlag(%q) unexpected error: %v", tt.input, err)
 			}
 
 			// Check nil expectation
 			if tt.expectNil && result != nil {
-				t.Errorf("ParseDateFlag(%q) expected nil, got %v", tt.input, result)
+				t.Errorf("utils.ParseDateFlag(%q) expected nil, got %v", tt.input, result)
 			}
 			if !tt.expectNil && !tt.expectErr && result == nil {
-				t.Errorf("ParseDateFlag(%q) expected non-nil result, got nil", tt.input)
+				t.Errorf("utils.ParseDateFlag(%q) expected non-nil result, got nil", tt.input)
 			}
 
 			// Check date value
 			if !tt.expectNil && !tt.expectErr && result != nil {
 				actual := result.Format("2006-01-02")
 				if actual != tt.expected {
-					t.Errorf("ParseDateFlag(%q) = %s, want %s", tt.input, actual, tt.expected)
+					t.Errorf("utils.ParseDateFlag(%q) = %s, want %s", tt.input, actual, tt.expected)
 				}
 			}
 
@@ -117,10 +118,10 @@ func TestParseDateFlag(t *testing.T) {
 			if tt.expectErr && err != nil {
 				errMsg := err.Error()
 				if !strings.Contains(errMsg, "invalid date format") {
-					t.Errorf("ParseDateFlag(%q) error should mention 'invalid date format', got: %v", tt.input, err)
+					t.Errorf("utils.ParseDateFlag(%q) error should mention 'invalid date format', got: %v", tt.input, err)
 				}
 				if !strings.Contains(errMsg, "YYYY-MM-DD") {
-					t.Errorf("ParseDateFlag(%q) error should mention expected format 'YYYY-MM-DD', got: %v", tt.input, err)
+					t.Errorf("utils.ParseDateFlag(%q) error should mention expected format 'YYYY-MM-DD', got: %v", tt.input, err)
 				}
 			}
 		})
@@ -189,19 +190,19 @@ func TestValidateDates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateDates(tt.startDate, tt.dueDate)
+			err := utils.ValidateDates(tt.startDate, tt.dueDate)
 
 			if tt.expectErr && err == nil {
-				t.Errorf("ValidateDates() expected error, got nil")
+				t.Errorf("utils.ValidateDates() expected error, got nil")
 			}
 			if !tt.expectErr && err != nil {
-				t.Errorf("ValidateDates() unexpected error: %v", err)
+				t.Errorf("utils.ValidateDates() unexpected error: %v", err)
 			}
 
 			// Check error message contains expected substring
 			if tt.expectErr && err != nil && tt.errMsg != "" {
 				if !strings.Contains(err.Error(), tt.errMsg) {
-					t.Errorf("ValidateDates() error should contain %q, got: %v", tt.errMsg, err)
+					t.Errorf("utils.ValidateDates() error should contain %q, got: %v", tt.errMsg, err)
 				}
 			}
 		})
@@ -213,7 +214,7 @@ func TestValidateDates_ErrorMessageFormat(t *testing.T) {
 	start := time.Date(2025, 2, 15, 0, 0, 0, 0, time.UTC)
 	due := time.Date(2025, 2, 10, 0, 0, 0, 0, time.UTC)
 
-	err := ValidateDates(&start, &due)
+	err := utils.ValidateDates(&start, &due)
 
 	if err == nil {
 		t.Fatal("Expected error for start > due")
