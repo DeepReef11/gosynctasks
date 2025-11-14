@@ -180,9 +180,6 @@ func (nB *NextcloudBackend) parseTaskLists(xmlData, baseURL string) ([]TaskList,
 		// Check for <deleted-calendar xmlns="http://nextcloud.com/ns"/>
 		isDeleted := isDeletedCalendar(response)
 
-		// Debug: uncomment to see what's being detected
-		fmt.Printf("DEBUG parseTaskLists: List=%s, IsDeleted=%v\n", taskList.Name, isDeleted)
-
 		if isDeleted {
 			continue
 		}
@@ -217,9 +214,6 @@ func (nB *NextcloudBackend) parseDeletedTaskLists(xmlData, baseURL string) ([]Ta
 		// Only include deleted calendars (those with deleted-calendar resourcetype)
 		// Check for <deleted-calendar xmlns="http://nextcloud.com/ns"/>
 		isDeleted := isDeletedCalendar(response)
-
-		// Debug: uncomment to see what's being detected
-		fmt.Printf("DEBUG parseDeletedTaskLists: List=%s, IsDeleted=%v\n", taskList.Name, isDeleted)
 
 		if !isDeleted {
 			continue
