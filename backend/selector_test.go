@@ -15,6 +15,9 @@ func (m *MockBackend) FindTasksBySummary(string, string) ([]Task, error) { retur
 func (m *MockBackend) AddTask(string, Task) error                        { return nil }
 func (m *MockBackend) UpdateTask(string, Task) error                     { return nil }
 func (m *MockBackend) DeleteTask(string, string) error                   { return nil }
+func (m *MockBackend) CreateTaskList(string, string, string) (string, error) { return "", nil }
+func (m *MockBackend) DeleteTaskList(string) error                       { return nil }
+func (m *MockBackend) RenameTaskList(string, string) error               { return nil }
 func (m *MockBackend) ParseStatusFlag(string) (string, error)            { return "", nil }
 func (m *MockBackend) StatusToDisplayName(string) string                 { return "" }
 func (m *MockBackend) SortTasks([]Task)                                  {}

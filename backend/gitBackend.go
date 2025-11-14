@@ -442,6 +442,74 @@ func (gb *GitBackend) DeleteTask(listID string, taskUID string) error {
 	return gb.saveFile()
 }
 
+// CreateTaskList creates a new task list (header) in the markdown file.
+func (gb *GitBackend) CreateTaskList(name, description, color string) (string, error) {
+	// Reload file to get latest changes
+	if err := gb.loadFile(); err != nil {
+		return "", err
+	}
+
+	// Check if list already exists
+	if _, exists := gb.taskLists[name]; exists {
+		return "", fmt.Errorf("task list %q already exists", name)
+	}
+
+	// Create empty list
+	gb.taskLists[name] = []Task{}
+
+	// Save file
+	if err := gb.saveFile(); err != nil {
+		return "", err
+	}
+
+	return name, nil
+}
+
+// DeleteTaskList removes a task list (header) and all its tasks from the markdown file.
+func (gb *GitBackend) DeleteTaskList(listID string) error {
+	// Reload file to get latest changes
+	if err := gb.loadFile(); err != nil {
+		return err
+	}
+
+	// Check if list exists
+	if _, exists := gb.taskLists[listID]; !exists {
+		return fmt.Errorf("task list %q not found", listID)
+	}
+
+	// Delete list
+	delete(gb.taskLists, listID)
+
+	// Save file
+	return gb.saveFile()
+}
+
+// RenameTaskList changes the name of a task list (header) in the markdown file.
+func (gb *GitBackend) RenameTaskList(listID, newName string) error {
+	// Reload file to get latest changes
+	if err := gb.loadFile(); err != nil {
+		return err
+	}
+
+	// Check if old list exists
+	tasks, exists := gb.taskLists[listID]
+	if !exists {
+		return fmt.Errorf("task list %q not found", listID)
+	}
+
+	// Check if new name already exists
+	if _, exists := gb.taskLists[newName]; exists {
+		return fmt.Errorf("task list %q already exists", newName)
+	}
+
+	// Rename by deleting old and creating new
+	delete(gb.taskLists, listID)
+	gb.taskLists[newName] = tasks
+
+	// Save file
+	return gb.saveFile()
+}
+
 // ParseStatusFlag converts user input to backend status format.
 func (gb *GitBackend) ParseStatusFlag(statusFlag string) (string, error) {
 	// Git backend uses app-style status names

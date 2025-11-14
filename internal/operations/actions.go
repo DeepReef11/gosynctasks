@@ -105,6 +105,8 @@ func HandleGetAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *c
 	termWidth := cli.GetTerminalWidth()
 
 	// Try to use custom view rendering first
+	// Note: Custom views currently don't support hierarchical display
+	// This will be added in a future enhancement
 	rendered, err := RenderWithCustomView(tasks, viewName, taskManager, dateFormat)
 	if err == nil {
 		// Custom view found and rendered successfully
