@@ -37,8 +37,8 @@ func CreateOrFindTaskPath(taskManager backend.TaskManager, cfg *config.Config, l
 			return "", "", fmt.Errorf("empty path segment in '%s'", path)
 		}
 
-		// Try to find existing task at this level
-		task, err := findTaskByParent(taskManager, cfg, listID, partName, currentParentUID)
+		// Try to find existing task at this level (or create if user chooses)
+		task, err := findTaskByParent(taskManager, cfg, listID, partName, currentParentUID, taskStatus)
 		if err != nil {
 			// Task doesn't exist - create it
 			fmt.Printf("Creating intermediate task '%s'...\n", partName)
@@ -69,19 +69,35 @@ func CreateOrFindTaskPath(taskManager backend.TaskManager, cfg *config.Config, l
 
 // ResolveParentTask resolves a parent task reference (simple name or path) to a task UID
 // Supports both simple references ("Parent Task") and path-based references ("Feature X/Write code/Fix bug")
-func ResolveParentTask(taskManager backend.TaskManager, cfg *config.Config, listID string, parentRef string) (string, error) {
+// If the parent doesn't exist and user chooses to create it, creates a new task with the given status
+func ResolveParentTask(taskManager backend.TaskManager, cfg *config.Config, listID string, parentRef string, taskStatus string) (string, error) {
 	if parentRef == "" {
 		return "", nil
 	}
 
 	// Check if it's a path-based reference (contains '/')
 	if strings.Contains(parentRef, "/") {
-		return resolveParentPath(taskManager, cfg, listID, parentRef)
+		return resolveParentPath(taskManager, cfg, listID, parentRef, taskStatus)
 	}
 
 	// Simple reference - find the task by summary
 	task, err := FindTaskBySummary(taskManager, cfg, listID, parentRef)
 	if err != nil {
+		// If user chose to create new parent (entered 0), create it as root task
+		if strings.Contains(err.Error(), "operation cancelled") {
+			fmt.Printf("Creating new parent task '%s'...\n", parentRef)
+			newUID := fmt.Sprintf("task-%d-parent", time.Now().Unix())
+			newTask := backend.Task{
+				UID:       newUID,
+				Summary:   parentRef,
+				Status:    taskStatus,
+				ParentUID: "", // Root level
+			}
+			if err := taskManager.AddTask(listID, newTask); err != nil {
+				return "", fmt.Errorf("failed to create new parent task '%s': %w", parentRef, err)
+			}
+			return newUID, nil
+		}
 		return "", fmt.Errorf("failed to find parent task '%s': %w", parentRef, err)
 	}
 
@@ -89,7 +105,8 @@ func ResolveParentTask(taskManager backend.TaskManager, cfg *config.Config, list
 }
 
 // resolveParentPath resolves a hierarchical path like "Feature X/Write code" to find the deepest task
-func resolveParentPath(taskManager backend.TaskManager, cfg *config.Config, listID string, path string) (string, error) {
+// If any part doesn't exist and user chooses to create it, creates new tasks with the given status
+func resolveParentPath(taskManager backend.TaskManager, cfg *config.Config, listID string, path string, taskStatus string) (string, error) {
 	parts := strings.Split(path, "/")
 	if len(parts) == 0 {
 		return "", fmt.Errorf("empty parent path")
@@ -105,7 +122,7 @@ func resolveParentPath(taskManager backend.TaskManager, cfg *config.Config, list
 		}
 
 		// Find task matching this part with the current parent
-		task, err := findTaskByParent(taskManager, cfg, listID, part, currentParentUID)
+		task, err := findTaskByParent(taskManager, cfg, listID, part, currentParentUID, taskStatus)
 		if err != nil {
 			pathSoFar := strings.Join(parts[:i+1], "/")
 			return "", fmt.Errorf("failed to resolve '%s' in path '%s': %w", pathSoFar, path, err)
@@ -118,7 +135,8 @@ func resolveParentPath(taskManager backend.TaskManager, cfg *config.Config, list
 }
 
 // findTaskByParent finds a task with the given summary and parent UID
-func findTaskByParent(taskManager backend.TaskManager, cfg *config.Config, listID string, summary string, parentUID string) (*backend.Task, error) {
+// If user chooses to create new (enters 0 on selection), creates a new task with the given status
+func findTaskByParent(taskManager backend.TaskManager, cfg *config.Config, listID string, summary string, parentUID string, taskStatus string) (*backend.Task, error) {
 	// Get all tasks and filter by parent
 	allTasks, err := taskManager.GetTasks(listID, nil)
 	if err != nil {
@@ -143,10 +161,9 @@ func findTaskByParent(taskManager backend.TaskManager, cfg *config.Config, listI
 	}
 
 	if len(matches) == 0 {
-		if parentUID == "" {
-			return nil, fmt.Errorf("no root-level tasks found matching '%s'", summary)
-		}
-		return nil, fmt.Errorf("no subtasks found matching '%s'", summary)
+		// No matches found - create new task automatically
+		fmt.Printf("No tasks found matching '%s'. Creating new task...\n", summary)
+		return createNewTask(taskManager, listID, summary, parentUID, taskStatus)
 	}
 
 	// Separate exact and partial matches
@@ -166,9 +183,14 @@ func findTaskByParent(taskManager backend.TaskManager, cfg *config.Config, listI
 		return &exactMatches[0], nil
 	}
 
-	// Multiple matches - let user select
+	// Multiple matches - let user select (or create new)
 	if len(exactMatches) > 1 {
-		return selectTaskWithPath(exactMatches, summary, taskManager, cfg, listID)
+		task, err := selectTaskWithPath(exactMatches, summary, taskManager, cfg, listID)
+		if err != nil && strings.Contains(err.Error(), "operation cancelled") {
+			// User chose to create new - create it with current parentUID
+			return createNewTask(taskManager, listID, summary, parentUID, taskStatus)
+		}
+		return task, err
 	}
 
 	if len(exactMatches) == 0 && len(partialMatches) == 1 {
@@ -184,8 +206,29 @@ func findTaskByParent(taskManager backend.TaskManager, cfg *config.Config, listI
 		return task, nil
 	}
 
-	// Multiple matches (exact or partial)
-	return selectTaskWithPath(matches, summary, taskManager, cfg, listID)
+	// Multiple matches (exact or partial) - let user select (or create new)
+	task, err := selectTaskWithPath(matches, summary, taskManager, cfg, listID)
+	if err != nil && strings.Contains(err.Error(), "operation cancelled") {
+		// User chose to create new - create it with current parentUID
+		return createNewTask(taskManager, listID, summary, parentUID, taskStatus)
+	}
+	return task, err
+}
+
+// createNewTask creates a new task with the given summary, parent, and status
+func createNewTask(taskManager backend.TaskManager, listID string, summary string, parentUID string, taskStatus string) (*backend.Task, error) {
+	fmt.Printf("Creating new task '%s'...\n", summary)
+	newUID := fmt.Sprintf("task-%d", time.Now().UnixNano())
+	newTask := backend.Task{
+		UID:       newUID,
+		Summary:   summary,
+		Status:    taskStatus,
+		ParentUID: parentUID,
+	}
+	if err := taskManager.AddTask(listID, newTask); err != nil {
+		return nil, fmt.Errorf("failed to create new task '%s': %w", summary, err)
+	}
+	return &newTask, nil
 }
 
 // selectTaskWithPath shows tasks with their hierarchical paths for disambiguation
@@ -216,7 +259,7 @@ func selectTaskWithPath(tasks []backend.Task, searchSummary string, taskManager 
 		fmt.Print(task.FormatWithView("all", taskManager, dateFormat))
 	}
 
-	fmt.Printf("\nSelect task (1-%d) or 0 to cancel: ", len(tasks))
+	fmt.Printf("\nSelect task (1-%d) or 0 to create new: ", len(tasks))
 	var choice int
 	if _, err := fmt.Scanf("%d", &choice); err != nil {
 		return nil, fmt.Errorf("invalid input: %w", err)

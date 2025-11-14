@@ -26,16 +26,31 @@ go build -o gosynctasks ./cmd/gosynctasks
 # Run directly
 go run ./cmd/gosynctasks/main.go
 
+# For testing with the Docker test server, use the gst function:
+gst() {
+    ./gosynctasks --config ./gosynctasks/config/config.json "$@"
+}
+# See Shell Completion section for autocompletion setup with gst
+
 # Basic usage patterns
 gosynctasks                              # Interactive list selection
 gosynctasks MyList                       # Show tasks from "MyList"
 gosynctasks MyList get                   # Explicit get action (g also works)
 gosynctasks MyList -s TODO,DONE          # Filter by status (T/D/P/C abbreviations)
 
+# With test config (using gst alias)
+gst                                      # Interactive list selection (test server)
+gst Test                                 # Show tasks from "Test" list
+gst Test get                             # Explicit get action
+
 # Adding tasks
 gosynctasks MyList add "Task summary"    # Create task (a also works)
 gosynctasks MyList add                   # Will prompt for summary
 gosynctasks MyList add "Task" -d "Details" -p 1 -S done  # With description, priority, status
+
+# Adding tasks with test server (using gst)
+gst Test add "Task summary"              # Create task on test server
+gst Test add "Task" -d "Details" -p 1 -S done  # With options
 
 # Adding subtasks (hierarchical tasks)
 gosynctasks MyList add "Subtask" -P "Parent Task"              # Add subtask under parent
@@ -53,6 +68,10 @@ gosynctasks MyList update "task name" -s DONE     # Find and update status (u al
 gosynctasks MyList update "partial" -p 5          # Partial match, update priority
 gosynctasks MyList update "old" --summary "new"   # Rename task
 
+# Updating tasks with test server (using gst)
+gst Test update "task name" -s DONE      # Update task on test server
+gst Test update "partial" -p 5           # Update priority
+
 # Completing tasks (shortcut for status changes)
 gosynctasks MyList complete "task name"           # Mark as DONE (c also works)
 gosynctasks MyList complete "task" -s TODO        # Change to TODO
@@ -60,6 +79,7 @@ gosynctasks MyList complete "task" -s PROCESSING  # Change to PROCESSING
 
 # View options
 gosynctasks MyList -v all                # Show all metadata (dates, priority)
+gst Test -v all                          # View with test server
 
 # List management
 gosynctasks list create "New List"            # Create new task list (c also works)
@@ -67,6 +87,11 @@ gosynctasks list create "Project X" -d "Description" --color "#ff0000"  # With o
 gosynctasks list info MyList                  # Show list details (i also works)
 gosynctasks list rename "Old Name" "New Name" # Rename list (r also works)
 gosynctasks list delete "List Name"           # Delete list (d also works)
+
+# List management with test server (using gst)
+gst list create "New List"               # Create list on test server
+gst list info Test                       # Show test list details
+gst list                                 # List all lists on test server
 ```
 
 ### Testing
@@ -99,17 +124,24 @@ gosynctasks completion fish | source
 gosynctasks completion powershell | Out-String | Invoke-Expression
 ```
 
-**Creating a test alias/function with autocompletion:**
+**Creating a test function with autocompletion:**
 ```bash
-# Zsh
-gst() { gosynctasks --config ./gosynctasks/config/config.json "$@"; }
-eval "$(gosynctasks completion zsh)"
+# Zsh (from project directory)
+gst() {
+    ./gosynctasks --config ./gosynctasks/config/config.json "$@"
+}
+eval "$(./gosynctasks completion zsh)"
 compdef gst=gosynctasks
 
-# Bash
-gst() { gosynctasks --config ./gosynctasks/config/config.json "$@"; }
-eval "$(gosynctasks completion bash)"
+# Bash (from project directory)
+gst() {
+    ./gosynctasks --config ./gosynctasks/config/config.json "$@"
+}
+eval "$(./gosynctasks completion bash)"
 complete -F __start_gosynctasks gst
+
+# If gosynctasks is in your PATH, use:
+# gst() { gosynctasks --config ./gosynctasks/config/config.json "$@"; }
 ```
 
 ### Dependencies
@@ -266,9 +298,9 @@ The application supports hierarchical task organization with parent-child relati
 
 **Features:**
 - **Parent reference via -P flag**: Add subtasks using `-P "Parent Task"` or `-P "Parent/Child/Grandchild"` for deep nesting
-- **Path-based task creation shorthand**: Use `gosynctasks List add "parent/child/grandchild"` to automatically create the entire hierarchy
+- **Path-based task creation shorthand**: Use `gosynctasks List add "parent/child/grandchild"` or `gst Test add "parent/child/grandchild"` to automatically create the entire hierarchy
 - **Auto-create missing parents**: When using path syntax, intermediate tasks are created automatically if they don't exist
-- **Literal mode (-l/--literal flag)**: Disable path parsing for task summaries containing "/" (e.g., `gosynctasks List add -l "be a good/generous person"`)
+- **Literal mode (-l/--literal flag)**: Disable path parsing for task summaries containing "/" (e.g., `gst Test add -l "be a good/generous person"`)
 - **Path-based resolution**: Supports hierarchical paths like `"Feature X/Write code"` to reference nested tasks
 - **Tree-based display**: Tasks are displayed with box-drawing characters (├─, └─, │) showing hierarchy
 - **Enhanced disambiguation**: When multiple tasks match, displays hierarchical path `[Parent / Child]` for clarity

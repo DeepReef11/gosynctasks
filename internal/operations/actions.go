@@ -195,7 +195,7 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 	// Handle path-based task creation or parent resolution
 	if parentRef != "" {
 		// Explicit parent provided via -P flag
-		parentUID, err = ResolveParentTask(taskManager, cfg, selectedList.ID, parentRef)
+		parentUID, err = ResolveParentTask(taskManager, cfg, selectedList.ID, parentRef, taskStatus)
 		if err != nil {
 			return fmt.Errorf("failed to resolve parent task: %w", err)
 		}
