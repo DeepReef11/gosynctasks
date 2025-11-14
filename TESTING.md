@@ -747,6 +747,55 @@ gst Test -v my-urgent-tasks
 # Verify custom configuration applied
 ```
 
+#### Creating Test View Files
+
+**Note:** Copy-paste of multiline `cat` commands often doesn't work properly in terminals. Instead, create test view files directly using your editor or programmatically.
+
+**Method 1: Using your text editor**
+```bash
+# Open editor
+nano ~/.config/gosynctasks/views/filtered.yaml
+# Or use your preferred editor: vim, emacs, code, etc.
+```
+
+**Method 2: Create programmatically for testing**
+
+Example test view with filtering and sorting (save to `~/.config/gosynctasks/views/filtered.yaml`):
+
+```yaml
+name: filtered
+description: High priority incomplete tasks
+fields:
+  - name: status
+    format: symbol
+    show: true
+  - name: priority
+    format: number
+    color: true
+    show: true
+  - name: summary
+    format: full
+    show: true
+filters:
+  status: [NEEDS-ACTION, IN-PROCESS]
+  priority_min: 1
+  priority_max: 5
+display:
+  sort_by: priority
+  sort_order: asc
+```
+
+**Test the view:**
+```bash
+gst Test -v filtered
+```
+
+**Verify:**
+- Only shows tasks with status TODO or PROCESSING
+- Only shows tasks with priority 1-5
+- Tasks sorted by priority (ascending)
+- Hierarchical display works with filtered/sorted tasks
+
 ### Error Handling Testing
 
 #### Connection Errors

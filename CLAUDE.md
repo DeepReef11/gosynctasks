@@ -81,6 +81,15 @@ gosynctasks MyList complete "task" -s PROCESSING  # Change to PROCESSING
 # View options
 gosynctasks MyList -v all                # Show all metadata (dates, priority)
 gst Test -v all                          # View with test server
+gosynctasks MyList -v myview             # Use custom view named 'myview'
+
+# Custom views management
+gosynctasks view list                    # List all available views
+gosynctasks view show myview             # Show view configuration
+gosynctasks view create myview           # Create view interactively
+gosynctasks view edit myview             # Edit existing view
+gosynctasks view delete myview           # Delete a view
+gosynctasks view validate myview         # Validate view configuration
 
 # List management
 gosynctasks list create "New List"            # Create new task list (c also works)
@@ -336,6 +345,180 @@ The application supports hierarchical task organization with parent-child relati
 3. Multiple matches → Interactive selection with hierarchical paths shown
 4. Single partial match → Confirmation prompt
 5. Exact match → Proceed immediately
+
+## Custom Views System
+
+The application includes a comprehensive custom views system that allows users to define how tasks are displayed with customizable field selection, ordering, formatting, and filtering.
+
+### Overview
+
+- **Storage**: Views are stored as YAML files in `~/.config/gosynctasks/views/`
+- **Built-in views**: `basic` and `all` are hardcoded legacy views
+- **Custom views**: Users can create, edit, and delete custom views
+- **View rendering**: Uses the `ViewRenderer` class with field formatters
+- **Hierarchical support**: Custom views support task tree display with parent-child relationships
+- **Filtering**: Views can define default filters (status, priority, tags, dates)
+- **Sorting**: Views can specify sort order by any task field
+
+### View Configuration Structure
+
+Views are defined in YAML with the following structure:
+
+```yaml
+name: myview
+description: High priority tasks with due dates
+fields:
+  - name: status
+    format: symbol
+    show: true
+    color: true
+  - name: summary
+    format: full
+    show: true
+  - name: due_date
+    format: relative
+    show: true
+    label: Due
+  - name: priority
+    format: number
+    show: true
+    color: true
+filters:
+  status: [NEEDS-ACTION, IN-PROCESS]
+  priority_min: 1
+  priority_max: 5
+display:
+  compact_mode: false
+  show_border: true
+  date_format: "2006-01-02"
+  sort_by: due_date
+  sort_order: asc
+```
+
+### Available Fields
+
+- `status`: Task status (formats: symbol, text, emoji, short)
+- `summary`: Task title (formats: full, truncate)
+- `description`: Task description (formats: full, preview, truncate)
+- `priority`: Priority 0-9 (formats: number, text, none)
+- `due_date`: Due date (formats: full, short, relative)
+- `start_date`: Start date (formats: full, short, relative)
+- `created`: Creation date (formats: full, short, relative)
+- `modified`: Last modified date (formats: full, short, relative)
+- `completed`: Completion date (formats: full, short, relative)
+- `tags`: Task categories/tags (formats: list, compact)
+- `uid`: Unique identifier (formats: full, short)
+- `parent`: Parent task UID (formats: full, short)
+
+### View Filters
+
+Views can define default filters that are applied when the view is used:
+
+- **Status**: Filter by task status (e.g., `[NEEDS-ACTION, IN-PROCESS]`)
+- **Priority**: Filter by priority range (`priority_min`, `priority_max`)
+- **Tags**: Filter tasks that have all specified tags
+- **Due dates**: Filter by due date range (`due_before`, `due_after`)
+- **Start dates**: Filter by start date range (`start_before`, `start_after`)
+
+Filters are applied BEFORE rendering and are combined with CLI status filters.
+
+### View Sorting
+
+Views can specify how tasks should be sorted:
+
+- **sort_by**: Field to sort by (`status`, `summary`, `priority`, `due_date`, `start_date`, `created`, `modified`)
+- **sort_order**: `asc` (ascending) or `desc` (descending)
+
+Sorting is applied AFTER backend-specific sorting and view filtering.
+
+### Architecture
+
+**Key Components:**
+- **`internal/views/types.go`** (views/types.go:7-95): Core view data structures
+  - `View`: Main view configuration
+  - `FieldConfig`: Individual field settings
+  - `ViewFilters`: Filter criteria
+  - `DisplayOptions`: Presentation settings
+- **`internal/views/loader.go`**: View loading from YAML files
+- **`internal/views/storage.go`**: View persistence and file management
+- **`internal/views/renderer.go`** (views/renderer.go:10-247): View rendering engine
+  - `NewViewRenderer()`: Creates renderer with field formatters
+  - `RenderTask()`: Renders single task according to view
+  - `RenderTaskHierarchical()`: Renders task with tree indentation
+  - `RenderTasks()`: Renders multiple tasks
+- **`internal/views/filter.go`** (views/filter.go:8-172): View filtering and sorting
+  - `ApplyFilters()`: Filters tasks based on view filters
+  - `ApplySort()`: Sorts tasks based on view configuration
+- **`internal/views/formatters/`**: Field-specific formatters
+  - `StatusFormatter`: Formats status with symbols/colors
+  - `PriorityFormatter`: Formats priority with colors
+  - `DateFormatter`: Formats dates (full, short, relative)
+  - `SummaryFormatter`: Formats task summary (full, truncate)
+  - `DescriptionFormatter`: Formats description (full, preview)
+  - `TagsFormatter`: Formats categories/tags
+  - `UIDFormatter`: Formats UIDs
+- **`internal/views/builder/`**: Interactive view builder (Bubble Tea TUI)
+- **`internal/operations/actions.go`** (operations/actions.go:386-459): Integration with task display
+  - `RenderWithCustomView()`: Renders tasks using custom view with filters/sorting
+  - `RenderTaskTreeWithCustomView()`: Renders hierarchical tasks with custom view
+
+**View Resolution:**
+1. Check if view name is built-in (`basic`, `all`)
+2. Load view from cache (in-memory)
+3. If not cached, load from `~/.config/gosynctasks/views/<name>.yaml`
+4. Validate view configuration
+5. Cache for future use
+
+**Rendering Flow:**
+1. Get tasks from backend with CLI status filter
+2. Resolve view by name
+3. Create `ViewRenderer` with view config and backend
+4. Apply view-specific filters (`ApplyFilters()`)
+5. Apply view-specific sorting (`ApplySort()`)
+6. Build task tree for hierarchical display
+7. Render each task with `RenderTaskHierarchical()`
+8. Display with list borders
+
+### CLI Integration
+
+**View Commands:**
+- `gosynctasks view list`: List all available views
+- `gosynctasks view show <name>`: Display view configuration
+- `gosynctasks view create <name>`: Create view interactively
+- `gosynctasks view edit <name>`: Edit existing view
+- `gosynctasks view delete <name>`: Delete a view
+- `gosynctasks view validate <name>`: Validate view configuration
+
+**Using Views:**
+- `gosynctasks MyList -v myview`: Use custom view for task display
+- `gosynctasks MyList -v all`: Use built-in "all" view
+- `gosynctasks MyList`: Uses default "basic" view
+
+**Completion:**
+- The `--view` / `-v` flag has completion support
+- Suggests built-in views (`basic`, `all`) plus custom view names
+- Custom view names loaded from `~/.config/gosynctasks/views/`
+
+### Testing
+
+- **`internal/views/filter_test.go`**: Tests for filtering and sorting
+  - Status filtering
+  - Priority range filtering
+  - Tags filtering (all required tags)
+  - Date filtering (before/after)
+  - Sorting by various fields
+- **`internal/views/renderer_test.go`**: Tests for view rendering
+- **`internal/views/loader_test.go`**: Tests for YAML loading
+- **`internal/views/formatters/*_test.go`**: Tests for field formatters
+
+### Known Limitations
+
+- View filters use OR logic for status (task matches ANY status in list)
+- View filters use AND logic for tags (task must have ALL tags)
+- Date filters exclude tasks with nil dates
+- Priority 0 (undefined) is sorted last when sorting by priority
+- View inheritance/composition not yet implemented
+- Export/import functionality not yet implemented
 
 ## Common Patterns
 
