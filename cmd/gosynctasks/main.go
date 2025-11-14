@@ -43,6 +43,7 @@ Examples:
   gosynctasks MyList add "Report" --due-date 2025-01-31 --start-date 2025-01-15  # With dates
   gosynctasks MyList add "Subtask" -P "Parent Task"  # Add subtask under parent
   gosynctasks MyList add "Fix bug" -P "Feature/Code"  # Path-based parent reference
+  gosynctasks MyList add "parent/child/grandchild"  # Shorthand: auto-creates hierarchy
 
   gosynctasks MyList update "Buy groceries" -s DONE  # Update task status
   gosynctasks MyList u "groceries" --summary "Buy milk"  # Partial match + rename

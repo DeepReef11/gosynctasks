@@ -185,18 +185,32 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 		return err
 	}
 
-	// Resolve parent task if provided
+	cfg := config.GetConfig()
 	var parentUID string
+	var actualTaskName string
+
+	// Handle path-based task creation or parent resolution
 	if parentRef != "" {
-		cfg := config.GetConfig()
+		// Explicit parent provided via -P flag
 		parentUID, err = ResolveParentTask(taskManager, cfg, selectedList.ID, parentRef)
 		if err != nil {
 			return fmt.Errorf("failed to resolve parent task: %w", err)
 		}
+		actualTaskName = taskSummary
+	} else if strings.Contains(taskSummary, "/") {
+		// Path-based shorthand: "parent/child/task" creates hierarchy automatically
+		fmt.Printf("Detected path-based task creation: '%s'\n", taskSummary)
+		parentUID, actualTaskName, err = CreateOrFindTaskPath(taskManager, cfg, selectedList.ID, taskSummary, taskStatus)
+		if err != nil {
+			return fmt.Errorf("failed to create task path: %w", err)
+		}
+	} else {
+		// Simple task with no parent
+		actualTaskName = taskSummary
 	}
 
 	task := backend.Task{
-		Summary:     taskSummary,
+		Summary:     actualTaskName,
 		Description: description,
 		Status:      taskStatus,
 		Priority:    priority,
@@ -209,7 +223,7 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 		return fmt.Errorf("error adding task: %w", err)
 	}
 
-	fmt.Printf("Task '%s' added successfully to list '%s'\n", taskSummary, selectedList.Name)
+	fmt.Printf("Task '%s' added successfully to list '%s'\n", actualTaskName, selectedList.Name)
 	return nil
 }
 

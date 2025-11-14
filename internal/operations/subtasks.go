@@ -7,6 +7,62 @@ import (
 	"strings"
 )
 
+// CreateOrFindTaskPath creates a hierarchical path of tasks, creating any missing levels
+// Returns the UID of the final parent and the actual task name to create
+// Example: "parent/child/task" creates/finds "parent", creates/finds "child" under "parent",
+// and returns the UID of "child" and "task" as the name
+func CreateOrFindTaskPath(taskManager backend.TaskManager, cfg *config.Config, listID string, path string, taskStatus string) (parentUID string, taskName string, err error) {
+	parts := strings.Split(path, "/")
+	if len(parts) == 0 {
+		return "", "", fmt.Errorf("empty path")
+	}
+
+	// If only one part, it's just a regular task (no parent)
+	if len(parts) == 1 {
+		return "", parts[0], nil
+	}
+
+	// The last part is the task name to create
+	taskName = strings.TrimSpace(parts[len(parts)-1])
+	if taskName == "" {
+		return "", "", fmt.Errorf("task name cannot be empty")
+	}
+
+	// Create or find each parent level
+	var currentParentUID string
+	for i := 0; i < len(parts)-1; i++ {
+		partName := strings.TrimSpace(parts[i])
+		if partName == "" {
+			return "", "", fmt.Errorf("empty path segment in '%s'", path)
+		}
+
+		// Try to find existing task at this level
+		task, err := findTaskByParent(taskManager, cfg, listID, partName, currentParentUID)
+		if err != nil {
+			// Task doesn't exist - create it
+			fmt.Printf("Creating intermediate task '%s'...\n", partName)
+			newTask := backend.Task{
+				Summary:   partName,
+				Status:    taskStatus,
+				ParentUID: currentParentUID,
+			}
+			if err := taskManager.AddTask(listID, newTask); err != nil {
+				return "", "", fmt.Errorf("failed to create intermediate task '%s': %w", partName, err)
+			}
+
+			// Retrieve the newly created task to get its UID
+			task, err = findTaskByParent(taskManager, cfg, listID, partName, currentParentUID)
+			if err != nil {
+				return "", "", fmt.Errorf("failed to retrieve newly created task '%s': %w", partName, err)
+			}
+		}
+
+		currentParentUID = task.UID
+	}
+
+	return currentParentUID, taskName, nil
+}
+
 // ResolveParentTask resolves a parent task reference (simple name or path) to a task UID
 // Supports both simple references ("Parent Task") and path-based references ("Feature X/Write code/Fix bug")
 func ResolveParentTask(taskManager backend.TaskManager, cfg *config.Config, listID string, parentRef string) (string, error) {
