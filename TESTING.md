@@ -282,12 +282,62 @@ cmd/gosynctasks/
 
 ### Setup for Integration Tests
 
+**Prerequisites:**
+- Ensure Docker test server is running (see [Docker Test Environment](#docker-test-environment))
+- Test config is located at `./gosynctasks/config/config.json` (pre-configured for local Nextcloud)
+
 ```bash
 # Build the binary
 go build -o gosynctasks ./cmd/gosynctasks
+```
 
-# Create test alias for convenience
-alias gst="go run ./cmd/gosynctasks --config ./gosynctasks/config"
+#### Shell Setup with Autocompletion
+
+**Zsh (recommended for autocompletion):**
+```bash
+# Create function with completion support
+gst() {
+    ./gosynctasks/gosynctasks --config ./gosynctasks/config/config.json "$@"
+}
+
+# Enable gosynctasks completion
+eval "$(./gosynctasks/gosynctasks completion zsh)"
+
+# Apply completion to gst function
+compdef gst=gosynctasks
+
+# Test autocompletion
+gst <TAB>  # Should show your task lists
+```
+
+**Bash:**
+```bash
+# Create function
+gst() {
+    ./gosynctasks/gosynctasks --config ./gosynctasks/config/config.json "$@"
+}
+
+# Enable gosynctasks completion
+eval "$(./gosynctasks/gosynctasks completion bash)"
+
+# Apply completion to gst function
+complete -F __start_gosynctasks gst
+```
+
+**Simple alias (no autocompletion):**
+```bash
+alias gst="./gosynctasks/gosynctasks --config ./gosynctasks/config/config.json"
+```
+
+**Alternative: Use environment variable**
+```bash
+export GST_CONFIG=./gosynctasks/config/config.json
+./gosynctasks/gosynctasks list
+```
+
+**Note:** If test commands fail with connection errors, ensure the Docker test server is running:
+```bash
+./scripts/start-test-server.sh
 ```
 
 ### Backend Integration Tests
@@ -336,16 +386,30 @@ go test ./backend -run TestFile -v
 
 ### Prerequisites
 
-1. Configure test environment:
+1. **Start Docker test server** (if not already running):
 ```bash
-# Use test config
-export GST_CONFIG=./gosynctasks/config
-
-# Or use explicit config flag
---config ./gosynctasks/config
+./scripts/start-test-server.sh
 ```
 
-2. Ensure you have access to a test task list (named "Test" in examples below)
+2. **Configure test environment** using the pre-configured test config:
+```bash
+# Use test config with alias
+alias gst="./gosynctasks --config ./gosynctasks/config/config.json"
+
+# Or use environment variable
+export GST_CONFIG=./gosynctasks/config/config.json
+
+# Or use explicit config flag
+./gosynctasks --config ./gosynctasks/config/config.json
+```
+
+3. **Ensure you have access to a test task list** (named "Test" in examples below):
+```bash
+# Create test list if it doesn't exist
+gst list create Test -d "Test task list for manual testing"
+
+# Or use Nextcloud web UI at http://localhost:8080
+```
 
 ### Essential Test Workflow
 
@@ -458,6 +522,97 @@ echo "y" | gst Test delete "Buy groceries"
 - Confirmation prompt shown
 - Tasks removed from list
 - List empty after deleting all
+
+### List Management Testing
+
+#### Create Task Lists
+
+```bash
+# Create a new task list
+gst list create "New List"
+
+# With description
+gst list create "Project X" -d "Tasks for project X"
+
+# With color (Nextcloud backend)
+gst list create "Urgent" --color "#ff0000"
+```
+
+**Verify:**
+- List appears in list selection (`gst`)
+- Description displays correctly
+- Color applied (if Nextcloud backend)
+
+#### List Information
+
+```bash
+# Show list details
+gst list info Test
+
+# Verify output includes:
+# - List name
+# - Description
+# - Task count
+# - Backend-specific metadata (color, CTags, etc.)
+```
+
+#### Rename Task Lists
+
+```bash
+# Rename a list
+gst list rename "Old Name" "New Name"
+
+# Verify in list selection
+gst
+```
+
+#### Delete Task Lists
+
+```bash
+# Delete a list (with confirmation)
+echo "y" | gst list delete "Temporary List"
+```
+
+**Verify:**
+- Confirmation prompt appears
+- List removed from backend
+- Tasks deleted along with list
+
+### Subtask Testing
+
+#### Creating Subtasks
+
+```bash
+# Add parent task
+gst Test add "Feature X" -p 1
+
+# Add subtask with parent reference
+gst Test add "Write code" -P "Feature X"
+
+# Add sub-subtask with path reference
+gst Test add "Fix bug" -P "Feature X/Write code"
+
+# Path-based creation (auto-creates hierarchy)
+gst Test add "Epic/Story/Task"
+```
+
+**Verify:**
+- Hierarchical display with box-drawing characters (├─, └─, │)
+- Proper indentation
+- Parent-child relationships maintained
+- Path resolution works correctly
+
+#### Literal Mode (Disable Path Parsing)
+
+```bash
+# Create task with slashes in name (not hierarchy)
+gst Test add -l "be a good/generous person"
+gst Test add --literal "URL: http://example.com"
+```
+
+**Verify:**
+- Task created without hierarchy
+- Full summary preserved including slashes
 
 ### Advanced Features Testing
 

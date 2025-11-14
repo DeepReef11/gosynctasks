@@ -7,7 +7,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 gosynctasks is a Go-based task synchronization tool that interfaces with multiple backends (primarily Nextcloud CalDAV) to manage tasks and task lists. It uses the Cobra CLI framework and supports filtering tasks by status.
 
 After completing working changes, build again.
-After doing TESTING.md, provide one or more command to to test for the user for the added changes
+After doing TESTING.md, provide one or more command to test for the user for the added changes.
+
+**IMPORTANT - Testing with Docker:**
+When providing test commands or when test commands fail with connection errors, ALWAYS remind the user to ensure the Docker test server is running:
+```bash
+./scripts/start-test-server.sh
+```
+The test config at `./gosynctasks/config/config.json` is pre-configured for the Docker test server (localhost:8080).
 
 ## Development Commands
 
@@ -53,6 +60,13 @@ gosynctasks MyList complete "task" -s PROCESSING  # Change to PROCESSING
 
 # View options
 gosynctasks MyList -v all                # Show all metadata (dates, priority)
+
+# List management
+gosynctasks list create "New List"            # Create new task list (c also works)
+gosynctasks list create "Project X" -d "Description" --color "#ff0000"  # With options
+gosynctasks list info MyList                  # Show list details (i also works)
+gosynctasks list rename "Old Name" "New Name" # Rename list (r also works)
+gosynctasks list delete "List Name"           # Delete list (d also works)
 ```
 
 ### Testing
@@ -66,6 +80,37 @@ go test ./internal/config
 ```
 
 For manual feature testing, see [TESTING.md](TESTING.md) which provides a quick workflow for verifying core functionality using a test configuration.
+
+### Shell Completion
+
+gosynctasks supports autocompletion for bash, zsh, fish, and PowerShell via Cobra's built-in completion:
+
+```bash
+# Zsh (load completion)
+eval "$(gosynctasks completion zsh)"
+
+# Bash (load completion)
+eval "$(gosynctasks completion bash)"
+
+# Fish
+gosynctasks completion fish | source
+
+# PowerShell
+gosynctasks completion powershell | Out-String | Invoke-Expression
+```
+
+**Creating a test alias/function with autocompletion:**
+```bash
+# Zsh
+gst() { gosynctasks --config ./gosynctasks/config/config.json "$@"; }
+eval "$(gosynctasks completion zsh)"
+compdef gst=gosynctasks
+
+# Bash
+gst() { gosynctasks --config ./gosynctasks/config/config.json "$@"; }
+eval "$(gosynctasks completion bash)"
+complete -F __start_gosynctasks gst
+```
 
 ### Dependencies
 ```bash
@@ -346,9 +391,22 @@ The NextcloudBackend uses a customized HTTP client:
 - ✓ Priority-based sorting and coloring
 - ✓ Backend-specific status handling (each backend manages its own status format)
 - ✓ Custom error types for structured error handling
-- ✓ Comprehensive test coverage for backend methods
+- ✓ Comprehensive test coverage for backend methods (PR #57)
 - ✓ Full godoc documentation for public APIs
 - ✓ Clear error messages for connection and authentication failures (with actionable guidance)
+- ✓ **Subtask support** (PR #54, #50) - Hierarchical task organization with parent-child relationships
+  - Parent reference via `-P` flag
+  - Path-based task creation shorthand (`parent/child/grandchild`)
+  - Literal mode (`-l/--literal`) to disable path parsing
+  - Tree-based display with box-drawing characters
+  - Enhanced disambiguation with hierarchical paths
+- ✓ **List management commands** (PR #51):
+  - `list create` - Create new task lists
+  - `list delete` - Delete task lists
+  - `list rename` - Rename task lists
+  - `list info` - Show detailed list information
+- ✓ **Interactive view builder** (PR #45) - Create custom task views with interactive UI
+- ✓ **Docker-based test environment** (PR #35) - Nextcloud test server for backend testing
 
 ## Future Work: SQLite Sync Implementation
 
