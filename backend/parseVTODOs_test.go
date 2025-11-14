@@ -436,6 +436,12 @@ func TestExtractXMLValue(t *testing.T) {
 			expected: "#FF0000",
 		},
 		{
+			name:     "tag with nc: namespace",
+			xml:      "<nc:deleted-at>2025-01-10T15:30:00Z</nc:deleted-at>",
+			tag:      "deleted-at",
+			expected: "2025-01-10T15:30:00Z",
+		},
+		{
 			name:     "tag with whitespace",
 			xml:      "<displayname>  My Calendar  </displayname>",
 			tag:      "displayname",

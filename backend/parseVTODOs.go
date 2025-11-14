@@ -303,7 +303,7 @@ func extractXMLValue(xml, tag string) string {
 	}
 
 	// Try with namespace prefixes
-	for _, prefix := range []string{"d:", "cs:", "ic:"} {
+	for _, prefix := range []string{"d:", "cs:", "ic:", "nc:"} {
 		fullTag := prefix + tag
 		if start := strings.Index(xml, fmt.Sprintf("<%s>", fullTag)); start != -1 {
 			start += len(fullTag) + 2
