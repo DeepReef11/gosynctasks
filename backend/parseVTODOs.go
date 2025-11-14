@@ -176,8 +176,9 @@ func (nB *NextcloudBackend) parseTaskLists(xmlData, baseURL string) ([]TaskList,
 			continue
 		}
 
-		// Skip deleted calendars (those with DeletedAt field set)
-		if taskList.DeletedAt != "" {
+		// Skip deleted calendars (those with deleted-calendar resourcetype)
+		// Check for <deleted-calendar xmlns="http://nextcloud.com/ns"/>
+		if isDeletedCalendar(response) {
 			continue
 		}
 
@@ -208,8 +209,9 @@ func (nB *NextcloudBackend) parseDeletedTaskLists(xmlData, baseURL string) ([]Ta
 			continue
 		}
 
-		// Only include deleted calendars (those with DeletedAt field set)
-		if taskList.DeletedAt == "" {
+		// Only include deleted calendars (those with deleted-calendar resourcetype)
+		// Check for <deleted-calendar xmlns="http://nextcloud.com/ns"/>
+		if !isDeletedCalendar(response) {
 			continue
 		}
 
@@ -220,6 +222,16 @@ func (nB *NextcloudBackend) parseDeletedTaskLists(xmlData, baseURL string) ([]Ta
 	}
 
 	return taskLists, nil
+}
+
+// isDeletedCalendar checks if a calendar response contains the deleted-calendar resourcetype
+func isDeletedCalendar(response string) bool {
+	// Check for the deleted-calendar element in resourcetype
+	// Can appear as:
+	// <deleted-calendar xmlns="http://nextcloud.com/ns"/>
+	// or with namespace prefix like:
+	// <nc:deleted-calendar/>
+	return strings.Contains(response, `deleted-calendar`)
 }
 
 func containsVTODO(response string) bool {

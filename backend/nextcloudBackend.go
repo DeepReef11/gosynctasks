@@ -288,8 +288,9 @@ func (nB *NextcloudBackend) GetTaskLists() ([]TaskList, error) {
 
 	// Build request body
 	propfindBody := `<?xml version="1.0" encoding="utf-8" ?>
-<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:ic="http://apple.com/ns/ical/" xmlns:nc="http://nextcloud.org/ns">
+<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:ic="http://apple.com/ns/ical/" xmlns:nc="http://nextcloud.com/ns">
   <d:prop>
+    <d:resourcetype />
     <d:displayname />
     <cs:getctag />
     <c:supported-calendar-component-set />
@@ -328,8 +329,9 @@ func (nB *NextcloudBackend) GetDeletedTaskLists() ([]TaskList, error) {
 
 	// Build request body (same as GetTaskLists)
 	propfindBody := `<?xml version="1.0" encoding="utf-8" ?>
-<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:ic="http://apple.com/ns/ical/" xmlns:nc="http://nextcloud.org/ns">
+<d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:ic="http://apple.com/ns/ical/" xmlns:nc="http://nextcloud.com/ns">
   <d:prop>
+    <d:resourcetype />
     <d:displayname />
     <cs:getctag />
     <c:supported-calendar-component-set />
