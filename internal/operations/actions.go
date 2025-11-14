@@ -385,6 +385,7 @@ func HandleDeleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 
 // RenderWithCustomView attempts to render tasks using a custom view
 // Returns the rendered output or an error if the view cannot be loaded
+// This version supports hierarchical display with tree structure
 func RenderWithCustomView(tasks []backend.Task, viewName string, taskManager backend.TaskManager, dateFormat string) (string, error) {
 	// Don't use custom rendering for built-in legacy views
 	if viewName == "basic" || viewName == "all" {
@@ -397,7 +398,62 @@ func RenderWithCustomView(tasks []backend.Task, viewName string, taskManager bac
 		return "", err
 	}
 
-	// Create renderer and render tasks
+	// Create renderer
 	renderer := views.NewViewRenderer(view, taskManager, dateFormat)
-	return renderer.RenderTasks(tasks), nil
+
+	// Apply view-specific filters
+	filteredTasks := tasks
+	if filters := renderer.GetFilters(); filters != nil {
+		filteredTasks = views.ApplyFilters(tasks, filters)
+	}
+
+	// Apply view-specific sorting
+	sortBy, sortOrder := renderer.GetSortConfig()
+	if sortBy != "" {
+		views.ApplySort(filteredTasks, sortBy, sortOrder)
+	}
+
+	// Build task tree
+	tree := BuildTaskTree(filteredTasks)
+
+	// Render tasks with hierarchy
+	return RenderTaskTreeWithCustomView(tree, renderer), nil
+}
+
+// RenderTaskTreeWithCustomView formats a task tree using a custom view renderer
+func RenderTaskTreeWithCustomView(nodes []*TaskNode, renderer *views.ViewRenderer) string {
+	var result strings.Builder
+	formatNodeWithCustomView(&result, nodes, "", true, renderer)
+	return result.String()
+}
+
+// formatNodeWithCustomView recursively formats a task node with proper indentation using custom view
+func formatNodeWithCustomView(result *strings.Builder, nodes []*TaskNode, prefix string, isRoot bool, renderer *views.ViewRenderer) {
+	for i, node := range nodes {
+		isLast := i == len(nodes)-1
+
+		// Determine the tree characters
+		var nodePrefix, childPrefix string
+		if isRoot {
+			nodePrefix = ""
+			childPrefix = ""
+		} else {
+			if isLast {
+				nodePrefix = prefix + "└─ "
+				childPrefix = prefix + "   "
+			} else {
+				nodePrefix = prefix + "├─ "
+				childPrefix = prefix + "│  "
+			}
+		}
+
+		// Render the task with hierarchy using the custom view
+		taskOutput := renderer.RenderTaskHierarchical(*node.Task, nodePrefix, childPrefix)
+		result.WriteString(taskOutput)
+
+		// Recursively format children
+		if len(node.Children) > 0 {
+			formatNodeWithCustomView(result, node.Children, childPrefix, false, renderer)
+		}
+	}
 }

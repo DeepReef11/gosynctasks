@@ -206,3 +206,41 @@ func (r *ViewRenderer) RenderTasks(tasks []backend.Task) string {
 
 	return result.String()
 }
+
+// GetFilters returns the view's filter configuration
+func (r *ViewRenderer) GetFilters() *ViewFilters {
+	return r.view.Filters
+}
+
+// GetSortConfig returns the view's sort configuration
+func (r *ViewRenderer) GetSortConfig() (string, string) {
+	return r.view.Display.SortBy, r.view.Display.SortOrder
+}
+
+// RenderTaskHierarchical renders a single task with hierarchical indentation
+// prefix is the tree prefix (e.g., "├─ " or "└─ ")
+func (r *ViewRenderer) RenderTaskHierarchical(task backend.Task, nodePrefix, childPrefix string) string {
+	var result strings.Builder
+
+	// Render the task normally
+	taskOutput := r.RenderTask(task)
+
+	// Add indentation to each line of the task output
+	if nodePrefix != "" {
+		lines := strings.Split(strings.TrimRight(taskOutput, "\n"), "\n")
+		for j, line := range lines {
+			if j == 0 {
+				result.WriteString(nodePrefix)
+			} else {
+				// Continuation lines use the child prefix
+				result.WriteString(childPrefix)
+			}
+			result.WriteString(line)
+			result.WriteString("\n")
+		}
+	} else {
+		result.WriteString(taskOutput)
+	}
+
+	return result.String()
+}
