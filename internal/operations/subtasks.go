@@ -5,6 +5,7 @@ import (
 	"gosynctasks/backend"
 	"gosynctasks/internal/config"
 	"strings"
+	"time"
 )
 
 // CreateOrFindTaskPath creates a hierarchical path of tasks, creating any missing levels
@@ -41,7 +42,12 @@ func CreateOrFindTaskPath(taskManager backend.TaskManager, cfg *config.Config, l
 		if err != nil {
 			// Task doesn't exist - create it
 			fmt.Printf("Creating intermediate task '%s'...\n", partName)
+
+			// Generate UID before creating the task so we have it for the next iteration
+			newUID := fmt.Sprintf("task-%d-%d", time.Now().Unix(), i)
+
 			newTask := backend.Task{
+				UID:       newUID,
 				Summary:   partName,
 				Status:    taskStatus,
 				ParentUID: currentParentUID,
@@ -50,14 +56,12 @@ func CreateOrFindTaskPath(taskManager backend.TaskManager, cfg *config.Config, l
 				return "", "", fmt.Errorf("failed to create intermediate task '%s': %w", partName, err)
 			}
 
-			// Retrieve the newly created task to get its UID
-			task, err = findTaskByParent(taskManager, cfg, listID, partName, currentParentUID)
-			if err != nil {
-				return "", "", fmt.Errorf("failed to retrieve newly created task '%s': %w", partName, err)
-			}
+			// Use the UID we just generated (no need to retrieve the task)
+			currentParentUID = newUID
+		} else {
+			// Task already exists, use its UID
+			currentParentUID = task.UID
 		}
-
-		currentParentUID = task.UID
 	}
 
 	return currentParentUID, taskName, nil

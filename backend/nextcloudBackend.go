@@ -56,7 +56,17 @@ func (nB *NextcloudBackend) getPassword() string {
 func (nB *NextcloudBackend) getBaseURL() string {
 	if nB.baseURL == "" {
 		if nB.Connector.URL != nil {
-			nB.baseURL = fmt.Sprintf("https://%s", nB.Connector.URL.Host) //TODO: Test for uncomplete and complete url like nextloud.com/remote.php/... and just nextcloud.com
+			// Determine scheme: use http for localhost, https otherwise
+			scheme := "https"
+			host := nB.Connector.URL.Host
+
+			// Use HTTP for localhost or 127.0.0.1
+			if strings.HasPrefix(host, "localhost:") || strings.HasPrefix(host, "localhost") ||
+			   strings.HasPrefix(host, "127.0.0.1:") || strings.HasPrefix(host, "127.0.0.1") {
+				scheme = "http"
+			}
+
+			nB.baseURL = fmt.Sprintf("%s://%s", scheme, host)
 		}
 	}
 	return nB.baseURL
@@ -447,6 +457,11 @@ func (nb *NextcloudBackend) buildICalContent(task Task) string {
 	if task.Status == "COMPLETED" && task.Completed != nil {
 		completed := task.Completed.UTC().Format("20060102T150405Z")
 		icalContent.WriteString(fmt.Sprintf("COMPLETED:%s\r\n", completed))
+	}
+
+	// Add RELATED-TO for parent-child relationships
+	if task.ParentUID != "" {
+		icalContent.WriteString(fmt.Sprintf("RELATED-TO:%s\r\n", task.ParentUID))
 	}
 
 	icalContent.WriteString("END:VTODO\r\n")
