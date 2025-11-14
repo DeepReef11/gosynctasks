@@ -10,7 +10,7 @@ After completing working changes, build again.
 After doing TESTING.md, provide one or more command to test for the user for the added changes.
 
 **IMPORTANT - Testing with Docker:**
-When providing test commands or when test commands fail with connection errors, ALWAYS remind the user to ensure the Docker test server is running:
+When providing test commands or when test commands fail with connection errors, ALWAYS remind the user to ensure the Docker test server is running. You should not launch that command, it's the user:
 ```bash
 ./scripts/start-test-server.sh
 ```
