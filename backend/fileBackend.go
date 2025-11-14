@@ -33,6 +33,18 @@ func (fB *FileBackend) DeleteTask(listID string, taskUID string) error {
 	return nil
 }
 
+func (fB *FileBackend) CreateTaskList(name, description, color string) (string, error) {
+	return "", fmt.Errorf("FileBackend.CreateTaskList not yet implemented")
+}
+
+func (fB *FileBackend) DeleteTaskList(listID string) error {
+	return fmt.Errorf("FileBackend.DeleteTaskList not yet implemented")
+}
+
+func (fB *FileBackend) RenameTaskList(listID, newName string) error {
+	return fmt.Errorf("FileBackend.RenameTaskList not yet implemented")
+}
+
 func (fB *FileBackend) ParseStatusFlag(statusFlag string) (string, error) {
 	if statusFlag == "" {
 		return "", fmt.Errorf("status flag cannot be empty")

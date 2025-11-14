@@ -715,3 +715,279 @@ func TestNextcloudBackend_DeleteTask(t *testing.T) {
 		})
 	}
 }
+func TestNextcloudBackend_CreateTaskList(t *testing.T) {
+	tests := []struct {
+		name           string
+		listName       string
+		description    string
+		color          string
+		responseStatus int
+		responseBody   string
+		expectError    bool
+		errorContains  string
+	}{
+		{
+			name:           "successful creation",
+			listName:       "New List",
+			description:    "Test description",
+			color:          "#ff0000",
+			responseStatus: 201,
+			responseBody:   "",
+			expectError:    false,
+		},
+		{
+			name:           "creation without description",
+			listName:       "Simple List",
+			description:    "",
+			color:          "",
+			responseStatus: 201,
+			responseBody:   "",
+			expectError:    false,
+		},
+		{
+			name:           "list already exists",
+			listName:       "Existing",
+			description:    "",
+			color:          "",
+			responseStatus: 405,
+			responseBody:   "Method not allowed",
+			expectError:    true,
+			errorContains:  "list already exists",
+		},
+		{
+			name:           "server error",
+			listName:       "Failed",
+			description:    "",
+			color:          "",
+			responseStatus: 500,
+			responseBody:   "Internal server error",
+			expectError:    true,
+			errorContains:  "500",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create mock server
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Verify request method
+				if r.Method != "MKCOL" {
+					t.Errorf("Expected MKCOL request, got %s", r.Method)
+				}
+
+				// Read and verify request body contains the list name
+				body, _ := io.ReadAll(r.Body)
+				bodyStr := string(body)
+				if !strings.Contains(bodyStr, tt.listName) {
+					t.Errorf("Expected request body to contain %q, got %q", tt.listName, bodyStr)
+				}
+
+				// Verify description if provided
+				if tt.description != "" && !strings.Contains(bodyStr, tt.description) {
+					t.Errorf("Expected request body to contain description %q", tt.description)
+				}
+
+				// Verify color if provided
+				if tt.color != "" && !strings.Contains(bodyStr, tt.color) {
+					t.Errorf("Expected request body to contain color %q", tt.color)
+				}
+
+				// Send mock response
+				w.WriteHeader(tt.responseStatus)
+				w.Write([]byte(tt.responseBody))
+			}))
+			defer server.Close()
+
+			// Create backend with mock server
+			backend := createTestBackend(t, server.URL)
+
+			// Execute CreateTaskList
+			listID, err := backend.CreateTaskList(tt.listName, tt.description, tt.color)
+
+			// Check error expectation
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("CreateTaskList() expected error, got nil")
+					return
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("CreateTaskList() error = %q, want error containing %q", err.Error(), tt.errorContains)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("CreateTaskList() unexpected error: %v", err)
+				}
+				if listID == "" {
+					t.Errorf("CreateTaskList() returned empty listID")
+				}
+			}
+		})
+	}
+}
+
+func TestNextcloudBackend_DeleteTaskList(t *testing.T) {
+	tests := []struct {
+		name           string
+		listID         string
+		responseStatus int
+		responseBody   string
+		expectError    bool
+		errorContains  string
+	}{
+		{
+			name:           "successful deletion",
+			listID:         "test-list",
+			responseStatus: 204,
+			responseBody:   "",
+			expectError:    false,
+		},
+		{
+			name:           "list not found",
+			listID:         "nonexistent",
+			responseStatus: 404,
+			responseBody:   "Not found",
+			expectError:    true,
+			errorContains:  "list not found",
+		},
+		{
+			name:           "server error",
+			listID:         "error-list",
+			responseStatus: 500,
+			responseBody:   "Internal server error",
+			expectError:    true,
+			errorContains:  "500",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create mock server
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Verify request method
+				if r.Method != "DELETE" {
+					t.Errorf("Expected DELETE request, got %s", r.Method)
+				}
+
+				// Verify URL contains list ID
+				if !strings.Contains(r.URL.Path, tt.listID) {
+					t.Errorf("Expected URL to contain %s, got %s", tt.listID, r.URL.Path)
+				}
+
+				// Send mock response
+				w.WriteHeader(tt.responseStatus)
+				w.Write([]byte(tt.responseBody))
+			}))
+			defer server.Close()
+
+			// Create backend with mock server
+			backend := createTestBackend(t, server.URL)
+
+			// Execute DeleteTaskList
+			err := backend.DeleteTaskList(tt.listID)
+
+			// Check error expectation
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("DeleteTaskList() expected error, got nil")
+					return
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("DeleteTaskList() error = %q, want error containing %q", err.Error(), tt.errorContains)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("DeleteTaskList() unexpected error: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestNextcloudBackend_RenameTaskList(t *testing.T) {
+	tests := []struct {
+		name           string
+		listID         string
+		newName        string
+		responseStatus int
+		responseBody   string
+		expectError    bool
+		errorContains  string
+	}{
+		{
+			name:           "successful rename",
+			listID:         "test-list",
+			newName:        "Renamed List",
+			responseStatus: 207,
+			responseBody:   `<?xml version="1.0"?><d:multistatus xmlns:d="DAV:"><d:response><d:status>HTTP/1.1 200 OK</d:status></d:response></d:multistatus>`,
+			expectError:    false,
+		},
+		{
+			name:           "list not found",
+			listID:         "nonexistent",
+			newName:        "New Name",
+			responseStatus: 404,
+			responseBody:   "Not found",
+			expectError:    true,
+			errorContains:  "list not found",
+		},
+		{
+			name:           "server error",
+			listID:         "error-list",
+			newName:        "Error Name",
+			responseStatus: 500,
+			responseBody:   "Internal server error",
+			expectError:    true,
+			errorContains:  "500",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create mock server
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Verify request method
+				if r.Method != "PROPPATCH" {
+					t.Errorf("Expected PROPPATCH request, got %s", r.Method)
+				}
+
+				// Verify URL contains list ID
+				if !strings.Contains(r.URL.Path, tt.listID) {
+					t.Errorf("Expected URL to contain %s, got %s", tt.listID, r.URL.Path)
+				}
+
+				// Read and verify request body contains new name
+				body, _ := io.ReadAll(r.Body)
+				bodyStr := string(body)
+				if !strings.Contains(bodyStr, tt.newName) {
+					t.Errorf("Expected request body to contain %q, got %q", tt.newName, bodyStr)
+				}
+
+				// Send mock response
+				w.WriteHeader(tt.responseStatus)
+				w.Write([]byte(tt.responseBody))
+			}))
+			defer server.Close()
+
+			// Create backend with mock server
+			backend := createTestBackend(t, server.URL)
+
+			// Execute RenameTaskList
+			err := backend.RenameTaskList(tt.listID, tt.newName)
+
+			// Check error expectation
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("RenameTaskList() expected error, got nil")
+					return
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("RenameTaskList() error = %q, want error containing %q", err.Error(), tt.errorContains)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("RenameTaskList() unexpected error: %v", err)
+				}
+			}
+		})
+	}
+}

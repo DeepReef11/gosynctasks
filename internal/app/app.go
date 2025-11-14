@@ -73,6 +73,16 @@ func (a *App) GetTaskManager() backend.TaskManager {
 	return a.taskManager
 }
 
+// RefreshTaskLists refreshes the task list cache from the backend
+func (a *App) RefreshTaskLists() error {
+	lists, err := cache.RefreshAndCacheTaskLists(a.taskManager)
+	if err != nil {
+		return err
+	}
+	a.taskLists = lists
+	return nil
+}
+
 // ListBackends displays all configured backends and their status
 func (a *App) ListBackends() error {
 	fmt.Println("\n=== Configured Backends ===")

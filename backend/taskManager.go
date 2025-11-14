@@ -162,6 +162,19 @@ type TaskManager interface {
 	// Returns a BackendError with IsNotFound() == true if the task doesn't exist.
 	DeleteTask(listID string, taskUID string) error
 
+	// CreateTaskList creates a new task list with the given name and optional description.
+	// The color parameter is optional and may be ignored by backends that don't support it.
+	// Returns the ID of the newly created list or an error if creation fails.
+	CreateTaskList(name, description, color string) (string, error)
+
+	// DeleteTaskList permanently removes a task list and all tasks within it.
+	// Returns an error if the list doesn't exist or cannot be deleted.
+	DeleteTaskList(listID string) error
+
+	// RenameTaskList changes the name of an existing task list.
+	// Returns an error if the list doesn't exist or the new name is already in use.
+	RenameTaskList(listID, newName string) error
+
 	// ParseStatusFlag converts user input (abbreviations, app names, or backend names)
 	// to the backend's internal status format.
 	// Examples: "T" → "NEEDS-ACTION" (Nextcloud), "T" → "TODO" (File)
@@ -551,6 +564,11 @@ type TaskList struct {
 	// CTags is a synchronization token that changes when the list is modified.
 	// Used for efficient sync operations (CalDAV-specific, optional).
 	CTags string `json:"ctags,omitempty"`
+
+	// DeletedAt indicates when the list was deleted (moved to trash).
+	// Empty string means the list is not deleted.
+	// Used by Nextcloud to track trashed calendars (Nextcloud-specific, optional).
+	DeletedAt string `json:"deleted_at,omitempty"`
 }
 
 func (t TaskList) String() string {
