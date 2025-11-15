@@ -118,8 +118,8 @@ func (bc *BackendConfig) TaskManager() (TaskManager, error) {
 		return NewGitBackend(*bc)
 
 	case "sqlite":
-		// SQLite backend will be implemented later
-		return nil, fmt.Errorf("sqlite backend not yet implemented")
+		// Create SQLite backend
+		return NewSQLiteBackend(*bc)
 
 	default:
 		return nil, &UnsupportedSchemeError{
@@ -247,6 +247,9 @@ type TaskFilter struct {
 
 	// CreatedAfter filters tasks created after this time (inclusive).
 	CreatedAfter *time.Time
+
+	// CreatedBefore filters tasks created before this time (inclusive).
+	CreatedBefore *time.Time
 }
 
 // StatusStringTranslateToStandardStatus converts app status names to CalDAV standard statuses.
