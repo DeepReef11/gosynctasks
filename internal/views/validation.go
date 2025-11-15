@@ -323,7 +323,7 @@ func AnnotateYAMLWithErrors(yamlContent string, errors *ValidationErrors) string
 	// Track array indices as we go through the file
 	arrayItemCount := 0
 
-	for i, line := range lines {
+	for _, line := range lines {
 		result = append(result, line)
 
 		trimmedLine := strings.TrimSpace(line)
