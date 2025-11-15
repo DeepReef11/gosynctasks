@@ -313,49 +313,70 @@ func AnnotateYAMLWithErrors(yamlContent string, errors *ValidationErrors) string
 	}
 	header.WriteString("# ========================================\n\n")
 
+	// Track which errors have been annotated to avoid duplicates
+	annotated := make(map[int]bool)
+
 	// Insert errors inline at relevant locations
 	result := make([]string, 0, len(lines)+len(errors.Errors)*3)
 	result = append(result, strings.Split(header.String(), "\n")...)
 
-	for i, line := range lines {
+	// Track array indices as we go through the file
+	arrayItemCount := 0
+
+	for _, line := range lines {
 		result = append(result, line)
 
-		// Check if this line matches any error field
-		for _, err := range errors.Errors {
-			if matchesErrorField(line, err.Field) {
-				// Add inline error comment
-				result = append(result, fmt.Sprintf("# ERROR: %s", err.Message))
-				if err.Value != "" {
-					result = append(result, fmt.Sprintf("# Invalid value: %s", err.Value))
-				}
-				if err.Hint != "" {
-					result = append(result, fmt.Sprintf("# %s", err.Hint))
-				}
-			}
+		trimmedLine := strings.TrimSpace(line)
+
+		// Track array items (fields list)
+		if strings.HasPrefix(trimmedLine, "- name:") {
+			arrayItemCount++
 		}
 
-		// Special handling for array items (fields[0], fields[1], etc.)
-		for _, err := range errors.Errors {
-			if strings.Contains(err.Field, "fields[") && strings.Contains(line, "- name:") {
-				// Extract array index from error field
-				var arrayIndex int
-				if _, scanErr := fmt.Sscanf(err.Field, "fields[%d]", &arrayIndex); scanErr == nil {
-					// Count how many "- name:" we've seen so far
-					nameCount := 0
-					for j := 0; j <= i; j++ {
-						if strings.Contains(lines[j], "- name:") {
-							if nameCount == arrayIndex {
-								// This is the field with the error
-								result = append(result, fmt.Sprintf("  # ERROR in this field: %s", err.Message))
-								if err.Hint != "" {
-									result = append(result, fmt.Sprintf("  # %s", err.Hint))
-								}
-								break
-							}
-							nameCount++
-						}
+		// Check for errors that match this specific line
+		for errIdx, err := range errors.Errors {
+			if annotated[errIdx] {
+				continue // Skip already annotated errors
+			}
+
+			// Determine if this line is the correct location for the error
+			matched := false
+			indent := getIndentation(line)
+
+			// Handle array item errors (fields[N].field)
+			if strings.HasPrefix(err.Field, "fields[") {
+				var fieldIndex int
+				var fieldName string
+				if n, _ := fmt.Sscanf(err.Field, "fields[%d].%s", &fieldIndex, &fieldName); n == 2 {
+					// This is the Nth field item (0-indexed), check if we just saw it
+					if arrayItemCount-1 == fieldIndex && matchesFieldInLine(trimmedLine, fieldName) {
+						matched = true
 					}
 				}
+			} else if matchesErrorFieldPrecise(trimmedLine, err.Field) {
+				// Direct field match (not in array)
+				matched = true
+			}
+
+			if matched {
+				// Categorize error as simple or complex
+				isSimple := isSimpleError(err)
+
+				if isSimple {
+					// Simple error: concise single-line comment
+					result = append(result, fmt.Sprintf("%s# ERROR: %s", indent, formatSimpleError(err)))
+				} else {
+					// Complex error: multi-line with details
+					result = append(result, fmt.Sprintf("%s# ERROR: %s", indent, err.Message))
+					if err.Value != "" {
+						result = append(result, fmt.Sprintf("%s# Invalid value: %s", indent, err.Value))
+					}
+					if err.Hint != "" {
+						result = append(result, fmt.Sprintf("%s# Hint: %s", indent, err.Hint))
+					}
+				}
+
+				annotated[errIdx] = true
 			}
 		}
 	}
@@ -363,28 +384,81 @@ func AnnotateYAMLWithErrors(yamlContent string, errors *ValidationErrors) string
 	return strings.Join(result, "\n")
 }
 
-// matchesErrorField checks if a YAML line matches the error field path
-func matchesErrorField(line, fieldPath string) bool {
-	line = strings.TrimSpace(line)
+// isSimpleError determines if an error is a simple validation error (format, enum, etc.)
+func isSimpleError(err ValidationError) bool {
+	// Simple errors: invalid format, invalid enum value, wrong type
+	// Complex errors: structural issues, missing required fields, type mismatches
 
-	// Handle nested fields like "display.sort_by"
-	parts := strings.Split(fieldPath, ".")
-	if len(parts) > 0 {
-		lastPart := parts[len(parts)-1]
-
-		// Check if line starts with the field name
-		if strings.HasPrefix(line, lastPart+":") {
-			return true
-		}
-		if strings.HasPrefix(line, "- "+lastPart+":") {
-			return true
-		}
+	// Check for format errors
+	if strings.Contains(err.Message, "invalid format") {
+		return true
 	}
 
-	// Direct field match
-	if strings.HasPrefix(line, fieldPath+":") {
+	// Check for enum/choice errors
+	if strings.Contains(err.Message, "must be") && err.Hint != "" {
+		return true
+	}
+
+	// Width errors are simple
+	if strings.Contains(err.Field, "width") {
 		return true
 	}
 
 	return false
 }
+
+// formatSimpleError creates a concise error message for simple errors
+func formatSimpleError(err ValidationError) string {
+	// For format errors, extract the valid options from the hint
+	if strings.Contains(err.Message, "invalid format") && err.Hint != "" {
+		// Extract valid formats from hint like "Valid formats for 'due_date': full, relative, short"
+		if strings.Contains(err.Hint, "Valid formats") {
+			parts := strings.Split(err.Hint, ": ")
+			if len(parts) == 2 {
+				return fmt.Sprintf("Invalid format '%s'. Must be one of: %s", err.Value, parts[1])
+			}
+		}
+	}
+
+	// For other simple errors, use the hint if available
+	if err.Hint != "" && len(err.Hint) < 80 {
+		return err.Hint
+	}
+
+	return err.Message
+}
+
+// getIndentation returns the indentation (leading whitespace) of a line
+func getIndentation(line string) string {
+	for i, r := range line {
+		if r != ' ' && r != '\t' {
+			return line[:i]
+		}
+	}
+	return line
+}
+
+// matchesFieldInLine checks if a line contains a specific field name
+func matchesFieldInLine(line, fieldName string) bool {
+	// Check for "fieldName:" pattern
+	if strings.HasPrefix(line, fieldName+":") {
+		return true
+	}
+	if strings.Contains(line, " "+fieldName+":") {
+		return true
+	}
+	return false
+}
+
+// matchesErrorFieldPrecise checks if a YAML line precisely matches the error field path
+func matchesErrorFieldPrecise(line, fieldPath string) bool {
+	// Handle nested fields like "display.sort_by"
+	parts := strings.Split(fieldPath, ".")
+	if len(parts) > 0 {
+		lastPart := parts[len(parts)-1]
+		return matchesFieldInLine(line, lastPart)
+	}
+
+	return matchesFieldInLine(line, fieldPath)
+}
+
