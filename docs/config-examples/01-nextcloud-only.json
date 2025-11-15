@@ -1,0 +1,15 @@
+{
+  "backends": {
+    "nextcloud": {
+      "type": "nextcloud",
+      "enabled": true,
+      "url": "nextcloud://username:password@your-server.com",
+      "insecure_skip_verify": false
+    }
+  },
+  "default_backend": "nextcloud",
+  "auto_detect_backend": false,
+  "backend_priority": ["nextcloud"],
+  "ui": "cli",
+  "can_write_config": true
+}

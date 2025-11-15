@@ -1,0 +1,30 @@
+{
+  "backends": {
+    "work": {
+      "type": "git",
+      "enabled": true,
+      "file": "/home/user/work-projects/TODO.md",
+      "auto_detect": false,
+      "auto_commit": true
+    },
+    "personal": {
+      "type": "git",
+      "enabled": true,
+      "file": "/home/user/personal-projects/TODO.md",
+      "auto_detect": false,
+      "auto_commit": false
+    },
+    "current": {
+      "type": "git",
+      "enabled": true,
+      "file": "TODO.md",
+      "auto_detect": true,
+      "auto_commit": false
+    }
+  },
+  "default_backend": "work",
+  "auto_detect_backend": true,
+  "backend_priority": ["current", "work", "personal"],
+  "ui": "cli",
+  "can_write_config": true
+}

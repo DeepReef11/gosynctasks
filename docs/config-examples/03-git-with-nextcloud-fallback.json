@@ -1,0 +1,22 @@
+{
+  "backends": {
+    "git": {
+      "type": "git",
+      "enabled": true,
+      "file": "TODO.md",
+      "auto_detect": true,
+      "auto_commit": false
+    },
+    "nextcloud": {
+      "type": "nextcloud",
+      "enabled": true,
+      "url": "nextcloud://username:password@your-server.com",
+      "insecure_skip_verify": false
+    }
+  },
+  "default_backend": "nextcloud",
+  "auto_detect_backend": true,
+  "backend_priority": ["git", "nextcloud"],
+  "ui": "cli",
+  "can_write_config": true
+}
