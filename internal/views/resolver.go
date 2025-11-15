@@ -71,17 +71,19 @@ func InvalidateViewCache(name string) {
 
 // getBuiltInView returns a built-in view by name
 func getBuiltInView(name string) (*View, error) {
+	trueVal := true
+
 	switch name {
 	case "basic":
 		return &View{
 			Name:        "basic",
 			Description: "Basic view showing status, summary, and dates",
 			Fields: []FieldConfig{
-				{Name: "status", Format: "symbol", Show: true},
-				{Name: "summary", Format: "full", Show: true},
-				{Name: "start_date", Format: "full", Show: true, Color: true},
-				{Name: "due_date", Format: "full", Show: true, Color: true},
-				{Name: "description", Format: "truncate", Width: 70, Show: true},
+				{Name: "status", Format: "symbol", Show: &trueVal},
+				{Name: "summary", Format: "full", Show: &trueVal},
+				{Name: "start_date", Format: "full", Show: &trueVal, Color: true},
+				{Name: "due_date", Format: "full", Show: &trueVal, Color: true},
+				{Name: "description", Format: "truncate", Width: 70, Show: &trueVal},
 			},
 			FieldOrder: []string{"status", "summary", "start_date", "due_date", "description"},
 			Display: DisplayOptions{
@@ -97,14 +99,14 @@ func getBuiltInView(name string) (*View, error) {
 			Name:        "all",
 			Description: "Complete view showing all task metadata",
 			Fields: []FieldConfig{
-				{Name: "status", Format: "symbol", Show: true},
-				{Name: "summary", Format: "full", Show: true},
-				{Name: "start_date", Format: "full", Show: true, Color: true},
-				{Name: "due_date", Format: "full", Show: true, Color: true},
-				{Name: "description", Format: "truncate", Width: 70, Show: true},
-				{Name: "created", Format: "full", Show: true},
-				{Name: "modified", Format: "full", Show: true},
-				{Name: "priority", Format: "number", Show: true, Color: true},
+				{Name: "status", Format: "symbol", Show: &trueVal},
+				{Name: "summary", Format: "full", Show: &trueVal},
+				{Name: "start_date", Format: "full", Show: &trueVal, Color: true},
+				{Name: "due_date", Format: "full", Show: &trueVal, Color: true},
+				{Name: "description", Format: "truncate", Width: 70, Show: &trueVal},
+				{Name: "created", Format: "full", Show: &trueVal},
+				{Name: "modified", Format: "full", Show: &trueVal},
+				{Name: "priority", Format: "number", Show: &trueVal, Color: true},
 			},
 			FieldOrder: []string{"status", "summary", "start_date", "due_date", "description", "created", "modified", "priority"},
 			Display: DisplayOptions{

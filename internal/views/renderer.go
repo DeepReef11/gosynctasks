@@ -84,7 +84,7 @@ func (r *ViewRenderer) RenderTask(task backend.Task) string {
 	fieldOutputs := make(map[string]string)
 	for _, fieldName := range fieldsToShow {
 		fieldConfig := r.getFieldConfig(fieldName)
-		if fieldConfig == nil || !fieldConfig.Show {
+		if fieldConfig == nil || (fieldConfig.Show != nil && !*fieldConfig.Show) {
 			continue
 		}
 
@@ -178,7 +178,8 @@ func (r *ViewRenderer) getFieldsToShow() []string {
 	// Otherwise, use the order from Fields array
 	fields := []string{}
 	for _, field := range r.view.Fields {
-		if field.Show {
+		// Show if: Show is nil (default to true) OR Show is true
+		if field.Show == nil || *field.Show {
 			fields = append(fields, field.Name)
 		}
 	}

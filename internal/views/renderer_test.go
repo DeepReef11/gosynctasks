@@ -8,12 +8,13 @@ import (
 )
 
 func TestViewRenderer_RenderTask(t *testing.T) {
+	trueVal := true
 	// Create a minimal view
 	view := &View{
 		Name: "test",
 		Fields: []FieldConfig{
-			{Name: "status", Format: "symbol", Show: true},
-			{Name: "summary", Format: "full", Show: true},
+			{Name: "status", Format: "symbol", Show: &trueVal},
+			{Name: "summary", Format: "full", Show: &trueVal},
 		},
 		FieldOrder: []string{"status", "summary"},
 		Display: DisplayOptions{
@@ -45,14 +46,15 @@ func TestViewRenderer_RenderTask(t *testing.T) {
 }
 
 func TestViewRenderer_RenderTaskWithDates(t *testing.T) {
+	trueVal := true
 	// Create view with date fields
 	view := &View{
 		Name: "dates",
 		Fields: []FieldConfig{
-			{Name: "status", Format: "symbol", Show: true},
-			{Name: "summary", Format: "full", Show: true},
-			{Name: "start_date", Format: "full", Show: true, Color: true},
-			{Name: "due_date", Format: "full", Show: true, Color: true},
+			{Name: "status", Format: "symbol", Show: &trueVal},
+			{Name: "summary", Format: "full", Show: &trueVal},
+			{Name: "start_date", Format: "full", Show: &trueVal, Color: true},
+			{Name: "due_date", Format: "full", Show: &trueVal, Color: true},
 		},
 		FieldOrder: []string{"status", "summary", "start_date", "due_date"},
 		Display: DisplayOptions{
@@ -88,12 +90,13 @@ func TestViewRenderer_RenderTaskWithDates(t *testing.T) {
 }
 
 func TestViewRenderer_CompactMode(t *testing.T) {
+	trueVal := true
 	// Create view with compact mode
 	view := &View{
 		Name: "compact",
 		Fields: []FieldConfig{
-			{Name: "status", Format: "short", Show: true},
-			{Name: "summary", Format: "truncate", Width: 30, Show: true},
+			{Name: "status", Format: "short", Show: &trueVal},
+			{Name: "summary", Format: "truncate", Width: 30, Show: &trueVal},
 		},
 		FieldOrder: []string{"status", "summary"},
 		Display: DisplayOptions{
@@ -120,11 +123,12 @@ func TestViewRenderer_CompactMode(t *testing.T) {
 }
 
 func TestViewRenderer_RenderTasks(t *testing.T) {
+	trueVal := true
 	view := &View{
 		Name: "test",
 		Fields: []FieldConfig{
-			{Name: "status", Format: "symbol", Show: true},
-			{Name: "summary", Format: "full", Show: true},
+			{Name: "status", Format: "symbol", Show: &trueVal},
+			{Name: "summary", Format: "full", Show: &trueVal},
 		},
 		Display: DisplayOptions{
 			CompactMode: false,
@@ -151,13 +155,14 @@ func TestViewRenderer_RenderTasks(t *testing.T) {
 }
 
 func TestViewRenderer_FieldOrder(t *testing.T) {
+	trueVal := true
 	// Create view with custom field order
 	view := &View{
 		Name: "ordered",
 		Fields: []FieldConfig{
-			{Name: "status", Format: "symbol", Show: true},
-			{Name: "summary", Format: "full", Show: true},
-			{Name: "priority", Format: "number", Show: true},
+			{Name: "status", Format: "symbol", Show: &trueVal},
+			{Name: "summary", Format: "full", Show: &trueVal},
+			{Name: "priority", Format: "number", Show: &trueVal},
 		},
 		FieldOrder: []string{"priority", "status", "summary"}, // Different order
 		Display: DisplayOptions{
@@ -185,12 +190,14 @@ func TestViewRenderer_FieldOrder(t *testing.T) {
 }
 
 func TestViewRenderer_HiddenFields(t *testing.T) {
+	trueVal := true
+	falseVal := false
 	view := &View{
 		Name: "hidden",
 		Fields: []FieldConfig{
-			{Name: "status", Format: "symbol", Show: true},
-			{Name: "summary", Format: "full", Show: true},
-			{Name: "description", Format: "truncate", Show: false}, // Hidden
+			{Name: "status", Format: "symbol", Show: &trueVal},
+			{Name: "summary", Format: "full", Show: &trueVal},
+			{Name: "description", Format: "truncate", Show: &falseVal}, // Hidden
 		},
 		Display: DisplayOptions{
 			CompactMode: false,

@@ -283,10 +283,11 @@ func (b *ViewBuilder) BuildView() (*views.View, error) {
 			continue
 		}
 
+		trueVal := true
 		field := views.FieldConfig{
 			Name:   item.Name,
 			Format: item.Format,
-			Show:   true,
+			Show:   &trueVal,
 			Color:  item.Color,
 		}
 

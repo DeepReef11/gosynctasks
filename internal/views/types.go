@@ -44,7 +44,8 @@ type FieldConfig struct {
 	Color bool `yaml:"color,omitempty"`
 
 	// Show controls whether this field is displayed
-	Show bool `yaml:"show,omitempty"`
+	// nil = default to true, true = show, false = hide
+	Show *bool `yaml:"show,omitempty"`
 }
 
 // ViewFilters defines default filtering rules for a view
