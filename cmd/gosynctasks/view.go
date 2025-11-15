@@ -184,7 +184,7 @@ Available templates:
 					Description: "New view",
 					Fields: []views.FieldConfig{
 						{Name: "summary", Format: "full", Show: &trueVal},
-						{Name: "description", Format: "preview", Show: &falseVal, Width: 70},
+						{Name: "description", Format: "full", Show: &falseVal, Width: 70},
 						{Name: "status", Format: "symbol", Show: &trueVal, Color: true},
 						{Name: "priority", Format: "number", Show: &trueVal, Color: true},
 						{Name: "due_date", Format: "relative", Show: &trueVal, Color: true},

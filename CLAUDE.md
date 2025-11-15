@@ -399,7 +399,7 @@ display:
 
 - `status`: Task status (formats: symbol, text, emoji, short)
 - `summary`: Task title (formats: full, truncate)
-- `description`: Task description (formats: full, preview, truncate)
+- `description`: Task description (formats: full, truncate, first_line)
 - `priority`: Priority 0-9 (formats: number, text, none)
 - `due_date`: Due date (formats: full, short, relative)
 - `start_date`: Start date (formats: full, short, relative)
@@ -454,7 +454,7 @@ Sorting is applied AFTER backend-specific sorting and view filtering.
   - `PriorityFormatter`: Formats priority with colors
   - `DateFormatter`: Formats dates (full, short, relative)
   - `SummaryFormatter`: Formats task summary (full, truncate)
-  - `DescriptionFormatter`: Formats description (full, preview)
+  - `DescriptionFormatter`: Formats description (full, truncate, first_line)
   - `TagsFormatter`: Formats categories/tags
   - `UIDFormatter`: Formats UIDs
 - **`internal/views/builder/`**: Interactive view builder (Bubble Tea TUI)
