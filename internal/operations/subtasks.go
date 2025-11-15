@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gosynctasks/backend"
 	"gosynctasks/internal/config"
+	"sort"
 	"strings"
 	"time"
 )
@@ -328,6 +329,92 @@ func BuildTaskTree(tasks []backend.Task) []*TaskNode {
 	}
 
 	return roots
+}
+
+// SortTaskTree sorts a task tree hierarchically
+// It sorts root nodes and recursively sorts children within each parent
+func SortTaskTree(nodes []*TaskNode, sortBy string, sortOrder string) {
+	if sortBy == "" || len(nodes) == 0 {
+		return
+	}
+
+	// Import sort package functions from views package
+	// We'll use a comparison function that matches the ApplySort logic
+	sortNodes(nodes, sortBy, sortOrder)
+
+	// Recursively sort children
+	for _, node := range nodes {
+		if len(node.Children) > 0 {
+			SortTaskTree(node.Children, sortBy, sortOrder)
+		}
+	}
+}
+
+// sortNodes sorts a slice of TaskNodes based on sort configuration
+func sortNodes(nodes []*TaskNode, sortBy string, sortOrder string) {
+	if sortBy == "" {
+		return
+	}
+
+	ascending := true
+	if strings.ToLower(sortOrder) == "desc" {
+		ascending = false
+	}
+
+	sort.Slice(nodes, func(i, j int) bool {
+		var less bool
+		ti, tj := nodes[i].Task, nodes[j].Task
+
+		switch sortBy {
+		case "status":
+			less = ti.Status < tj.Status
+		case "summary":
+			less = strings.ToLower(ti.Summary) < strings.ToLower(tj.Summary)
+		case "priority":
+			// Lower priority number = higher priority (1 is highest)
+			// 0 means undefined, should go last
+			pi, pj := ti.Priority, tj.Priority
+			if pi == 0 && pj == 0 {
+				less = false
+			} else if pi == 0 {
+				less = false // undefined goes last
+			} else if pj == 0 {
+				less = true // undefined goes last
+			} else {
+				less = pi < pj
+			}
+		case "due_date":
+			less = compareDatePointers(ti.DueDate, tj.DueDate, true)
+		case "start_date":
+			less = compareDatePointers(ti.StartDate, tj.StartDate, true)
+		case "created":
+			less = compareDatePointers(&ti.Created, &tj.Created, true)
+		case "modified":
+			less = compareDatePointers(&ti.Modified, &tj.Modified, true)
+		default:
+			less = false
+		}
+
+		if ascending {
+			return less
+		}
+		return !less
+	})
+}
+
+// compareDatePointers compares two date pointers, handling nil values
+// nilsLast determines whether nil values should be considered greater than non-nil
+func compareDatePointers(a, b *time.Time, nilsLast bool) bool {
+	if a == nil && b == nil {
+		return false
+	}
+	if a == nil {
+		return !nilsLast
+	}
+	if b == nil {
+		return nilsLast
+	}
+	return a.Before(*b)
 }
 
 // FormatTaskTree formats a task tree with box-drawing characters for hierarchical display
