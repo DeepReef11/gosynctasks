@@ -178,18 +178,32 @@ Available templates:
 			} else {
 				// Create from editor
 				trueVal := true
+				falseVal := false
 				view = &views.View{
 					Name:        viewName,
 					Description: "New view",
 					Fields: []views.FieldConfig{
-						{Name: "status", Format: "symbol", Show: &trueVal},
 						{Name: "summary", Format: "full", Show: &trueVal},
+						{Name: "description", Format: "preview", Show: &falseVal, Width: 70},
+						{Name: "status", Format: "symbol", Show: &trueVal, Color: true},
+						{Name: "priority", Format: "number", Show: &trueVal, Color: true},
+						{Name: "due_date", Format: "relative", Show: &trueVal, Color: true},
+						{Name: "start_date", Format: "short", Show: &falseVal, Color: true},
+						{Name: "created", Format: "relative", Show: &falseVal},
+						{Name: "modified", Format: "relative", Show: &falseVal},
+						{Name: "completed", Format: "short", Show: &falseVal},
+						{Name: "tags", Format: "comma", Show: &falseVal},
+					},
+					Filters: &views.ViewFilters{
+						Status: []string{"NEEDS-ACTION", "IN-PROCESS"},
 					},
 					Display: views.DisplayOptions{
 						ShowHeader:  true,
 						ShowBorder:  true,
 						CompactMode: false,
 						DateFormat:  "2006-01-02",
+						SortBy:      "priority",
+						SortOrder:   "asc",
 					},
 				}
 

@@ -45,10 +45,10 @@ func TestApplyFilters_Priority(t *testing.T) {
 		priorityMax int
 		expected    int
 	}{
-		{"Min only", 3, 0, 3},       // >= 3
-		{"Max only", 0, 5, 3},       // <= 5
-		{"Range", 3, 7, 2},          // 3-7
-		{"No filter", 0, 0, 4},      // all
+		{"Min only", 3, 0, 3},  // >= 3
+		{"Max only", 0, 5, 3},  // <= 5
+		{"Range", 3, 7, 2},     // 3-7
+		{"No filter", 0, 0, 4}, // all
 	}
 
 	for _, tt := range tests {

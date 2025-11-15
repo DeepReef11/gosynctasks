@@ -22,17 +22,17 @@ type NextcloudBackend struct {
 
 // Status mapping: user-friendly names and abbreviations to CalDAV standard
 var statusToCalDAV = map[string]string{
-	"T":             "NEEDS-ACTION",
-	"TODO":          "NEEDS-ACTION",
-	"D":             "COMPLETED",
-	"DONE":          "COMPLETED",
-	"P":             "IN-PROCESS",
-	"PROCESSING":    "IN-PROCESS",
-	"C":             "CANCELLED",
-	"CANCELLED":     "CANCELLED",
-	"NEEDS-ACTION":  "NEEDS-ACTION",
-	"COMPLETED":     "COMPLETED",
-	"IN-PROCESS":    "IN-PROCESS",
+	"T":            "NEEDS-ACTION",
+	"TODO":         "NEEDS-ACTION",
+	"D":            "COMPLETED",
+	"DONE":         "COMPLETED",
+	"P":            "IN-PROCESS",
+	"PROCESSING":   "IN-PROCESS",
+	"C":            "CANCELLED",
+	"CANCELLED":    "CANCELLED",
+	"NEEDS-ACTION": "NEEDS-ACTION",
+	"COMPLETED":    "COMPLETED",
+	"IN-PROCESS":   "IN-PROCESS",
 }
 
 // CalDAV status to display name mapping

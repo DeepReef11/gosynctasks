@@ -9,9 +9,9 @@ import (
 
 // ViewRenderer renders tasks according to view configuration
 type ViewRenderer struct {
-	view    *View
-	ctx     *formatters.FormatContext
-	fmtMap  map[string]formatters.FieldFormatter
+	view   *View
+	ctx    *formatters.FormatContext
+	fmtMap map[string]formatters.FieldFormatter
 }
 
 // NewViewRenderer creates a new view renderer

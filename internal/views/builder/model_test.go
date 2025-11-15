@@ -2,25 +2,25 @@ package builder
 
 import (
 	"testing"
-	
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 func TestModelStateTransitions(t *testing.T) {
 	builder := NewViewBuilder("test")
 	m := newModel(builder)
-	
+
 	// Welcome → BasicInfo
 	if m.builder.CurrentState != StateWelcome {
 		t.Fatal("Should start at Welcome")
 	}
-	
+
 	updated, _ := m.handleEnter()
 	m = updated.(builderModel)
 	if m.builder.CurrentState != StateBasicInfo {
 		t.Error("Enter at Welcome should go to BasicInfo")
 	}
-	
+
 	// BasicInfo → FieldSelection
 	m.textInput.SetValue("Test description")
 	updated, _ = m.handleEnter()
@@ -31,28 +31,28 @@ func TestModelStateTransitions(t *testing.T) {
 	if m.builder.ViewDescription != "Test description" {
 		t.Error("Description not saved")
 	}
-	
+
 	// FieldSelection → FieldOrdering
 	updated, _ = m.handleEnter()
 	m = updated.(builderModel)
 	if m.builder.CurrentState != StateFieldOrdering {
 		t.Error("Enter at FieldSelection should go to FieldOrdering")
 	}
-	
+
 	// FieldOrdering → FieldConfig
 	updated, _ = m.handleEnter()
 	m = updated.(builderModel)
 	if m.builder.CurrentState != StateFieldConfig {
 		t.Error("Enter at FieldOrdering should go to FieldConfig")
 	}
-	
+
 	// FieldConfig → DisplayOptions
 	updated, _ = m.handleEnter()
 	m = updated.(builderModel)
 	if m.builder.CurrentState != StateDisplayOptions {
 		t.Error("Enter at FieldConfig should go to DisplayOptions")
 	}
-	
+
 	// DisplayOptions → Confirm
 	updated, _ = m.handleEnter()
 	m = updated.(builderModel)
@@ -66,14 +66,14 @@ func TestModelCursorMovement(t *testing.T) {
 	m := newModel(builder)
 	m.builder.CurrentState = StateFieldSelection
 	m.cursor = 0
-	
+
 	// Down arrow should increase cursor
 	updated, _ := m.handleDown()
 	m = updated.(builderModel)
 	if m.cursor != 1 {
 		t.Errorf("Expected cursor 1, got %d", m.cursor)
 	}
-	
+
 	// Multiple downs
 	updated, _ = m.handleDown()
 	m = updated.(builderModel)
@@ -82,14 +82,14 @@ func TestModelCursorMovement(t *testing.T) {
 	if m.cursor != 3 {
 		t.Errorf("Expected cursor 3, got %d", m.cursor)
 	}
-	
+
 	// Up arrow should decrease cursor
 	updated, _ = m.handleUp()
 	m = updated.(builderModel)
 	if m.cursor != 2 {
 		t.Errorf("Expected cursor 2, got %d", m.cursor)
 	}
-	
+
 	// Up at 0 should stay at 0
 	m.cursor = 0
 	updated, _ = m.handleUp()
@@ -103,13 +103,13 @@ func TestModelCursorBounds(t *testing.T) {
 	builder := NewViewBuilder("test")
 	m := newModel(builder)
 	m.builder.CurrentState = StateFieldSelection
-	
+
 	maxCursor := m.getMaxCursor()
 	if maxCursor != len(m.builder.AvailableFields)-1 {
-		t.Errorf("Expected max cursor %d, got %d", 
+		t.Errorf("Expected max cursor %d, got %d",
 			len(m.builder.AvailableFields)-1, maxCursor)
 	}
-	
+
 	// Try to move beyond max
 	m.cursor = maxCursor
 	updated, _ := m.handleDown()
@@ -124,16 +124,16 @@ func TestModelFieldSelection(t *testing.T) {
 	m := newModel(builder)
 	m.builder.CurrentState = StateFieldSelection
 	m.cursor = 2
-	
+
 	// Toggle selection with space
 	initialState := m.builder.AvailableFields[2].Selected
 	updated, _ := m.handleSpace()
 	m = updated.(builderModel)
-	
+
 	if m.builder.AvailableFields[2].Selected == initialState {
 		t.Error("Space should toggle field selection")
 	}
-	
+
 	// Toggle again
 	updated, _ = m.handleSpace()
 	m = updated.(builderModel)
@@ -148,7 +148,7 @@ func TestModelFieldReordering(t *testing.T) {
 	m.builder.CurrentState = StateFieldOrdering
 	m.builder.FieldOrder = []string{"a", "b", "c"}
 	m.cursor = 1
-	
+
 	// Move down: b↓ → a, c, b
 	updated, _ := m.handleMoveDown()
 	m = updated.(builderModel)
@@ -158,7 +158,7 @@ func TestModelFieldReordering(t *testing.T) {
 	if m.cursor != 2 {
 		t.Errorf("Cursor should follow moved field, got %d", m.cursor)
 	}
-	
+
 	// Move up: b↑ → a, b, c
 	updated, _ = m.handleMoveUp()
 	m = updated.(builderModel)
@@ -175,25 +175,25 @@ func TestModelFieldReorderingBounds(t *testing.T) {
 	m := newModel(builder)
 	m.builder.CurrentState = StateFieldOrdering
 	m.builder.FieldOrder = []string{"a", "b", "c"}
-	
+
 	// Can't move first item up
 	m.cursor = 0
 	initialOrder := append([]string{}, m.builder.FieldOrder...)
 	updated, _ := m.handleMoveUp()
 	m = updated.(builderModel)
-	
+
 	for i := range m.builder.FieldOrder {
 		if m.builder.FieldOrder[i] != initialOrder[i] {
 			t.Error("First item should not move up")
 		}
 	}
-	
+
 	// Can't move last item down
 	m.cursor = 2
 	initialOrder = append([]string{}, m.builder.FieldOrder...)
 	updated, _ = m.handleMoveDown()
 	m = updated.(builderModel)
-	
+
 	for i := range m.builder.FieldOrder {
 		if m.builder.FieldOrder[i] != initialOrder[i] {
 			t.Error("Last item should not move down")
@@ -207,21 +207,21 @@ func TestModelFieldConfigNavigation(t *testing.T) {
 	m.builder.CurrentState = StateFieldConfig
 	m.builder.FieldOrder = []string{"status", "summary", "priority"}
 	m.cursor = 0
-	
+
 	// Tab should move to next field
 	updated, _ := m.handleNext()
 	m = updated.(builderModel)
 	if m.cursor != 1 {
 		t.Errorf("Expected cursor 1, got %d", m.cursor)
 	}
-	
+
 	// Shift+Tab should move to previous field
 	updated, _ = m.handlePrevious()
 	m = updated.(builderModel)
 	if m.cursor != 0 {
 		t.Errorf("Expected cursor 0, got %d", m.cursor)
 	}
-	
+
 	// Tab at last field should stay
 	m.cursor = 2
 	updated, _ = m.handleNext()
@@ -229,7 +229,7 @@ func TestModelFieldConfigNavigation(t *testing.T) {
 	if m.cursor != 2 {
 		t.Error("Tab at last field should stay at last")
 	}
-	
+
 	// Shift+Tab at first field should stay
 	m.cursor = 0
 	updated, _ = m.handlePrevious()
@@ -245,12 +245,12 @@ func TestModelColorToggle(t *testing.T) {
 	m.builder.CurrentState = StateFieldConfig
 	m.builder.FieldOrder = []string{"status", "summary"}
 	m.cursor = 0
-	
+
 	// Toggle color for first field
 	initialColor := m.builder.AvailableFields[0].Color
 	updated, _ := m.handleSpace()
 	m = updated.(builderModel)
-	
+
 	if m.builder.AvailableFields[0].Color == initialColor {
 		t.Error("Space should toggle color in FieldConfig state")
 	}
@@ -260,7 +260,7 @@ func TestModelDisplayOptionsToggle(t *testing.T) {
 	builder := NewViewBuilder("test")
 	m := newModel(builder)
 	m.builder.CurrentState = StateDisplayOptions
-	
+
 	// Toggle ShowHeader (cursor 0)
 	m.cursor = 0
 	initialHeader := m.builder.ShowHeader
@@ -269,7 +269,7 @@ func TestModelDisplayOptionsToggle(t *testing.T) {
 	if m.builder.ShowHeader == initialHeader {
 		t.Error("Space should toggle ShowHeader")
 	}
-	
+
 	// Toggle ShowBorder (cursor 1)
 	m.cursor = 1
 	initialBorder := m.builder.ShowBorder
@@ -278,7 +278,7 @@ func TestModelDisplayOptionsToggle(t *testing.T) {
 	if m.builder.ShowBorder == initialBorder {
 		t.Error("Space should toggle ShowBorder")
 	}
-	
+
 	// Toggle CompactMode (cursor 2)
 	m.cursor = 2
 	initialCompact := m.builder.CompactMode
@@ -315,11 +315,11 @@ func TestModelConfirmCancel(t *testing.T) {
 	builder := NewViewBuilder("test")
 	m := newModel(builder)
 	m.builder.CurrentState = StateConfirm
-	
+
 	// Press N
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
 	m = updated.(builderModel)
-	
+
 	if m.builder.CurrentState != StateCancelled {
 		t.Error("N at Confirm should go to StateCancelled")
 	}
@@ -334,20 +334,20 @@ func TestModelCancelAnytime(t *testing.T) {
 		StateFieldConfig,
 		StateDisplayOptions,
 	}
-	
+
 	for _, state := range states {
 		builder := NewViewBuilder("test")
 		m := newModel(builder)
 		m.builder.CurrentState = state
-		
+
 		// Press Ctrl+C
 		updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 		m = updated.(builderModel)
-		
+
 		if m.builder.CurrentState != StateCancelled {
 			t.Errorf("Ctrl+C at %v should cancel", state)
 		}
-		
+
 		if !m.quitting {
 			t.Errorf("Should be quitting after cancel at %v", state)
 		}
@@ -357,7 +357,7 @@ func TestModelCancelAnytime(t *testing.T) {
 func TestModelGetMaxCursor(t *testing.T) {
 	builder := NewViewBuilder("test")
 	m := newModel(builder)
-	
+
 	tests := []struct {
 		state       BuilderState
 		setupFunc   func()
@@ -392,13 +392,13 @@ func TestModelGetMaxCursor(t *testing.T) {
 			expectedMax: 2,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		m.builder.CurrentState = tt.state
 		if tt.setupFunc != nil {
 			tt.setupFunc()
 		}
-		
+
 		maxCursor := m.getMaxCursor()
 		if maxCursor != tt.expectedMax {
 			t.Errorf("State %v: expected max cursor %d, got %d",
@@ -410,11 +410,11 @@ func TestModelGetMaxCursor(t *testing.T) {
 func TestModelWindowSize(t *testing.T) {
 	builder := NewViewBuilder("test")
 	m := newModel(builder)
-	
+
 	// Send window size message
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	m = updated.(builderModel)
-	
+
 	if m.width != 120 {
 		t.Errorf("Expected width 120, got %d", m.width)
 	}
