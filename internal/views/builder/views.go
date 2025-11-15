@@ -229,6 +229,14 @@ func (m builderModel) renderConfirm() string {
 	s.WriteString(fmt.Sprintf("  Border: %v\n", m.builder.ShowBorder))
 	s.WriteString(fmt.Sprintf("  Compact: %v\n", m.builder.CompactMode))
 	s.WriteString(fmt.Sprintf("  Date format: %s\n", m.builder.DateFormat))
+	if m.builder.SortBy != "" {
+		s.WriteString(fmt.Sprintf("  Sort by: %s (%s)\n", m.builder.SortBy, m.builder.SortOrder))
+	}
+
+	if len(m.builder.FilterStatus) > 0 {
+		s.WriteString("\nFilters:\n")
+		s.WriteString(fmt.Sprintf("  Status: %v\n", m.builder.FilterStatus))
+	}
 
 	s.WriteString("\n")
 	s.WriteString(selectedStyle.Render("Save this view? (y/n)"))

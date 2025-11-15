@@ -19,7 +19,7 @@ func TestStatusFormatter_Symbol(t *testing.T) {
 		{"IN-PROCESS", false, "●"},
 		{"CANCELLED", false, "✗"},
 		{"NEEDS-ACTION", false, "○"},
-		{"COMPLETED", true, "\033[32m"}, // Green
+		{"COMPLETED", true, "\033[32m"},  // Green
 		{"IN-PROCESS", true, "\033[33m"}, // Yellow
 		{"CANCELLED", true, "\033[31m"},  // Red
 	}

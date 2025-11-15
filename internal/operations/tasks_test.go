@@ -394,20 +394,20 @@ func TestSelectTask_ExactMatching(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name:       "single exact match",
-			searchTerm: "Buy milk",
+			name:        "single exact match",
+			searchTerm:  "Buy milk",
 			mockResults: []backend.Task{exactTask},
-			expectUID:  "exact1",
+			expectUID:   "exact1",
 		},
 		{
-			name:       "exact match case insensitive",
-			searchTerm: "buy MILK",
+			name:        "exact match case insensitive",
+			searchTerm:  "buy MILK",
 			mockResults: []backend.Task{exactTask},
-			expectUID:  "exact1",
+			expectUID:   "exact1",
 		},
 		{
-			name:       "no matches",
-			searchTerm: "nonexistent",
+			name:        "no matches",
+			searchTerm:  "nonexistent",
 			mockResults: []backend.Task{},
 			expectError: true,
 		},

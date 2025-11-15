@@ -9,22 +9,22 @@ type MockBackend struct {
 	name string
 }
 
-func (m *MockBackend) GetTaskLists() ([]TaskList, error)                 { return nil, nil }
-func (m *MockBackend) GetTasks(string, *TaskFilter) ([]Task, error)      { return nil, nil }
-func (m *MockBackend) FindTasksBySummary(string, string) ([]Task, error) { return nil, nil }
-func (m *MockBackend) AddTask(string, Task) error                        { return nil }
-func (m *MockBackend) UpdateTask(string, Task) error                     { return nil }
-func (m *MockBackend) DeleteTask(string, string) error                   { return nil }
+func (m *MockBackend) GetTaskLists() ([]TaskList, error)                     { return nil, nil }
+func (m *MockBackend) GetTasks(string, *TaskFilter) ([]Task, error)          { return nil, nil }
+func (m *MockBackend) FindTasksBySummary(string, string) ([]Task, error)     { return nil, nil }
+func (m *MockBackend) AddTask(string, Task) error                            { return nil }
+func (m *MockBackend) UpdateTask(string, Task) error                         { return nil }
+func (m *MockBackend) DeleteTask(string, string) error                       { return nil }
 func (m *MockBackend) CreateTaskList(string, string, string) (string, error) { return "", nil }
-func (m *MockBackend) DeleteTaskList(string) error                       { return nil }
-func (m *MockBackend) RenameTaskList(string, string) error               { return nil }
-func (m *MockBackend) GetDeletedTaskLists() ([]TaskList, error)          { return nil, nil }
-func (m *MockBackend) RestoreTaskList(string) error                      { return nil }
-func (m *MockBackend) PermanentlyDeleteTaskList(string) error            { return nil }
-func (m *MockBackend) ParseStatusFlag(string) (string, error)            { return "", nil }
-func (m *MockBackend) StatusToDisplayName(string) string                 { return "" }
-func (m *MockBackend) SortTasks([]Task)                                  {}
-func (m *MockBackend) GetPriorityColor(int) string                       { return "" }
+func (m *MockBackend) DeleteTaskList(string) error                           { return nil }
+func (m *MockBackend) RenameTaskList(string, string) error                   { return nil }
+func (m *MockBackend) GetDeletedTaskLists() ([]TaskList, error)              { return nil, nil }
+func (m *MockBackend) RestoreTaskList(string) error                          { return nil }
+func (m *MockBackend) PermanentlyDeleteTaskList(string) error                { return nil }
+func (m *MockBackend) ParseStatusFlag(string) (string, error)                { return "", nil }
+func (m *MockBackend) StatusToDisplayName(string) string                     { return "" }
+func (m *MockBackend) SortTasks([]Task)                                      {}
+func (m *MockBackend) GetPriorityColor(int) string                           { return "" }
 
 // MockDetectableBackend is a mock that implements DetectableBackend
 type MockDetectableBackend struct {

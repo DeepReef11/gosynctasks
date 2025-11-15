@@ -1,13 +1,13 @@
 // Package builder provides an interactive terminal UI for creating custom task views.
 //
 // The builder uses a state machine to guide users through the view creation process:
-//   1. Welcome screen with overview
-//   2. Basic info (view description)
-//   3. Field selection (which task fields to display)
-//   4. Field ordering (arrange field display order)
-//   5. Field configuration (customize formats, colors, widths)
-//   6. Display options (headers, borders, sorting)
-//   7. Confirmation (review and save)
+//  1. Welcome screen with overview
+//  2. Basic info (view description)
+//  3. Field selection (which task fields to display)
+//  4. Field ordering (arrange field display order)
+//  5. Field configuration (customize formats, colors, widths)
+//  6. Display options (headers, borders, sorting)
+//  7. Confirmation (review and save)
 //
 // Usage:
 //
@@ -70,26 +70,26 @@ const (
 // String returns the string representation of the state
 func (s BuilderState) String() string {
 	switch s {
-		case StateWelcome:
-			return "Welcome"
-		case StateBasicInfo:
-			return "Basic Info"
-		case StateFieldSelection:
-			return "Field Selection"
-		case StateFieldOrdering:
-			return "Field Ordering"
-		case StateFieldConfig:
-			return "Field Configuration"
-		case StateDisplayOptions:
-			return "Display Options"
-		case StateConfirm:
-			return "Confirm"
-		case StateDone:
-			return "Done"
-		case StateCancelled:
-			return "Cancelled"
-		default:
-			return "Unknown"
+	case StateWelcome:
+		return "Welcome"
+	case StateBasicInfo:
+		return "Basic Info"
+	case StateFieldSelection:
+		return "Field Selection"
+	case StateFieldOrdering:
+		return "Field Ordering"
+	case StateFieldConfig:
+		return "Field Configuration"
+	case StateDisplayOptions:
+		return "Display Options"
+	case StateConfirm:
+		return "Confirm"
+	case StateDone:
+		return "Done"
+	case StateCancelled:
+		return "Cancelled"
+	default:
+		return "Unknown"
 	}
 }
 
@@ -174,6 +174,9 @@ type ViewBuilder struct {
 	// SortOrder specifies the sort direction: "asc" or "desc".
 	SortOrder string
 
+	// FilterStatus specifies default status filter for the view
+	FilterStatus []string
+
 	// CurrentState tracks the builder's position in the state machine.
 	CurrentState BuilderState
 
@@ -193,6 +196,8 @@ type ViewBuilder struct {
 //   - Status and summary fields pre-selected
 //   - Default display options (header on, border on, compact off)
 //   - Default date format ("2006-01-02")
+//   - Default status filter (NEEDS-ACTION, IN-PROCESS)
+//   - Default sorting by priority (ascending)
 //   - Initial state set to StateWelcome
 //
 // The name parameter becomes the view's unique identifier. It must be validated
@@ -231,8 +236,9 @@ func NewViewBuilder(name string) *ViewBuilder {
 		ShowBorder:      true,
 		CompactMode:     false,
 		DateFormat:      "2006-01-02",
-		SortBy:          "",
+		SortBy:          "priority",
 		SortOrder:       "asc",
+		FilterStatus:    []string{"NEEDS-ACTION", "IN-PROCESS"},
 	}
 }
 
@@ -283,10 +289,11 @@ func (b *ViewBuilder) BuildView() (*views.View, error) {
 			continue
 		}
 
+		trueVal := true
 		field := views.FieldConfig{
 			Name:   item.Name,
 			Format: item.Format,
-			Show:   true,
+			Show:   &trueVal,
 			Color:  item.Color,
 		}
 
@@ -306,6 +313,9 @@ func (b *ViewBuilder) BuildView() (*views.View, error) {
 		Description: b.ViewDescription,
 		Fields:      fields,
 		FieldOrder:  b.FieldOrder,
+		Filters: &views.ViewFilters{
+			Status: b.FilterStatus,
+		},
 		Display: views.DisplayOptions{
 			ShowHeader:  b.ShowHeader,
 			ShowBorder:  b.ShowBorder,
