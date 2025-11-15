@@ -532,7 +532,7 @@ func TestConcurrentSyncOperations(t *testing.T) {
 	defer localBackend.Close()
 
 	remoteBackend := NewMockBackend()
-	listID, _ := remoteBackend.CreateTaskList("Concurrent Test", "", "")
+	_, _ = remoteBackend.CreateTaskList("Concurrent Test", "", "")
 	remoteBackend.lists[0].CTags = "ctag-concurrent"
 
 	sm := NewSyncManager(localBackend, remoteBackend, ServerWins)
