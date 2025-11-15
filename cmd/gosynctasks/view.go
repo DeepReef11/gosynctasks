@@ -384,7 +384,7 @@ func newViewValidateCmd() *cobra.Command {
 	}
 }
 
-// editViewInEditor opens a view in the user's editor
+// editViewInEditor opens a view in the user's editor with validation loop
 func editViewInEditor(view *views.View) (*views.View, error) {
 	// Get editor from environment
 	editor := os.Getenv("EDITOR")
@@ -399,41 +399,112 @@ func editViewInEditor(view *views.View) (*views.View, error) {
 	}
 	defer os.Remove(tmpfile.Name())
 
-	// Marshal view to YAML
+	// Marshal initial view to YAML
 	data, err := yaml.Marshal(view)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal view: %w", err)
 	}
 
-	// Write to temp file
-	if _, err := tmpfile.Write(data); err != nil {
-		return nil, fmt.Errorf("failed to write temp file: %w", err)
+	currentContent := data
+
+	// Validation loop
+	for {
+		// Write current content to temp file
+		if err := os.WriteFile(tmpfile.Name(), currentContent, 0644); err != nil {
+			return nil, fmt.Errorf("failed to write temp file: %w", err)
+		}
+
+		// Open in editor
+		cmd := exec.Command(editor, tmpfile.Name())
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			return nil, fmt.Errorf("editor failed: %w", err)
+		}
+
+		// Read edited content
+		editedData, err := os.ReadFile(tmpfile.Name())
+		if err != nil {
+			return nil, fmt.Errorf("failed to read edited file: %w", err)
+		}
+
+		// Try to parse the YAML first
+		var parsedView views.View
+		if err := yaml.Unmarshal(editedData, &parsedView); err != nil {
+			fmt.Printf("\n❌ YAML parsing failed: %v\n\n", err)
+			fmt.Print("The YAML syntax is invalid. Would you like to:\n")
+			fmt.Print("  [r] Retry - reopen editor to fix errors\n")
+			fmt.Print("  [c] Cancel - discard changes\n")
+			fmt.Print("Choice (r/c): ")
+
+			var choice string
+			if _, err := fmt.Scanf("%s", &choice); err != nil {
+				return nil, fmt.Errorf("failed to read choice: %w", err)
+			}
+
+			choice = strings.ToLower(strings.TrimSpace(choice))
+			if choice == "c" || choice == "cancel" {
+				return nil, fmt.Errorf("edit cancelled by user")
+			}
+
+			// User wants to retry - keep current content with YAML error at top
+			errorComment := fmt.Sprintf("# YAML SYNTAX ERROR:\n# %s\n# Please fix the YAML syntax above and try again.\n\n", err.Error())
+			currentContent = append([]byte(errorComment), editedData...)
+			continue
+		}
+
+		// Set the view name if not in YAML
+		if parsedView.Name == "" {
+			parsedView.Name = view.Name
+		}
+
+		// Perform comprehensive validation
+		validationErrors := views.ValidateViewComprehensive(&parsedView)
+
+		if validationErrors != nil && len(validationErrors.Errors) > 0 {
+			// Validation failed - show errors
+			fmt.Printf("\n❌ Validation failed with %d error(s):\n", len(validationErrors.Errors))
+			for i, err := range validationErrors.Errors {
+				fmt.Printf("  %d. %s: %s\n", i+1, err.Field, err.Message)
+				if err.Hint != "" {
+					fmt.Printf("     Hint: %s\n", err.Hint)
+				}
+			}
+			fmt.Println()
+
+			// Ask user what to do
+			fmt.Print("Would you like to:\n")
+			fmt.Print("  [r] Retry - reopen editor with inline error comments\n")
+			fmt.Print("  [c] Cancel - discard changes\n")
+			fmt.Print("Choice (r/c): ")
+
+			var choice string
+			if _, err := fmt.Scanf("%s", &choice); err != nil {
+				return nil, fmt.Errorf("failed to read choice: %w", err)
+			}
+
+			choice = strings.ToLower(strings.TrimSpace(choice))
+			if choice == "c" || choice == "cancel" {
+				return nil, fmt.Errorf("edit cancelled by user")
+			}
+
+			// User wants to retry - annotate YAML with errors
+			annotatedYAML := views.AnnotateYAMLWithErrors(string(editedData), validationErrors)
+			currentContent = []byte(annotatedYAML)
+			continue
+		}
+
+		// Validation passed! Apply defaults and return
+		edited, err := views.LoadViewFromBytes(editedData, view.Name)
+		if err != nil {
+			// This shouldn't happen since we already validated, but handle it
+			return nil, fmt.Errorf("failed to load view: %w", err)
+		}
+
+		return edited, nil
 	}
-	tmpfile.Close()
-
-	// Open in editor
-	cmd := exec.Command(editor, tmpfile.Name())
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("editor failed: %w", err)
-	}
-
-	// Read edited content
-	editedData, err := os.ReadFile(tmpfile.Name())
-	if err != nil {
-		return nil, fmt.Errorf("failed to read edited file: %w", err)
-	}
-
-	// Parse edited view
-	edited, err := views.LoadViewFromBytes(editedData, view.Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse edited view: %w", err)
-	}
-
-	return edited, nil
 }
 
 // getViewTemplate returns a built-in view template
