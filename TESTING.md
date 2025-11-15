@@ -367,6 +367,9 @@ These tests verify:
 ```bash
 # Run Git backend tests
 go test ./backend -run TestGit -v
+
+# Run git backend integration tests
+go test ./backend -run TestMultiBackend -v
 ```
 
 Tests verify:
@@ -374,6 +377,99 @@ Tests verify:
 - Git repository detection
 - File reading/writing
 - Task metadata extraction
+- Auto-detection with marker file
+- Full CRUD workflow
+- Multi-backend selection
+
+#### Multi-Backend Integration Tests
+
+```bash
+# Run all multi-backend integration tests
+go test ./backend -run Integration -v
+
+# Specific integration test suites
+go test ./backend -run TestMultiBackendWorkflow -v
+go test ./backend -run TestBackendSelector -v
+go test ./backend -run TestConfigMigration -v
+```
+
+These tests verify:
+- Complete multi-backend workflows
+- Backend selection logic (explicit, auto-detect, priority)
+- Config migration from old to new format
+- Backend registry and factory patterns
+- Task CRUD operations across backends
+- Filtering and sorting across backends
+
+**What's tested:**
+- ✅ Creating backends from config
+- ✅ Getting task lists from each backend
+- ✅ Adding tasks with metadata
+- ✅ Updating tasks (status, priority, description)
+- ✅ Deleting tasks
+- ✅ Status filtering
+- ✅ Backend selection by name
+- ✅ Auto-detection in git repositories
+- ✅ Listing available backends
+- ✅ Config file migration with backup
+
+#### Edge Case Tests
+
+```bash
+# Run edge case tests
+go test ./backend -run TestUnicode -v
+go test ./backend -run TestCorrupted -v
+go test ./backend -run TestSpecialCharacters -v
+```
+
+These tests verify robust handling of:
+- **Unicode & Emojis**: Chinese, Japanese, Arabic, special characters
+- **Corrupted Files**: Missing markers, malformed checkboxes, invalid metadata
+- **Special Characters**: Markdown special chars (*, _, [, ], <, >, \, |)
+- **Large Files**: 10,000+ tasks
+- **File Permissions**: Read-only files
+- **Duplicate UIDs**: Handling of conflicting task identifiers
+- **Long Summaries**: Tasks with very long summary text
+- **Concurrent Access**: Multiple simultaneous reads
+
+**Example test scenarios:**
+```bash
+# Unicode handling
+# Creates tasks with: 买东西 🛒, Café meeting ☕, Đọc sách 📚
+
+# Corrupted markdown
+# Tests: missing marker, malformed checkboxes, invalid metadata
+
+# Special characters
+# Tests: Task with * asterisks *, Task with [brackets], etc.
+```
+
+#### CLI End-to-End Tests
+
+```bash
+# Run CLI integration tests
+go test ./cmd/gosynctasks -run TestCLI -v
+
+# Specific CLI test suites
+go test ./cmd/gosynctasks -run TestCLIBackendSelection -v
+go test ./cmd/gosynctasks -run TestCLIWorkflow -v
+go test ./cmd/gosynctasks -run TestConfigMigrationCLI -v
+go test ./cmd/gosynctasks -run TestErrorHandling -v
+```
+
+These tests verify:
+- **Backend Selection Flags**: `--backend`, `--list-backends`, `--detect-backend`
+- **Complete Workflows**: Get, add, update, delete via CLI
+- **Config Migration**: Automatic migration on first run with backup
+- **Error Handling**: Missing config, invalid backend names
+
+**Note:** CLI tests build the actual binary and run commands, so they take longer.
+
+**Skip in short mode:**
+```bash
+# Run all tests except slow CLI tests
+go test ./... -short
+```
 
 ### File Backend
 
@@ -846,18 +942,187 @@ gst FileList
 - File backend status translation (TODO, DONE, PROCESSING, CANCELLED)
 - Display names correct
 
-#### Git Backend
+#### Git Backend Manual Testing
 
+The Git backend allows managing tasks directly in markdown files within git repositories.
+
+**Setup:**
+
+1. **Create test git repository:**
 ```bash
-# Test git backend (if configured)
-gst GitTasks add "Git-tracked task"
-gst GitTasks
+# Create test directory
+mkdir -p /tmp/test-git-backend
+cd /tmp/test-git-backend
+
+# Initialize git
+git init
+
+# Create TODO.md with marker
+cat > TODO.md << 'EOF'
+<!-- gosynctasks:enabled -->
+
+## Work Tasks
+
+## Personal Tasks
+EOF
+
+git add TODO.md
+git commit -m "Initial TODO.md"
+```
+
+2. **Configure git backend:**
+
+Add to your `~/.config/gosynctasks/config.json`:
+```json
+{
+  "backends": {
+    "test-git": {
+      "type": "git",
+      "enabled": true,
+      "file": "/tmp/test-git-backend/TODO.md",
+      "auto_detect": false,
+      "auto_commit": false
+    }
+  },
+  "default_backend": "test-git"
+}
+```
+
+Or for auto-detection:
+```json
+{
+  "backends": {
+    "git": {
+      "type": "git",
+      "enabled": true,
+      "file": "TODO.md",
+      "auto_detect": true
+    }
+  },
+  "auto_detect_backend": true,
+  "backend_priority": ["git"]
+}
+```
+
+**Testing Workflow:**
+
+1. **Auto-detection test:**
+```bash
+cd /tmp/test-git-backend
+gosynctasks --detect-backend
+# Should output: git
+```
+
+2. **List task lists:**
+```bash
+gosynctasks --backend test-git
+# Should show: Work Tasks, Personal Tasks
+```
+
+3. **Add tasks:**
+```bash
+gosynctasks --backend test-git "Work Tasks" add "Complete PR review" -p 1
+gosynctasks --backend test-git "Work Tasks" add "Write tests" -p 2 @due:2025-12-31
+gosynctasks --backend test-git "Personal Tasks" add "Buy groceries" -p 5
+```
+
+4. **Verify markdown format:**
+```bash
+cat /tmp/test-git-backend/TODO.md
+```
+
+Expected format:
+```markdown
+<!-- gosynctasks:enabled -->
+
+## Work Tasks
+- [ ] Complete PR review @priority:1 @uid:task-...
+- [ ] Write tests @priority:2 @due:2025-12-31 @uid:task-...
+
+## Personal Tasks
+- [ ] Buy groceries @priority:5 @uid:task-...
+```
+
+5. **Update task status:**
+```bash
+gosynctasks --backend test-git "Work Tasks" complete "Complete PR review"
+```
+
+Verify checkbox changes to `[x]`:
+```markdown
+- [x] Complete PR review @priority:1 @completed:2025-11-15 @uid:task-...
+```
+
+6. **Test different statuses:**
+```bash
+# In-process
+gosynctasks --backend test-git "Work Tasks" update "Write tests" -s PROCESSING
+# Verify: - [>] Write tests...
+
+# Cancelled
+gosynctasks --backend test-git "Work Tasks" update "Write tests" -s CANCELLED
+# Verify: - [-] Write tests...
+
+# Back to TODO
+gosynctasks --backend test-git "Work Tasks" update "Write tests" -s TODO
+# Verify: - [ ] Write tests...
+```
+
+7. **Test unicode and emojis:**
+```bash
+gosynctasks --backend test-git "Personal Tasks" add "买东西 🛒" -p 3
+gosynctasks --backend test-git "Personal Tasks" add "Café meeting ☕"
+cat /tmp/test-git-backend/TODO.md
+# Verify unicode is preserved correctly
+```
+
+8. **Test auto-commit (optional):**
+
+Update config to enable auto-commit:
+```json
+{
+  "backends": {
+    "test-git": {
+      "auto_commit": true
+    }
+  }
+}
+```
+
+Then:
+```bash
+gosynctasks --backend test-git "Work Tasks" add "Test auto-commit"
+git log -1
+# Should show automatic commit
+```
+
+9. **Test backend switching:**
+```bash
+# From outside git repo, should use default backend
+cd /tmp
+gosynctasks --list-backends
+
+# From inside git repo with auto-detect, should detect git
+cd /tmp/test-git-backend
+gosynctasks --detect-backend
 ```
 
 **Verify:**
-- Markdown file updates
-- Git repository detection
-- Task metadata in markdown format
+- ✅ Git repository detected correctly
+- ✅ TODO.md marker recognized
+- ✅ Tasks added/updated in proper markdown format
+- ✅ Checkboxes match statuses ([ ], [x], [>], [-])
+- ✅ Metadata tags preserved (@priority, @due, @uid, etc.)
+- ✅ Unicode and emojis work correctly
+- ✅ Auto-commit works (if enabled)
+- ✅ Auto-detection works in git repos
+- ✅ Manual backend selection works
+- ✅ File backend status translation works correctly
+
+**Cleanup:**
+```bash
+rm -rf /tmp/test-git-backend
+```
 
 ## Test Coverage
 
