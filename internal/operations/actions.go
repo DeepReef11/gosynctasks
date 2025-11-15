@@ -407,14 +407,16 @@ func RenderWithCustomView(tasks []backend.Task, viewName string, taskManager bac
 		filteredTasks = views.ApplyFilters(tasks, filters)
 	}
 
-	// Apply view-specific sorting
+	// Build task tree BEFORE sorting
+	// This preserves parent-child relationships
+	tree := BuildTaskTree(filteredTasks)
+
+	// Apply view-specific sorting hierarchically
+	// This sorts root tasks and recursively sorts children within each parent
 	sortBy, sortOrder := renderer.GetSortConfig()
 	if sortBy != "" {
-		views.ApplySort(filteredTasks, sortBy, sortOrder)
+		SortTaskTree(tree, sortBy, sortOrder)
 	}
-
-	// Build task tree
-	tree := BuildTaskTree(filteredTasks)
 
 	// Render tasks with hierarchy
 	return RenderTaskTreeWithCustomView(tree, renderer), nil
