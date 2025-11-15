@@ -632,24 +632,33 @@ The NextcloudBackend uses a customized HTTP client:
 - ✓ **Interactive view builder** (PR #45) - Create custom task views with interactive UI
 - ✓ **Docker-based test environment** (PR #35) - Nextcloud test server for backend testing
 
-## Future Work: SQLite Sync Implementation
+## SQLite Sync Implementation ✅
 
-Currently the app operates in **read-through mode** (directly queries backend each time). The SQLite database code (main.go:41-57) was initialized but never implemented. The plan is to build a **proper sync system** with offline mode and conflict resolution.
+The application now features a complete **bidirectional synchronization system** with offline mode support. The sync layer enables working with tasks offline and automatically synchronizing with remote backends (Nextcloud) when connectivity is restored.
 
-### Architecture Overview
+### Architecture
 
 ```
 ┌─────────────────────────────────────┐
-│          CLI Command                │
+│      CLI Command                    │
 │  gosynctasks add "task"             │
 └──────────────┬──────────────────────┘
                │
-               ▼
+               ▼ (uses default_backend=local)
+┌─────────────────────────────────────┐
+│    SQLiteBackend                    │
+│  - CRUD operations                  │
+│  - Sync metadata tracking           │
+│  - Operation queueing               │
+└──────────────┬──────────────────────┘
+               │
+               ▼ (sync command)
 ┌─────────────────────────────────────┐
 │       SyncManager                   │
-│  - Handles sync logic               │
+│  - Pull phase (remote → local)      │
+│  - Push phase (local → remote)      │
+│  - Conflict detection               │
 │  - Conflict resolution              │
-│  - Offline queue                    │
 └──────────┬────────────┬─────────────┘
            │            │
            ▼            ▼
@@ -660,191 +669,327 @@ Currently the app operates in **read-through mode** (directly queries backend ea
   └────────────┘  └──────────────┘
 ```
 
-### Phase 1: Enhanced SQLite Schema with Sync Metadata
+### Key Components
 
-Create tables to track synchronization state:
+#### 1. Database Schema (backend/schema.go)
 
-```sql
--- Main tasks table (already exists in code)
-CREATE TABLE IF NOT EXISTS tasks (
-    id TEXT PRIMARY KEY,
-    list_id TEXT NOT NULL,
-    summary TEXT NOT NULL,
-    description TEXT,
-    status TEXT,
-    priority INTEGER DEFAULT 0,
-    created_at INTEGER,
-    modified_at INTEGER,
-    due_date INTEGER,
-    start_date INTEGER,
-    completed_at INTEGER,
-    parent_uid TEXT
-);
+Complete schema with sync metadata tracking:
 
--- Track sync state for each task
-CREATE TABLE sync_metadata (
-    task_uid TEXT PRIMARY KEY,
-    list_id TEXT NOT NULL,
+**tasks** table: Main task data (follows iCalendar VTODO format)
+- `id`, `list_id`, `summary`, `description`, `status`, `priority`
+- Timestamps: `created_at`, `modified_at`, `due_date`, `start_date`, `completed_at`
+- Hierarchy: `parent_uid` (for subtasks)
+- Categories: `categories` (comma-separated tags)
 
-    -- Server state tracking
-    remote_etag TEXT,              -- Server's ETag for this task
-    last_synced_at INTEGER,        -- Timestamp of last successful sync
+**sync_metadata** table: Sync state per task
+- `task_uid` (PRIMARY KEY, FK to tasks.id ON DELETE CASCADE)
+- Remote state: `remote_etag`, `last_synced_at`, `remote_modified_at`
+- Local flags: `locally_modified`, `locally_deleted`, `local_modified_at`
 
-    -- Local state flags
-    locally_modified INTEGER DEFAULT 0,  -- 1 if changed locally since sync
-    locally_deleted INTEGER DEFAULT 0,   -- 1 if deleted locally (pending server delete)
+**list_sync_metadata** table: Sync state per list
+- `list_id` (PRIMARY KEY)
+- Sync tracking: `last_ctag`, `last_full_sync`, `sync_token`
+- Metadata: `list_name`, `list_color`, `created_at`, `modified_at`
 
-    -- Conflict detection
-    remote_modified_at INTEGER,    -- Server's last-modified timestamp
-    local_modified_at INTEGER,     -- Our last-modified timestamp
+**sync_queue** table: Operations pending sync
+- `id` (AUTOINCREMENT PRIMARY KEY)
+- Operation: `task_uid`, `list_id`, `operation` (create/update/delete)
+- Error tracking: `retry_count`, `last_error`
+- Unique constraint: `UNIQUE(task_uid, operation)`
 
-    FOREIGN KEY(task_uid) REFERENCES tasks(id)
-);
+**schema_version** table: Migration tracking
+- `version` (PRIMARY KEY), `applied_at`
 
--- Track sync state for each task list
-CREATE TABLE list_sync_metadata (
-    list_id TEXT PRIMARY KEY,
-    last_ctag TEXT,                -- Calendar's CTag (changes when any task changes)
-    last_full_sync INTEGER,        -- Timestamp of last full sync
-    sync_token TEXT                -- CalDAV sync-token for incremental sync
-);
+**Indexes**: Optimized for common queries
+- `idx_tasks_list_id`, `idx_tasks_status`, `idx_tasks_due_date`
+- `idx_tasks_parent_uid`, `idx_tasks_priority`
+- `idx_sync_metadata_locally_modified`, `idx_sync_metadata_locally_deleted`
+- `idx_sync_queue_operation`, `idx_sync_queue_created_at`
 
--- Queue for operations to perform on next sync
-CREATE TABLE sync_queue (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_uid TEXT NOT NULL,
-    list_id TEXT NOT NULL,
-    operation TEXT NOT NULL,       -- 'create', 'update', 'delete'
-    created_at INTEGER NOT NULL,
-    retry_count INTEGER DEFAULT 0,
-    last_error TEXT
-);
-```
+#### 2. SQLiteBackend (backend/sqliteBackend.go)
 
-### Phase 2: SQLite Backend Implementation
+Full `TaskManager` implementation with sync support:
 
-Create `backend/sqliteBackend.go` implementing the `TaskManager` interface:
+**CRUD Operations:**
+- `GetTaskLists()`, `GetTasks()`, `FindTasksBySummary()`
+- `AddTask()`, `UpdateTask()`, `DeleteTask()`
+- `CreateTaskList()`, `DeleteTaskList()`, `RenameTaskList()`
 
-```go
-type SQLiteBackend struct {
-    Connector ConnectorConfig
-    db        *sql.DB
-}
+**Sync-Specific Methods:**
+- `MarkLocallyModified(taskUID)`: Marks task for sync
+- `MarkLocallyDeleted(taskUID)`: Marks task for deletion sync
+- `GetLocallyModifiedTasks()`: Retrieves tasks needing sync
+- `GetPendingSyncOperations()`: Returns queued operations
+- `ClearSyncFlags(taskUID)`: Clears modification flags
+- `UpdateSyncMetadata()`: Updates remote state tracking
+- `RemoveSyncOperation()`: Removes operation from queue
 
-// Implement TaskManager interface
-func (sb *SQLiteBackend) GetTaskLists() ([]TaskList, error)
-func (sb *SQLiteBackend) GetTasks(listID string, filter *TaskFilter) ([]Task, error)
-func (sb *SQLiteBackend) AddTask(listID string, task Task) error
+**Features:**
+- Transactional operations (rollback on failure)
+- Foreign key constraint enforcement
+- Automatic UID generation
+- Status translation (app ↔ CalDAV)
+- Efficient filtering and searching
 
-// Additional sync-specific methods
-func (sb *SQLiteBackend) MarkLocallyModified(taskUID string) error
-func (sb *SQLiteBackend) GetPendingSyncOperations() ([]SyncOperation, error)
-func (sb *SQLiteBackend) ClearSyncFlag(taskUID string) error
-```
+#### 3. SyncManager (backend/syncManager.go)
 
-### Phase 3: SyncManager
+Coordinates bidirectional synchronization:
 
-Create `backend/syncManager.go` to coordinate between local SQLite and remote backend:
+**Core Methods:**
+- `Sync()`: Performs bidirectional sync (pull + push)
+- `FullSync()`: Forces complete re-sync (ignores CTags)
+- `GetSyncStats()`: Returns sync statistics
 
-```go
-type SyncManager struct {
-    local  *SQLiteBackend      // Local SQLite cache
-    remote TaskManager         // Remote backend (Nextcloud, etc.)
-}
+**Sync Algorithm (Pull Phase - backend/syncManager.go:81-228):**
+1. Get all remote task lists
+2. For each list:
+   - Check CTag (has list changed?)
+   - If changed or new:
+     - Create/update list metadata locally
+     - Fetch all remote tasks
+     - **Sort by hierarchy** (parents before children) - critical for FK constraints
+     - For each remote task:
+       - If doesn't exist locally → insert with sync metadata
+       - If exists but not locally modified → update
+       - If exists and locally modified → **CONFLICT** (resolve)
+     - Delete tasks missing from remote (unless locally modified)
 
-func (sm *SyncManager) Sync() error {
-    // 1. Check if remote changed (compare CTags)
-    // 2. Pull remote changes
-    // 3. Detect conflicts
-    // 4. Resolve conflicts
-    // 5. Push local changes
-    // 6. Update metadata
-}
-```
+**Sync Algorithm (Push Phase - backend/syncManager.go:236-305):**
+1. Get pending sync operations from queue
+2. For each operation:
+   - Check retry count (skip if > 5)
+   - Execute operation (create/update/delete on remote)
+   - On success: remove from queue, clear sync flags
+   - On failure: increment retry count, log error, apply exponential backoff
 
-**Sync Algorithm:**
+**Conflict Resolution (backend/syncManager.go:402-504):**
 
-1. **Pull Phase (Remote → Local)**
-   - Fetch CTag from remote
-   - If CTag changed, fetch modified tasks
-   - For each remote task:
-     - If `locally_modified = 0`: Update local copy (server wins)
-     - If `locally_modified = 1`: **CONFLICT** (needs resolution)
+Four strategies implemented:
 
-2. **Conflict Resolution Strategies**
-   - **Server Wins**: Discard local changes, use server version
-   - **Local Wins**: Overwrite server with local version
-   - **Merge**: Combine non-conflicting fields
-   - **Keep Both**: Create duplicate with suffix "(local copy)"
+1. **ServerWins (default)**: Remote always wins
+   - Updates local with remote version
+   - Clears local modification flag
+   - Safest - prevents data loss on server
 
-3. **Push Phase (Local → Remote)**
-   - Find all tasks with `locally_modified = 1`
-   - For each:
-     - Upload to remote backend
-     - On success: Clear `locally_modified`, update `remote_etag`
-     - On failure: Log error, increment retry count
+2. **LocalWins**: Local always wins
+   - Keeps local version for push
+   - Updates sync metadata with remote timestamp
+   - Use with caution - can overwrite others' changes
 
-### Phase 4: CLI Integration
+3. **Merge**: Intelligent field-level merge
+   - Summary: Remote wins (significant change)
+   - Description: Keep local if remote is empty
+   - Priority: Use higher priority (lower number)
+   - Categories: Union of both sets
+   - Dates: Use most recent
+   - Marks for push to propagate merge
 
-**New Commands:**
-
-```bash
-# Sync with remote
-gosynctasks sync
-
-# Check sync status
-gosynctasks sync status
-
-# Force full re-sync
-gosynctasks sync --full
-
-# Configure sync settings
-gosynctasks config set sync.conflict_resolution server_wins
-```
-
-**Offline Mode:**
-
-When operating offline (remote unreachable):
-- All operations work against local SQLite
-- Changes queued in `sync_queue` table
-- Warning displayed: "Working offline - changes will sync later"
-- Next `sync` command pushes queued changes
-
-### Phase 5: Implementation Checklist
-
-- [ ] Create enhanced SQLite schema with sync metadata tables
-- [ ] Implement SQLiteBackend with basic CRUD operations
-- [ ] Add sync metadata tracking methods
-- [ ] Create SyncManager with pull/push logic
-- [ ] Implement conflict detection
-- [ ] Implement conflict resolution strategies (at least server_wins and local_wins)
-- [ ] Add `sync` command to CLI
-- [ ] Handle offline mode (detect network failures, queue operations)
-- [ ] Add sync status reporting
-- [ ] Update config to specify sync strategy preference
-- [ ] Write tests for sync logic
-- [ ] Add incremental sync using CalDAV sync-token (optimization)
-
-### Technical Considerations
-
-**CTag vs ETag:**
-- **CTag**: Calendar-level tag that changes when ANY task changes (use for "did anything change?")
-- **ETag**: Task-level tag that changes when THAT task changes (use for "which tasks changed?")
-
-**Conflict Resolution:**
-- Default strategy should be **server_wins** (safest, prevents data loss on server)
-- Make configurable via config file
-- Consider three-way merge in future (requires storing baseline version)
-
-**Performance:**
-- Use CalDAV sync-token for incremental sync (only fetch changes since last sync)
-- Index foreign keys and commonly queried fields
-- Consider batch operations for large sync operations
+4. **KeepBoth**: Creates duplicate
+   - Updates original with remote version
+   - Creates copy with "(local copy)" suffix
+   - Both tasks preserved
 
 **Error Handling:**
-- Transactional sync operations (rollback on failure)
-- Retry logic with exponential backoff
-- Preserve failed operations for manual resolution
+- Exponential backoff: 2^retryCount seconds (max 5 minutes)
+- Max 5 retries per operation
+- Errors logged in `sync_queue.last_error`
+- Continues sync on individual operation failures
+
+**Hierarchical Task Sorting (backend/syncManager.go:673-720):**
+- Critical function: `sortTasksByHierarchy()`
+- Ensures parent tasks are synced before children
+- Prevents foreign key constraint violations
+- Handles orphaned tasks (parent doesn't exist)
+- Depth-first traversal of task tree
+
+#### 4. Database Layer (backend/database.go)
+
+Database management and helpers:
+
+**Database struct:**
+- Wraps `*sql.DB` with helper methods
+- Tracks database path
+- Schema initialization and migrations
+
+**Key Methods:**
+- `InitDatabase(customPath)`: Creates DB with schema
+- `getDatabasePath()`: XDG-compliant path resolution
+- `GetSchemaVersion()`: Returns current schema version
+- `GetStats()`: Returns database statistics
+- `Vacuum()`: Compacts database
+
+**Path Resolution Priority:**
+1. Custom path from config (`db_path`)
+2. `$XDG_DATA_HOME/gosynctasks/tasks.db`
+3. `~/.local/share/gosynctasks/tasks.db`
+
+**Statistics (backend/database.go:131-183):**
+- Task count, list count
+- Locally modified count
+- Pending sync operations
+- Database size
+- Last sync timestamp
+
+#### 5. CLI Integration (cmd/gosynctasks/sync.go)
+
+Complete sync command suite:
+
+**Main Commands:**
+- `gosynctasks sync`: Perform sync
+- `gosynctasks sync --full`: Force full re-sync
+- `gosynctasks sync --dry-run`: Preview (not yet implemented)
+- `gosynctasks sync status`: Show sync status
+- `gosynctasks sync queue`: View pending operations
+- `gosynctasks sync queue clear [--failed]`: Clear operations
+- `gosynctasks sync queue retry`: Retry failed operations
+
+**Offline Detection (cmd/gosynctasks/sync.go:357-392):**
+- Attempts remote connection with 5-second timeout
+- Detects network errors, DNS errors, connection refused, timeouts
+- Shows user-friendly error messages
+- Gracefully degrades to offline mode
+
+**Sync Status Display (cmd/gosynctasks/sync.go:107-167):**
+```
+=== Sync Status ===
+Connection: Online / Offline (reason)
+Local tasks: 42
+Local lists: 3
+Pending operations: 5
+Locally modified: 2
+Strategy: server_wins
+Last sync: 5 minutes ago
+```
+
+### Configuration
+
+**Minimal sync config:**
+```json
+{
+  "backends": {
+    "local": {
+      "type": "sqlite",
+      "enabled": true,
+      "db_path": ""
+    },
+    "nextcloud": {
+      "type": "nextcloud",
+      "enabled": true,
+      "url": "nextcloud://user:pass@server.com"
+    }
+  },
+  "sync": {
+    "enabled": true,
+    "local_backend": "local",
+    "remote_backend": "nextcloud",
+    "conflict_resolution": "server_wins"
+  },
+  "default_backend": "local"
+}
+```
+
+**Sync options:**
+- `enabled`: Enable/disable sync (default: false)
+- `local_backend`: SQLite backend name
+- `remote_backend`: Remote backend name
+- `conflict_resolution`: Strategy (server_wins, local_wins, merge, keep_both)
+- `auto_sync`: Auto-sync on operations (not yet implemented)
+- `sync_interval`: Seconds between auto-syncs (default: 300)
+
+### Testing
+
+Comprehensive test coverage across all components:
+
+**Unit Tests:**
+- `backend/schema_test.go`: Schema creation, indexes, constraints (17 tests)
+- `backend/sqliteBackend_test.go`: CRUD operations, filtering, sync flags (92 tests)
+- `backend/syncManager_test.go`: Pull/push, conflicts, retries (18 tests)
+
+**Integration Tests (backend/integration_test.go):**
+1. **TestBasicSyncWorkflow**: remote→local→modify→remote (end-to-end)
+2. **TestOfflineModeWorkflow**: Offline operations, queue, sync when online
+3. **TestConflictResolutionScenarios**: All 4 strategies
+4. **TestLargeDatasetPerformance**: 1000+ tasks in <30s
+5. **TestErrorRecoveryWithRetry**: Network errors, retry logic
+6. **TestConcurrentSyncOperations**: Race condition detection
+7. **TestHierarchicalTaskSync**: Parent-child task sync
+
+**Benchmark Tests (backend/sync_bench_test.go):**
+- `BenchmarkSyncPull`: Pull performance (10, 100, 1000 tasks)
+- `BenchmarkSyncPush`: Push performance
+- `BenchmarkConflictResolution`: Resolution strategy performance
+- `BenchmarkDatabaseOperations`: CRUD benchmarks
+- `BenchmarkSyncQueue`: Queue operations
+- `BenchmarkHierarchicalTaskSorting`: Sorting performance
+
+**Coverage Goals:**
+- Unit tests: >85%
+- Integration tests: >80%
+- Overall coverage: >80%
+
+### Performance
+
+**Optimizations:**
+- CTag-based change detection (only sync changed lists)
+- Indexed queries (list_id, status, due_date, parent_uid, priority)
+- Batch operations (transaction per list)
+- Efficient hierarchical sorting (O(n log n))
+
+**Benchmarks (1000 tasks):**
+- Full sync: <30 seconds
+- Pull phase: <15 seconds
+- Push phase: <15 seconds
+- Conflict resolution: <100ms per task
+
+### Key Implementation Details
+
+**Transaction Usage:**
+- All CRUD operations use transactions
+- Rollback on any error
+- Atomic updates to tasks + sync_metadata + sync_queue
+
+**Foreign Key Handling:**
+- Foreign keys enforced (`PRAGMA foreign_keys = ON`)
+- CASCADE delete for sync_metadata
+- SET NULL for task parent_uid
+- Hierarchical sort prevents FK constraint violations
+
+**Timestamp Handling:**
+- Unix timestamps for storage (INTEGER)
+- Automatic conversion to/from Go `time.Time`
+- `time.IsZero()` for null detection
+- `sql.NullInt64` for nullable fields
+
+**UID Generation:**
+- Format: `task-{timestamp}-{random8}`
+- Example: `task-1700000000-a3b2c1d4`
+- Unique and sortable
+- Used for tasks and lists
+
+### Documentation
+
+- **User Guide**: [SYNC_GUIDE.md](SYNC_GUIDE.md) - Complete sync documentation
+- **README**: [README.md](README.md#synchronization) - Quick start and examples
+- **Code Documentation**: Comprehensive godoc comments on all public APIs
+
+### Known Limitations
+
+- Auto-sync not yet implemented (manual `gosynctasks sync` required)
+- Dry-run preview not yet implemented
+- Sync-token (incremental sync) not yet implemented (uses full fetch)
+- No sync per-list (syncs all lists)
+- No encryption at rest for local SQLite database
+
+### Future Enhancements
+
+- Auto-sync with configurable intervals
+- Incremental sync using CalDAV sync-tokens
+- Selective sync (choose which lists to sync)
+- Sync hooks (pre/post sync scripts)
+- Encrypted local database
+- Sync conflict UI for interactive resolution
+- Background sync daemon
+- Sync status notifications
 
 ### Error Handling
 
