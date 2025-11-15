@@ -151,6 +151,9 @@ func (sm *SyncManager) pull() (*pullResult, error) {
 			return nil, fmt.Errorf("failed to get remote tasks for list %s: %w", remoteList.ID, err)
 		}
 
+		// Sort remote tasks so parents come before children (important for foreign key constraints)
+		remoteTasks = sortTasksByHierarchy(remoteTasks)
+
 		// Get all local tasks for this list
 		localTasks, err := sm.local.GetTasks(remoteList.ID, nil)
 		if err != nil {
@@ -665,4 +668,53 @@ type SyncStats struct {
 	LocalLists        int
 	PendingOperations int
 	LocallyModified   int
+}
+
+// sortTasksByHierarchy sorts tasks so parent tasks come before child tasks.
+// This is critical for respecting foreign key constraints during sync.
+func sortTasksByHierarchy(tasks []Task) []Task {
+	// Build parent-child relationships
+	childrenMap := make(map[string][]int) // parentUID -> child indexes
+	rootIndexes := []int{}                 // tasks with no parent
+
+	for i, task := range tasks {
+		if task.ParentUID == "" {
+			rootIndexes = append(rootIndexes, i)
+		} else {
+			childrenMap[task.ParentUID] = append(childrenMap[task.ParentUID], i)
+		}
+	}
+
+	// Traverse hierarchy depth-first, collecting tasks in order
+	sorted := []Task{}
+	visited := make(map[int]bool)
+
+	var visit func(index int)
+	visit = func(index int) {
+		if visited[index] {
+			return
+		}
+		visited[index] = true
+		sorted = append(sorted, tasks[index])
+
+		// Visit children
+		taskUID := tasks[index].UID
+		for _, childIndex := range childrenMap[taskUID] {
+			visit(childIndex)
+		}
+	}
+
+	// Visit all root tasks (and their descendants)
+	for _, rootIndex := range rootIndexes {
+		visit(rootIndex)
+	}
+
+	// Add any orphaned tasks (tasks with parent_uid pointing to non-existent parents)
+	for i := range tasks {
+		if !visited[i] {
+			sorted = append(sorted, tasks[i])
+		}
+	}
+
+	return sorted
 }
