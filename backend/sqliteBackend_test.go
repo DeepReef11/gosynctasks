@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// Helper function to create a test backend
-func createTestBackend(t *testing.T) (*SQLiteBackend, func()) {
+// Helper function to create a test SQLite backend
+func createTestSQLiteBackend(t *testing.T) (*SQLiteBackend, func()) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 
@@ -55,7 +55,7 @@ func TestNewSQLiteBackend(t *testing.T) {
 
 // TestCreateTaskList tests task list creation
 func TestCreateTaskList(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, err := backend.CreateTaskList("Work Tasks", "Tasks for work", "#ff0000")
@@ -88,7 +88,7 @@ func TestCreateTaskList(t *testing.T) {
 
 // TestGetTaskLists tests retrieving task lists
 func TestGetTaskLists(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	// Create multiple lists
@@ -123,7 +123,7 @@ func TestGetTaskLists(t *testing.T) {
 
 // TestAddTask tests task creation
 func TestAddTask(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	// Create a task list
@@ -170,7 +170,7 @@ func TestAddTask(t *testing.T) {
 
 // TestAddTaskWithUID tests task creation with explicit UID
 func TestAddTaskWithUID(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
@@ -194,7 +194,7 @@ func TestAddTaskWithUID(t *testing.T) {
 
 // TestUpdateTask tests task updates
 func TestUpdateTask(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
@@ -235,7 +235,7 @@ func TestUpdateTask(t *testing.T) {
 
 // TestUpdateNonexistentTask tests updating a task that doesn't exist
 func TestUpdateNonexistentTask(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
@@ -261,7 +261,7 @@ func TestUpdateNonexistentTask(t *testing.T) {
 
 // TestDeleteTask tests task deletion
 func TestDeleteTask(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
@@ -295,7 +295,7 @@ func TestDeleteTask(t *testing.T) {
 
 // TestDeleteNonexistentTask tests deleting a task that doesn't exist
 func TestDeleteNonexistentTask(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
@@ -314,7 +314,7 @@ func TestDeleteNonexistentTask(t *testing.T) {
 
 // TestGetTasksWithStatusFilter tests filtering tasks by status
 func TestGetTasksWithStatusFilter(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
@@ -346,7 +346,7 @@ func TestGetTasksWithStatusFilter(t *testing.T) {
 
 // TestGetTasksWithDateFilter tests filtering tasks by due date
 func TestGetTasksWithDateFilter(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
@@ -378,7 +378,7 @@ func TestGetTasksWithDateFilter(t *testing.T) {
 
 // TestFindTasksBySummary tests searching for tasks
 func TestFindTasksBySummary(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
@@ -412,7 +412,7 @@ func TestFindTasksBySummary(t *testing.T) {
 
 // TestRenameTaskList tests renaming a task list
 func TestRenameTaskList(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Old Name", "", "")
@@ -430,7 +430,7 @@ func TestRenameTaskList(t *testing.T) {
 
 // TestRenameNonexistentList tests renaming a list that doesn't exist
 func TestRenameNonexistentList(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	err := backend.RenameTaskList("nonexistent", "New Name")
@@ -447,7 +447,7 @@ func TestRenameNonexistentList(t *testing.T) {
 
 // TestDeleteTaskList tests deleting a task list
 func TestDeleteTaskList(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("List to delete", "", "")
@@ -476,7 +476,7 @@ func TestDeleteTaskList(t *testing.T) {
 
 // TestDeleteNonexistentList tests deleting a list that doesn't exist
 func TestDeleteNonexistentList(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	err := backend.DeleteTaskList("nonexistent")
@@ -493,7 +493,7 @@ func TestDeleteNonexistentList(t *testing.T) {
 
 // TestParseStatusFlag tests status flag parsing
 func TestParseStatusFlag(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	tests := []struct {
@@ -533,7 +533,7 @@ func TestParseStatusFlag(t *testing.T) {
 
 // TestStatusToDisplayName tests status display name conversion
 func TestStatusToDisplayName(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	tests := []struct {
@@ -556,7 +556,7 @@ func TestStatusToDisplayName(t *testing.T) {
 
 // TestSortTasks tests task sorting
 func TestSortTasks(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	tasks := []Task{
@@ -579,7 +579,7 @@ func TestSortTasks(t *testing.T) {
 
 // TestGetPriorityColor tests priority color assignment
 func TestGetPriorityColor(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	tests := []struct {
@@ -607,7 +607,7 @@ func TestGetPriorityColor(t *testing.T) {
 
 // TestMarkLocallyModified tests marking tasks as locally modified
 func TestMarkLocallyModified(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
@@ -640,7 +640,7 @@ func TestMarkLocallyModified(t *testing.T) {
 
 // TestGetPendingSyncOperations tests retrieving pending sync operations
 func TestGetPendingSyncOperations(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
@@ -670,7 +670,7 @@ func TestGetPendingSyncOperations(t *testing.T) {
 
 // TestClearSyncFlags tests clearing sync flags
 func TestClearSyncFlags(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
@@ -698,7 +698,7 @@ func TestClearSyncFlags(t *testing.T) {
 
 // TestUpdateSyncMetadata tests updating sync metadata
 func TestUpdateSyncMetadata(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
@@ -717,7 +717,7 @@ func TestUpdateSyncMetadata(t *testing.T) {
 
 // TestRemoveSyncOperation tests removing sync operations
 func TestRemoveSyncOperation(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
@@ -745,7 +745,7 @@ func TestRemoveSyncOperation(t *testing.T) {
 
 // TestTaskWithParent tests creating tasks with parent relationships
 func TestTaskWithParent(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
@@ -780,7 +780,7 @@ func TestTaskWithParent(t *testing.T) {
 
 // TestTaskWithCategories tests tasks with categories
 func TestTaskWithCategories(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
@@ -808,7 +808,7 @@ func TestTaskWithCategories(t *testing.T) {
 
 // TestTaskTimestamps tests task timestamp handling
 func TestTaskTimestamps(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
@@ -838,18 +838,18 @@ func TestTaskTimestamps(t *testing.T) {
 		t.Error("Expected start date to be set")
 	}
 
-	if tasks[0].Created == nil {
+	if tasks[0].Created.IsZero() {
 		t.Error("Expected created timestamp to be set")
 	}
 
-	if tasks[0].Modified == nil {
+	if tasks[0].Modified.IsZero() {
 		t.Error("Expected modified timestamp to be set")
 	}
 }
 
 // TestGetDeletedTaskLists tests trash functionality (not yet implemented)
 func TestGetDeletedTaskLists(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	lists, err := backend.GetDeletedTaskLists()
@@ -865,7 +865,7 @@ func TestGetDeletedTaskLists(t *testing.T) {
 
 // TestRestoreTaskList tests restore functionality (not yet implemented)
 func TestRestoreTaskList(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	err := backend.RestoreTaskList("some-list")
@@ -876,7 +876,7 @@ func TestRestoreTaskList(t *testing.T) {
 
 // TestClose tests closing the backend
 func TestClose(t *testing.T) {
-	backend, _ := createTestBackend(t)
+	backend, _ := createTestSQLiteBackend(t)
 
 	err := backend.Close()
 	if err != nil {
@@ -892,7 +892,7 @@ func TestClose(t *testing.T) {
 
 // TestTransactionRollback tests that transactions rollback on error
 func TestTransactionRollback(t *testing.T) {
-	backend, cleanup := createTestBackend(t)
+	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")

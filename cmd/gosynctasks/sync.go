@@ -5,7 +5,6 @@ import (
 	"gosynctasks/backend"
 	"gosynctasks/internal/config"
 	"net"
-	"net/http"
 	"net/url"
 	"time"
 
@@ -296,7 +295,7 @@ func newSyncQueueRetryCmd() *cobra.Command {
 				}
 
 				// Reset retry count by updating database directly
-				db, err := localBackend.getDB()
+				db, err := localBackend.GetDB()
 				if err != nil {
 					return err
 				}
@@ -371,7 +370,6 @@ func isBackendOffline(taskManager backend.TaskManager) (bool, string) {
 		}
 
 		// Analyze error to determine offline reason
-		errStr := err.Error()
 		if isNetworkError(err) {
 			return true, "Network unreachable"
 		}
@@ -455,7 +453,7 @@ func printSyncResult(result *backend.SyncResult) {
 
 // getLastSyncTime retrieves the most recent sync timestamp
 func getLastSyncTime(local *backend.SQLiteBackend) (time.Time, error) {
-	db, err := local.getDB()
+	db, err := local.GetDB()
 	if err != nil {
 		return time.Time{}, err
 	}

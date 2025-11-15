@@ -68,7 +68,7 @@ func (mb *MockBackend) UpdateTask(listID string, task Task) error {
 			return nil
 		}
 	}
-	return &BackendError{Operation: "UpdateTask", NotFound: true}
+	return NewBackendError("UpdateTask", 404, "task not found")
 }
 
 func (mb *MockBackend) DeleteTask(listID string, taskUID string) error {
@@ -84,7 +84,7 @@ func (mb *MockBackend) DeleteTask(listID string, taskUID string) error {
 			return nil
 		}
 	}
-	return &BackendError{Operation: "DeleteTask", NotFound: true}
+	return NewBackendError("DeleteTask", 404, "task not found")
 }
 
 func (mb *MockBackend) CreateTaskList(name, description, color string) (string, error) {
@@ -107,7 +107,7 @@ func (mb *MockBackend) DeleteTaskList(listID string) error {
 			return nil
 		}
 	}
-	return &BackendError{Operation: "DeleteTaskList", NotFound: true}
+	return NewBackendError("DeleteTaskList", 404, "list not found")
 }
 
 func (mb *MockBackend) RenameTaskList(listID, newName string) error {
@@ -117,7 +117,7 @@ func (mb *MockBackend) RenameTaskList(listID, newName string) error {
 			return nil
 		}
 	}
-	return &BackendError{Operation: "RenameTaskList", NotFound: true}
+	return NewBackendError("RenameTaskList", 404, "list not found")
 }
 
 func (mb *MockBackend) GetDeletedTaskLists() ([]TaskList, error) {

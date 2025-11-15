@@ -370,7 +370,7 @@ func (sb *SQLiteBackend) AddTask(listID string, task Task) error {
 	_, err = tx.Exec(`
 		INSERT INTO sync_metadata (task_uid, list_id, locally_modified, local_modified_at)
 		VALUES (?, ?, 1, ?)
-	`, task.UID, listID, now)
+	`, task.UID, listID, now.Unix())
 	if err != nil {
 		return &SQLiteError{Op: "AddTask", ListID: listID, TaskUID: task.UID, Err: err}
 	}
@@ -379,7 +379,7 @@ func (sb *SQLiteBackend) AddTask(listID string, task Task) error {
 	_, err = tx.Exec(`
 		INSERT OR REPLACE INTO sync_queue (task_uid, list_id, operation, created_at)
 		VALUES (?, ?, 'create', ?)
-	`, task.UID, listID, now)
+	`, task.UID, listID, now.Unix())
 	if err != nil {
 		return &SQLiteError{Op: "AddTask", ListID: listID, TaskUID: task.UID, Err: err}
 	}
@@ -402,7 +402,8 @@ func (sb *SQLiteBackend) UpdateTask(listID string, task Task) error {
 	defer tx.Rollback()
 
 	// Update modified timestamp
-	task.Modified = time.Now()
+	now := time.Now()
+	task.Modified = now
 
 	// Update task
 	query := `
@@ -437,11 +438,7 @@ func (sb *SQLiteBackend) UpdateTask(listID string, task Task) error {
 		return &SQLiteError{Op: "UpdateTask", ListID: listID, TaskUID: task.UID, Err: err}
 	}
 	if rowsAffected == 0 {
-		return &BackendError{
-			Operation: "UpdateTask",
-			Message:   fmt.Sprintf("task %s not found in list %s", task.UID, listID),
-			NotFound:  true,
-		}
+		return NewBackendError("UpdateTask", 404, fmt.Sprintf("task %s not found in list %s", task.UID, listID))
 	}
 
 	// Update sync metadata
@@ -487,11 +484,7 @@ func (sb *SQLiteBackend) DeleteTask(listID string, taskUID string) error {
 		return &SQLiteError{Op: "DeleteTask", ListID: listID, TaskUID: taskUID, Err: err}
 	}
 	if !exists {
-		return &BackendError{
-			Operation: "DeleteTask",
-			Message:   fmt.Sprintf("task %s not found in list %s", taskUID, listID),
-			NotFound:  true,
-		}
+		return NewBackendError("DeleteTask", 404, fmt.Sprintf("task %s not found in list %s", taskUID, listID))
 	}
 
 	// Mark as locally deleted (soft delete for sync)
@@ -574,11 +567,7 @@ func (sb *SQLiteBackend) DeleteTaskList(listID string) error {
 		return &SQLiteError{Op: "DeleteTaskList", ListID: listID, Err: err}
 	}
 	if rowsAffected == 0 {
-		return &BackendError{
-			Operation: "DeleteTaskList",
-			Message:   fmt.Sprintf("list %s not found", listID),
-			NotFound:  true,
-		}
+		return NewBackendError("DeleteTaskList", 404, fmt.Sprintf("list %s not found", listID))
 	}
 
 	return tx.Commit()
@@ -605,11 +594,7 @@ func (sb *SQLiteBackend) RenameTaskList(listID, newName string) error {
 		return &SQLiteError{Op: "RenameTaskList", ListID: listID, Err: err}
 	}
 	if rowsAffected == 0 {
-		return &BackendError{
-			Operation: "RenameTaskList",
-			Message:   fmt.Sprintf("list %s not found", listID),
-			NotFound:  true,
-		}
+		return NewBackendError("RenameTaskList", 404, fmt.Sprintf("list %s not found", listID))
 	}
 
 	return nil

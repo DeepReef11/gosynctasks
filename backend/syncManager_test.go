@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -62,8 +63,8 @@ func TestPullNewTasks(t *testing.T) {
 		Summary:  "Remote Task 1",
 		Status:   "NEEDS-ACTION",
 		Priority: 5,
-		Created:  &now,
-		Modified: &now,
+		Created:  now,
+		Modified: now,
 	})
 
 	remote.AddTask(listID, Task{
@@ -71,8 +72,8 @@ func TestPullNewTasks(t *testing.T) {
 		Summary:  "Remote Task 2",
 		Status:   "NEEDS-ACTION",
 		Priority: 3,
-		Created:  &now,
-		Modified: &now,
+		Created:  now,
+		Modified: now,
 	})
 
 	// Sync
@@ -117,8 +118,8 @@ func TestPullUpdatedTasks(t *testing.T) {
 		Summary:  "Original Summary",
 		Status:   "NEEDS-ACTION",
 		Priority: 5,
-		Created:  &now,
-		Modified: &now,
+		Created:  now,
+		Modified: now,
 	}
 	local.AddTask(listID, task)
 	local.ClearSyncFlags("task-1") // Clear modification flag
@@ -127,7 +128,7 @@ func TestPullUpdatedTasks(t *testing.T) {
 	updated := now.Add(time.Hour)
 	task.Summary = "Updated Summary"
 	task.Priority = 1
-	task.Modified = &updated
+	task.Modified = updated
 	remote.AddTask(listID, task)
 
 	// Change CTag to trigger sync
@@ -171,8 +172,8 @@ func TestConflictResolutionServerWins(t *testing.T) {
 		Summary:  "Original",
 		Status:   "NEEDS-ACTION",
 		Priority: 5,
-		Created:  &now,
-		Modified: &now,
+		Created:  now,
+		Modified: now,
 	}
 	local.AddTask(listID, task)
 
@@ -235,8 +236,8 @@ func TestConflictResolutionLocalWins(t *testing.T) {
 		Summary:  "Original",
 		Status:   "NEEDS-ACTION",
 		Priority: 5,
-		Created:  &now,
-		Modified: &now,
+		Created:  now,
+		Modified: now,
 	}
 	local.AddTask(listID, task)
 
@@ -292,8 +293,8 @@ func TestConflictResolutionKeepBoth(t *testing.T) {
 		Summary:  "Original",
 		Status:   "NEEDS-ACTION",
 		Priority: 5,
-		Created:  &now,
-		Modified: &now,
+		Created:  now,
+		Modified: now,
 	}
 	local.AddTask(listID, task)
 
@@ -358,8 +359,8 @@ func TestPushCreateOperation(t *testing.T) {
 		Summary:  "New Task",
 		Status:   "NEEDS-ACTION",
 		Priority: 5,
-		Created:  &now,
-		Modified: &now,
+		Created:  now,
+		Modified: now,
 	}
 	local.AddTask(listID, task)
 
@@ -405,8 +406,8 @@ func TestPushUpdateOperation(t *testing.T) {
 		Summary:  "Original",
 		Status:   "NEEDS-ACTION",
 		Priority: 5,
-		Created:  &now,
-		Modified: &now,
+		Created:  now,
+		Modified: now,
 	}
 	local.AddTask(listID, task)
 	local.ClearSyncFlags("task-1") // Clear create flag
@@ -454,8 +455,8 @@ func TestPushDeleteOperation(t *testing.T) {
 		UID:      "task-1",
 		Summary:  "To Delete",
 		Status:   "NEEDS-ACTION",
-		Created:  &now,
-		Modified: &now,
+		Created:  now,
+		Modified: now,
 	}
 	local.AddTask(listID, task)
 	local.ClearSyncFlags("task-1")
@@ -497,8 +498,8 @@ func TestFullSync(t *testing.T) {
 		UID:      "task-1",
 		Summary:  "Task 1",
 		Status:   "NEEDS-ACTION",
-		Created:  &now,
-		Modified: &now,
+		Created:  now,
+		Modified: now,
 	})
 
 	// Initial sync
@@ -509,15 +510,15 @@ func TestFullSync(t *testing.T) {
 		UID:      "task-2",
 		Summary:  "Task 2",
 		Status:   "NEEDS-ACTION",
-		Created:  &now,
-		Modified: &now,
+		Created:  now,
+		Modified: now,
 	})
 
 	// Don't change CTag (simulate CTag not updated)
 	// Normal sync would skip, but full sync should pull anyway
 
 	// Full sync
-	result, err := sm.FullSync()
+	_, err := sm.FullSync()
 	if err != nil {
 		t.Fatalf("Full sync failed: %v", err)
 	}
@@ -549,8 +550,8 @@ func TestRetryLogic(t *testing.T) {
 		UID:      "task-1",
 		Summary:  "Task",
 		Status:   "NEEDS-ACTION",
-		Created:  &now,
-		Modified: &now,
+		Created:  now,
+		Modified: now,
 	}
 	local.AddTask(listID, task)
 
@@ -601,8 +602,8 @@ func TestSyncStats(t *testing.T) {
 	listID, _ := local.CreateTaskList("Test List", "", "")
 
 	now := time.Now()
-	local.AddTask(listID, Task{UID: "task-1", Summary: "Task 1", Status: "NEEDS-ACTION", Created: &now, Modified: &now})
-	local.AddTask(listID, Task{UID: "task-2", Summary: "Task 2", Status: "NEEDS-ACTION", Created: &now, Modified: &now})
+	local.AddTask(listID, Task{UID: "task-1", Summary: "Task 1", Status: "NEEDS-ACTION", Created: now, Modified: now})
+	local.AddTask(listID, Task{UID: "task-2", Summary: "Task 2", Status: "NEEDS-ACTION", Created: now, Modified: now})
 
 	// Get stats
 	stats, err := sm.GetSyncStats()
@@ -635,7 +636,7 @@ func TestSyncWithEmptyRemote(t *testing.T) {
 	// Add tasks locally
 	listID, _ := local.CreateTaskList("Test List", "", "")
 	now := time.Now()
-	local.AddTask(listID, Task{UID: "task-1", Summary: "Local Task", Status: "NEEDS-ACTION", Created: &now, Modified: &now})
+	local.AddTask(listID, Task{UID: "task-1", Summary: "Local Task", Status: "NEEDS-ACTION", Created: now, Modified: now})
 
 	// Sync (should push to empty remote)
 	result, err := sm.Sync()
@@ -658,7 +659,7 @@ func TestSyncResult(t *testing.T) {
 	remote.lists[0].CTags = "ctag-123"
 
 	now := time.Now()
-	remote.AddTask(listID, Task{UID: "task-1", Summary: "Task 1", Status: "NEEDS-ACTION", Created: &now, Modified: &now})
+	remote.AddTask(listID, Task{UID: "task-1", Summary: "Task 1", Status: "NEEDS-ACTION", Created: now, Modified: now})
 
 	// Sync
 	result, err := sm.Sync()
