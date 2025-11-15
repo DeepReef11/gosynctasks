@@ -118,8 +118,8 @@ func (bc *BackendConfig) TaskManager() (TaskManager, error) {
 		return NewGitBackend(*bc)
 
 	case "sqlite":
-		// SQLite backend will be implemented later
-		return nil, fmt.Errorf("sqlite backend not yet implemented")
+		// Create SQLite backend
+		return NewSQLiteBackend(*bc)
 
 	default:
 		return nil, &UnsupportedSchemeError{

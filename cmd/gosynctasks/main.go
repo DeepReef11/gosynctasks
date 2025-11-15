@@ -140,6 +140,7 @@ Config:
 	// Add subcommands
 	rootCmd.AddCommand(newViewCmd())
 	rootCmd.AddCommand(newListCmd())
+	rootCmd.AddCommand(newSyncCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)

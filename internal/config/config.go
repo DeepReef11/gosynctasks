@@ -50,8 +50,20 @@ type Config struct {
 	BackendPriority   []string                         `json:"backend_priority,omitempty"`
 
 	// Common settings
-	UI         string `json:"ui" validate:"oneof=cli tui"`
-	DateFormat string `json:"date_format,omitempty"` // Go time format string, defaults to "2006-01-02"
+	UI         string      `json:"ui" validate:"oneof=cli tui"`
+	DateFormat string      `json:"date_format,omitempty"` // Go time format string, defaults to "2006-01-02"
+	Sync       *SyncConfig `json:"sync,omitempty"`        // Sync configuration
+}
+
+// SyncConfig represents sync-related settings
+type SyncConfig struct {
+	Enabled            bool   `json:"enabled"`                       // Enable sync functionality
+	ConflictResolution string `json:"conflict_resolution,omitempty"` // Strategy: server_wins, local_wins, merge, keep_both
+	AutoSync           bool   `json:"auto_sync,omitempty"`           // Auto-sync on command execution
+	SyncInterval       int    `json:"sync_interval,omitempty"`       // Minutes between auto-syncs (0=disabled)
+	OfflineMode        string `json:"offline_mode,omitempty"`        // Mode: auto, online, offline
+	LocalBackend       string `json:"local_backend,omitempty"`       // Name of local SQLite backend for sync
+	RemoteBackend      string `json:"remote_backend,omitempty"`      // Name of remote backend to sync with
 }
 
 // IsOldFormat returns true if this config uses the old single-backend format
