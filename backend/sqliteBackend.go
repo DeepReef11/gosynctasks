@@ -67,8 +67,8 @@ func (sb *SQLiteBackend) initDB() error {
 	return nil
 }
 
-// getDB returns the database connection, initializing if necessary
-func (sb *SQLiteBackend) getDB() (*Database, error) {
+// GetDB returns the database connection, initializing if necessary
+func (sb *SQLiteBackend) GetDB() (*Database, error) {
 	if err := sb.initDB(); err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (sb *SQLiteBackend) Close() error {
 
 // GetTaskLists retrieves all task lists from local storage
 func (sb *SQLiteBackend) GetTaskLists() ([]TaskList, error) {
-	db, err := sb.getDB()
+	db, err := sb.GetDB()
 	if err != nil {
 		return nil, &SQLiteError{Op: "GetTaskLists", Err: err}
 	}
@@ -136,7 +136,7 @@ func (sb *SQLiteBackend) GetTaskLists() ([]TaskList, error) {
 
 // GetTasks retrieves tasks from a list with optional filtering
 func (sb *SQLiteBackend) GetTasks(listID string, taskFilter *TaskFilter) ([]Task, error) {
-	db, err := sb.getDB()
+	db, err := sb.GetDB()
 	if err != nil {
 		return nil, &SQLiteError{Op: "GetTasks", ListID: listID, Err: err}
 	}
@@ -216,12 +216,13 @@ func (sb *SQLiteBackend) scanTasks(rows *sql.Rows) ([]Task, error) {
 
 	for rows.Next() {
 		var task Task
+		var listID string // Temporary variable for list_id (not stored in Task struct)
 		var description, parentUID, categories sql.NullString
 		var createdAt, modifiedAt, dueDate, startDate, completedAt sql.NullInt64
 
 		err := rows.Scan(
 			&task.UID,
-			&task.ListID,
+			&listID, // Scan list_id but don't store in Task
 			&task.Summary,
 			&description,
 			&task.Status,
@@ -251,12 +252,10 @@ func (sb *SQLiteBackend) scanTasks(rows *sql.Rows) ([]Task, error) {
 
 		// Convert timestamps
 		if createdAt.Valid {
-			t := time.Unix(createdAt.Int64, 0)
-			task.Created = &t
+			task.Created = time.Unix(createdAt.Int64, 0)
 		}
 		if modifiedAt.Valid {
-			t := time.Unix(modifiedAt.Int64, 0)
-			task.Modified = &t
+			task.Modified = time.Unix(modifiedAt.Int64, 0)
 		}
 		if dueDate.Valid {
 			t := time.Unix(dueDate.Int64, 0)
@@ -279,7 +278,7 @@ func (sb *SQLiteBackend) scanTasks(rows *sql.Rows) ([]Task, error) {
 
 // FindTasksBySummary searches for tasks by summary (case-insensitive)
 func (sb *SQLiteBackend) FindTasksBySummary(listID string, summary string) ([]Task, error) {
-	db, err := sb.getDB()
+	db, err := sb.GetDB()
 	if err != nil {
 		return nil, &SQLiteError{Op: "FindTasksBySummary", ListID: listID, Err: err}
 	}
@@ -313,7 +312,7 @@ func (sb *SQLiteBackend) FindTasksBySummary(listID string, summary string) ([]Ta
 
 // AddTask creates a new task in the database
 func (sb *SQLiteBackend) AddTask(listID string, task Task) error {
-	db, err := sb.getDB()
+	db, err := sb.GetDB()
 	if err != nil {
 		return &SQLiteError{Op: "AddTask", ListID: listID, Err: err}
 	}
@@ -331,14 +330,12 @@ func (sb *SQLiteBackend) AddTask(listID string, task Task) error {
 	defer tx.Rollback()
 
 	// Set timestamps
-	now := time.Now().Unix()
-	if task.Created == nil {
-		t := time.Unix(now, 0)
-		task.Created = &t
+	now := time.Now()
+	if task.Created.IsZero() {
+		task.Created = now
 	}
-	if task.Modified == nil {
-		t := time.Unix(now, 0)
-		task.Modified = &t
+	if task.Modified.IsZero() {
+		task.Modified = now
 	}
 
 	// Insert task
@@ -357,8 +354,8 @@ func (sb *SQLiteBackend) AddTask(listID string, task Task) error {
 		nullString(task.Description),
 		task.Status,
 		task.Priority,
-		timeToNullInt64(task.Created),
-		timeToNullInt64(task.Modified),
+		timeValueToNullInt64(task.Created),
+		timeValueToNullInt64(task.Modified),
 		timeToNullInt64(task.DueDate),
 		timeToNullInt64(task.StartDate),
 		timeToNullInt64(task.Completed),
@@ -392,7 +389,7 @@ func (sb *SQLiteBackend) AddTask(listID string, task Task) error {
 
 // UpdateTask updates an existing task
 func (sb *SQLiteBackend) UpdateTask(listID string, task Task) error {
-	db, err := sb.getDB()
+	db, err := sb.GetDB()
 	if err != nil {
 		return &SQLiteError{Op: "UpdateTask", ListID: listID, TaskUID: task.UID, Err: err}
 	}
@@ -405,8 +402,7 @@ func (sb *SQLiteBackend) UpdateTask(listID string, task Task) error {
 	defer tx.Rollback()
 
 	// Update modified timestamp
-	now := time.Now()
-	task.Modified = &now
+	task.Modified = time.Now()
 
 	// Update task
 	query := `
@@ -422,7 +418,7 @@ func (sb *SQLiteBackend) UpdateTask(listID string, task Task) error {
 		nullString(task.Description),
 		task.Status,
 		task.Priority,
-		timeToNullInt64(task.Modified),
+		timeValueToNullInt64(task.Modified),
 		timeToNullInt64(task.DueDate),
 		timeToNullInt64(task.StartDate),
 		timeToNullInt64(task.Completed),
@@ -472,7 +468,7 @@ func (sb *SQLiteBackend) UpdateTask(listID string, task Task) error {
 
 // DeleteTask removes a task from the database
 func (sb *SQLiteBackend) DeleteTask(listID string, taskUID string) error {
-	db, err := sb.getDB()
+	db, err := sb.GetDB()
 	if err != nil {
 		return &SQLiteError{Op: "DeleteTask", ListID: listID, TaskUID: taskUID, Err: err}
 	}
@@ -529,7 +525,7 @@ func (sb *SQLiteBackend) DeleteTask(listID string, taskUID string) error {
 
 // CreateTaskList creates a new task list
 func (sb *SQLiteBackend) CreateTaskList(name, description, color string) (string, error) {
-	db, err := sb.getDB()
+	db, err := sb.GetDB()
 	if err != nil {
 		return "", &SQLiteError{Op: "CreateTaskList", Err: err}
 	}
@@ -550,7 +546,7 @@ func (sb *SQLiteBackend) CreateTaskList(name, description, color string) (string
 
 // DeleteTaskList removes a task list and all its tasks
 func (sb *SQLiteBackend) DeleteTaskList(listID string) error {
-	db, err := sb.getDB()
+	db, err := sb.GetDB()
 	if err != nil {
 		return &SQLiteError{Op: "DeleteTaskList", ListID: listID, Err: err}
 	}
@@ -590,7 +586,7 @@ func (sb *SQLiteBackend) DeleteTaskList(listID string) error {
 
 // RenameTaskList renames a task list
 func (sb *SQLiteBackend) RenameTaskList(listID, newName string) error {
-	db, err := sb.getDB()
+	db, err := sb.GetDB()
 	if err != nil {
 		return &SQLiteError{Op: "RenameTaskList", ListID: listID, Err: err}
 	}
@@ -704,7 +700,7 @@ func (sb *SQLiteBackend) GetPriorityColor(priority int) string {
 
 // MarkLocallyModified marks a task as locally modified
 func (sb *SQLiteBackend) MarkLocallyModified(taskUID string) error {
-	db, err := sb.getDB()
+	db, err := sb.GetDB()
 	if err != nil {
 		return &SQLiteError{Op: "MarkLocallyModified", TaskUID: taskUID, Err: err}
 	}
@@ -723,7 +719,7 @@ func (sb *SQLiteBackend) MarkLocallyModified(taskUID string) error {
 
 // MarkLocallyDeleted marks a task as locally deleted
 func (sb *SQLiteBackend) MarkLocallyDeleted(taskUID string) error {
-	db, err := sb.getDB()
+	db, err := sb.GetDB()
 	if err != nil {
 		return &SQLiteError{Op: "MarkLocallyDeleted", TaskUID: taskUID, Err: err}
 	}
@@ -742,7 +738,7 @@ func (sb *SQLiteBackend) MarkLocallyDeleted(taskUID string) error {
 
 // GetLocallyModifiedTasks retrieves tasks that have been modified locally
 func (sb *SQLiteBackend) GetLocallyModifiedTasks() ([]Task, error) {
-	db, err := sb.getDB()
+	db, err := sb.GetDB()
 	if err != nil {
 		return nil, &SQLiteError{Op: "GetLocallyModifiedTasks", Err: err}
 	}
@@ -784,7 +780,7 @@ type SyncOperation struct {
 
 // GetPendingSyncOperations retrieves operations queued for sync
 func (sb *SQLiteBackend) GetPendingSyncOperations() ([]SyncOperation, error) {
-	db, err := sb.getDB()
+	db, err := sb.GetDB()
 	if err != nil {
 		return nil, &SQLiteError{Op: "GetPendingSyncOperations", Err: err}
 	}
@@ -833,7 +829,7 @@ func (sb *SQLiteBackend) GetPendingSyncOperations() ([]SyncOperation, error) {
 
 // ClearSyncFlags clears locally_modified flag for a task
 func (sb *SQLiteBackend) ClearSyncFlags(taskUID string) error {
-	db, err := sb.getDB()
+	db, err := sb.GetDB()
 	if err != nil {
 		return &SQLiteError{Op: "ClearSyncFlags", TaskUID: taskUID, Err: err}
 	}
@@ -852,7 +848,7 @@ func (sb *SQLiteBackend) ClearSyncFlags(taskUID string) error {
 
 // UpdateSyncMetadata updates sync metadata for a task
 func (sb *SQLiteBackend) UpdateSyncMetadata(taskUID, listID, etag string, remoteModifiedAt time.Time) error {
-	db, err := sb.getDB()
+	db, err := sb.GetDB()
 	if err != nil {
 		return &SQLiteError{Op: "UpdateSyncMetadata", TaskUID: taskUID, Err: err}
 	}
@@ -878,7 +874,7 @@ func (sb *SQLiteBackend) UpdateSyncMetadata(taskUID, listID, etag string, remote
 
 // RemoveSyncOperation removes a sync operation from the queue
 func (sb *SQLiteBackend) RemoveSyncOperation(taskUID, operation string) error {
-	db, err := sb.getDB()
+	db, err := sb.GetDB()
 	if err != nil {
 		return &SQLiteError{Op: "RemoveSyncOperation", TaskUID: taskUID, Err: err}
 	}
@@ -922,6 +918,14 @@ func nullString(s string) sql.NullString {
 // timeToNullInt64 converts *time.Time to sql.NullInt64
 func timeToNullInt64(t *time.Time) sql.NullInt64 {
 	if t == nil {
+		return sql.NullInt64{Valid: false}
+	}
+	return sql.NullInt64{Int64: t.Unix(), Valid: true}
+}
+
+// timeValueToNullInt64 converts time.Time (non-pointer) to sql.NullInt64
+func timeValueToNullInt64(t time.Time) sql.NullInt64 {
+	if t.IsZero() {
 		return sql.NullInt64{Valid: false}
 	}
 	return sql.NullInt64{Int64: t.Unix(), Valid: true}

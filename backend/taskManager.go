@@ -247,6 +247,9 @@ type TaskFilter struct {
 
 	// CreatedAfter filters tasks created after this time (inclusive).
 	CreatedAfter *time.Time
+
+	// CreatedBefore filters tasks created before this time (inclusive).
+	CreatedBefore *time.Time
 }
 
 // StatusStringTranslateToStandardStatus converts app status names to CalDAV standard statuses.

@@ -115,7 +115,7 @@ func (sm *SyncManager) pull() (*pullResult, error) {
 		// Create list if it doesn't exist
 		if !listExists {
 			// Insert list metadata
-			db, err := sm.local.getDB()
+			db, err := sm.local.GetDB()
 			if err != nil {
 				return nil, err
 			}
@@ -130,7 +130,7 @@ func (sm *SyncManager) pull() (*pullResult, error) {
 			}
 		} else {
 			// Update list CTag
-			db, err := sm.local.getDB()
+			db, err := sm.local.GetDB()
 			if err != nil {
 				return nil, err
 			}
@@ -261,7 +261,7 @@ func (sm *SyncManager) push() (*pushResult, error) {
 
 		if pushErr != nil {
 			// Increment retry count
-			db, err := sm.local.getDB()
+			db, err := sm.local.GetDB()
 			if err != nil {
 				return nil, err
 			}
@@ -377,7 +377,7 @@ func (sm *SyncManager) pushDelete(op SyncOperation) error {
 
 // isTaskLocallyModified checks if a task is locally modified
 func (sm *SyncManager) isTaskLocallyModified(taskUID string) (bool, error) {
-	db, err := sm.local.getDB()
+	db, err := sm.local.GetDB()
 	if err != nil {
 		return false, err
 	}
@@ -429,8 +429,8 @@ func (sm *SyncManager) resolveLocalWins(listID string, localTask, remoteTask Tas
 	// Keep local version, mark for push
 	// Local task already has locally_modified=1, so it will be pushed
 	// Just update sync metadata with remote info
-	if remoteTask.Modified != nil {
-		return sm.local.UpdateSyncMetadata(localTask.UID, listID, "", *remoteTask.Modified)
+	if !remoteTask.Modified.IsZero() {
+		return sm.local.UpdateSyncMetadata(localTask.UID, listID, "", remoteTask.Modified)
 	}
 	return nil
 }
@@ -502,7 +502,7 @@ func (sm *SyncManager) resolveKeepBoth(listID string, localTask, remoteTask Task
 
 // insertTaskLocally inserts a remote task into local storage
 func (sm *SyncManager) insertTaskLocally(listID string, task Task) error {
-	db, err := sm.local.getDB()
+	db, err := sm.local.GetDB()
 	if err != nil {
 		return err
 	}
@@ -527,8 +527,8 @@ func (sm *SyncManager) insertTaskLocally(listID string, task Task) error {
 		nullString(task.Description),
 		task.Status,
 		task.Priority,
-		timeToNullInt64(task.Created),
-		timeToNullInt64(task.Modified),
+		timeValueToNullInt64(task.Created),
+		timeValueToNullInt64(task.Modified),
 		timeToNullInt64(task.DueDate),
 		timeToNullInt64(task.StartDate),
 		timeToNullInt64(task.Completed),
@@ -542,7 +542,7 @@ func (sm *SyncManager) insertTaskLocally(listID string, task Task) error {
 	// Insert sync metadata (not locally modified since it came from server)
 	now := time.Now().Unix()
 	remoteModifiedAt := int64(0)
-	if task.Modified != nil {
+	if !task.Modified.IsZero() {
 		remoteModifiedAt = task.Modified.Unix()
 	}
 
@@ -561,7 +561,7 @@ func (sm *SyncManager) insertTaskLocally(listID string, task Task) error {
 
 // updateTaskLocally updates a local task with remote data
 func (sm *SyncManager) updateTaskLocally(listID string, task Task) error {
-	db, err := sm.local.getDB()
+	db, err := sm.local.GetDB()
 	if err != nil {
 		return err
 	}
@@ -584,7 +584,7 @@ func (sm *SyncManager) updateTaskLocally(listID string, task Task) error {
 		nullString(task.Description),
 		task.Status,
 		task.Priority,
-		timeToNullInt64(task.Modified),
+		timeValueToNullInt64(task.Modified),
 		timeToNullInt64(task.DueDate),
 		timeToNullInt64(task.StartDate),
 		timeToNullInt64(task.Completed),
@@ -600,7 +600,7 @@ func (sm *SyncManager) updateTaskLocally(listID string, task Task) error {
 	// Update sync metadata
 	now := time.Now().Unix()
 	remoteModifiedAt := int64(0)
-	if task.Modified != nil {
+	if !task.Modified.IsZero() {
 		remoteModifiedAt = task.Modified.Unix()
 	}
 
@@ -618,7 +618,7 @@ func (sm *SyncManager) updateTaskLocally(listID string, task Task) error {
 
 // deleteTaskLocally deletes a task from local storage
 func (sm *SyncManager) deleteTaskLocally(listID string, taskUID string) error {
-	db, err := sm.local.getDB()
+	db, err := sm.local.GetDB()
 	if err != nil {
 		return err
 	}
@@ -631,7 +631,7 @@ func (sm *SyncManager) deleteTaskLocally(listID string, taskUID string) error {
 // FullSync performs a complete synchronization, ignoring CTags
 func (sm *SyncManager) FullSync() (*SyncResult, error) {
 	// Clear all CTags to force full sync
-	db, err := sm.local.getDB()
+	db, err := sm.local.GetDB()
 	if err != nil {
 		return nil, err
 	}
