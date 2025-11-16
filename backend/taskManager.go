@@ -210,6 +210,19 @@ type TaskManager interface {
 	// Returns an empty string if no color should be applied.
 	// Priority range: 0-9 (0=undefined, 1=highest, 9=lowest)
 	GetPriorityColor(priority int) string
+
+	// GetBackendDisplayName returns a formatted string for display in task list headers.
+	// Examples: "[nextcloud:admin@localhost]", "[sqlite → nextcloud]", "[git:gosynctasks/TODO.md]"
+	// This provides user context about which backend is being used.
+	GetBackendDisplayName() string
+
+	// GetBackendType returns the backend type identifier.
+	// Returns one of: "nextcloud", "git", "sqlite", "file"
+	GetBackendType() string
+
+	// GetBackendContext returns contextual details specific to the backend.
+	// Examples: "admin@localhost:8080" (nextcloud), "/path/to/repo/TODO.md" (git), "/path/to/tasks.db" (sqlite)
+	GetBackendContext() string
 }
 
 // DetectableBackend extends TaskManager with auto-detection capabilities.
@@ -641,4 +654,73 @@ func (t TaskList) BottomBorderWithWidth(termWidth int) string {
 
 	// Bottom border
 	return fmt.Sprintf("\033[1;36m└%s┘\033[0m\n", strings.Repeat("─", borderWidth))
+}
+
+// StringWithBackend returns the list header with backend information displayed on the right side.
+// The backend parameter can be nil, in which case no backend info is shown.
+func (t TaskList) StringWithBackend(backend TaskManager) string {
+	return t.StringWithWidthAndBackend(80, backend)
+}
+
+// StringWithWidthAndBackend formats the list header with backend information.
+// The backend info is positioned on the right side of the header, adapting to terminal width.
+func (t TaskList) StringWithWidthAndBackend(termWidth int, backend TaskManager) string {
+	// If no backend provided, fall back to standard display
+	if backend == nil {
+		return t.StringWithWidth(termWidth)
+	}
+
+	var result strings.Builder
+
+	// Calculate border width
+	borderWidth := termWidth - 2
+	if borderWidth < 40 {
+		borderWidth = 40
+	}
+	if borderWidth > 100 {
+		borderWidth = 100
+	}
+
+	// Get backend display name
+	backendInfo := backend.GetBackendDisplayName()
+
+	// Build the title text
+	titleText := "─ " + t.Name
+	if t.Description != "" {
+		titleText += " - " + t.Description
+	}
+	titleText += " "
+
+	// Calculate available space for padding between title and backend info
+	// Format: ┌─ Title ──────── [backend] ┐
+	titleLen := len(titleText)
+	backendLen := len(backendInfo)
+	totalContentLen := titleLen + backendLen + 2 // +2 for space and corner
+
+	if totalContentLen >= borderWidth {
+		// Not enough space, truncate description or show without backend
+		maxTitleLen := borderWidth - backendLen - 3
+		if maxTitleLen < 10 {
+			// If still not enough space, show without backend info
+			return t.StringWithWidth(termWidth)
+		}
+		// Truncate title
+		if len(titleText) > maxTitleLen {
+			titleText = titleText[:maxTitleLen-3] + "... "
+		}
+	}
+
+	// Calculate padding between title and backend info
+	paddingLen := borderWidth - len(titleText) - len(backendInfo) - 1
+	if paddingLen < 1 {
+		paddingLen = 1
+	}
+
+	// Top border with corner, title, padding, backend info
+	result.WriteString(fmt.Sprintf("\n\033[1;36m┌%s%s%s┐\033[0m\n",
+		titleText,
+		strings.Repeat("─", paddingLen),
+		backendInfo))
+
+	return result.String()
 }

@@ -111,14 +111,14 @@ func HandleGetAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *c
 	rendered, err := RenderWithCustomView(tasks, viewName, taskManager, dateFormat)
 	if err == nil {
 		// Custom view found and rendered successfully
-		fmt.Print(selectedList.StringWithWidth(termWidth))
+		fmt.Print(selectedList.StringWithWidthAndBackend(termWidth, taskManager))
 		fmt.Print(rendered)
 		fmt.Print(selectedList.BottomBorderWithWidth(termWidth))
 		return nil
 	}
 
 	// Fall back to tree-based hierarchical display
-	fmt.Print(selectedList.StringWithWidth(termWidth))
+	fmt.Print(selectedList.StringWithWidthAndBackend(termWidth, taskManager))
 
 	// Build task tree
 	tree := BuildTaskTree(tasks)

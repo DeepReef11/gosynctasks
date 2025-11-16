@@ -585,6 +585,25 @@ func (gb *GitBackend) GetPriorityColor(priority int) string {
 	}
 }
 
+// GetBackendDisplayName returns a formatted string for display in task list headers.
+func (gb *GitBackend) GetBackendDisplayName() string {
+	repoPath := gb.repoPath
+	fileName := gb.fileName
+	return fmt.Sprintf("[git:%s/%s]", repoPath, fileName)
+}
+
+// GetBackendType returns the backend type identifier.
+func (gb *GitBackend) GetBackendType() string {
+	return "git"
+}
+
+// GetBackendContext returns contextual details specific to the backend.
+func (gb *GitBackend) GetBackendContext() string {
+	repoPath := gb.repoPath
+	fileName := gb.fileName
+	return fmt.Sprintf("%s/%s", repoPath, fileName)
+}
+
 // GetDeletedTaskLists retrieves deleted task lists (not supported for Git backend).
 func (gb *GitBackend) GetDeletedTaskLists() ([]TaskList, error) {
 	// Git backend doesn't support trash functionality

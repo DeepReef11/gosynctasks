@@ -110,6 +110,25 @@ func (fB *FileBackend) GetPriorityColor(priority int) string {
 	return ""
 }
 
+func (fB *FileBackend) GetBackendDisplayName() string {
+	path := ""
+	if fB.Connector.URL != nil {
+		path = fB.Connector.URL.Path
+	}
+	return fmt.Sprintf("[file:%s]", path)
+}
+
+func (fB *FileBackend) GetBackendType() string {
+	return "file"
+}
+
+func (fB *FileBackend) GetBackendContext() string {
+	if fB.Connector.URL != nil {
+		return fB.Connector.URL.Path
+	}
+	return ""
+}
+
 func NewFileBackend(connectorConfig ConnectorConfig) (TaskManager, error) {
 	return &FileBackend{
 		Connector: connectorConfig,
