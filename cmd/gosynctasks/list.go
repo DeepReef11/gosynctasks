@@ -97,10 +97,7 @@ The color parameter is Nextcloud-specific and will be ignored by other backends.
 			}
 
 			// Clear cache
-			if err := application.RefreshTaskLists(); err != nil {
-				// Non-fatal, just warn
-				fmt.Printf("Warning: failed to refresh cache: %v\n", err)
-			}
+			application.RefreshTaskListsOrWarn()
 
 			fmt.Printf("List '%s' created successfully (ID: %s)\n", name, listID)
 			return nil
@@ -178,10 +175,7 @@ WARNING: This permanently deletes the list and all its tasks.`,
 			}
 
 			// Clear cache
-			if err := application.RefreshTaskLists(); err != nil {
-				// Non-fatal, just warn
-				fmt.Printf("Warning: failed to refresh cache: %v\n", err)
-			}
+			application.RefreshTaskListsOrWarn()
 
 			fmt.Printf("List '%s' deleted successfully.\n", name)
 			return nil
@@ -257,10 +251,7 @@ By default, prompts for confirmation.`,
 			}
 
 			// Clear cache
-			if err := application.RefreshTaskLists(); err != nil {
-				// Non-fatal, just warn
-				fmt.Printf("Warning: failed to refresh cache: %v\n", err)
-			}
+			application.RefreshTaskListsOrWarn()
 
 			fmt.Printf("List renamed from '%s' to '%s' successfully.\n", oldName, newName)
 			return nil
@@ -536,10 +527,7 @@ The list will be restored to its original state before deletion.`,
 			}
 
 			// Clear cache
-			if err := application.RefreshTaskLists(); err != nil {
-				// Non-fatal, just warn
-				fmt.Printf("Warning: failed to refresh cache: %v\n", err)
-			}
+			application.RefreshTaskListsOrWarn()
 
 			fmt.Printf("List '%s' restored successfully.\n", name)
 			return nil
@@ -643,10 +631,7 @@ WARNING: This permanently and irreversibly deletes the list and all its tasks.`,
 			}
 
 			// Clear cache
-			if err := application.RefreshTaskLists(); err != nil {
-				// Non-fatal, just warn
-				fmt.Printf("Warning: failed to refresh cache: %v\n", err)
-			}
+			application.RefreshTaskListsOrWarn()
 
 			if emptyAll {
 				fmt.Printf("Successfully permanently deleted %d lists from trash.\n", deletedCount)
