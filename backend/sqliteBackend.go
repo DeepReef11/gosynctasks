@@ -812,14 +812,22 @@ func (sb *SQLiteBackend) GetPendingSyncOperations() ([]SyncOperation, error) {
 	return operations, rows.Err()
 }
 
-// ClearSyncFlags clears locally_modified flag for a task
+// ClearSyncFlags clears locally_modified flag for a task and removes all pending sync operations
 func (sb *SQLiteBackend) ClearSyncFlags(taskUID string) error {
 	db, err := sb.GetDB()
 	if err != nil {
 		return &SQLiteError{Op: "ClearSyncFlags", TaskUID: taskUID, Err: err}
 	}
 
-	_, err = db.Exec(`
+	// Start transaction to ensure both operations succeed or fail together
+	tx, err := db.Begin()
+	if err != nil {
+		return &SQLiteError{Op: "ClearSyncFlags", TaskUID: taskUID, Err: err}
+	}
+	defer tx.Rollback()
+
+	// Clear sync metadata flags
+	_, err = tx.Exec(`
 		UPDATE sync_metadata
 		SET locally_modified = 0, locally_deleted = 0
 		WHERE task_uid = ?
@@ -828,7 +836,16 @@ func (sb *SQLiteBackend) ClearSyncFlags(taskUID string) error {
 		return &SQLiteError{Op: "ClearSyncFlags", TaskUID: taskUID, Err: err}
 	}
 
-	return nil
+	// Remove all pending sync operations for this task
+	_, err = tx.Exec(`
+		DELETE FROM sync_queue
+		WHERE task_uid = ?
+	`, taskUID)
+	if err != nil {
+		return &SQLiteError{Op: "ClearSyncFlags", TaskUID: taskUID, Err: err}
+	}
+
+	return tx.Commit()
 }
 
 // UpdateSyncMetadata updates sync metadata for a task
