@@ -774,6 +774,28 @@ func (nB *NextcloudBackend) GetPriorityColor(priority int) string {
 	return "" // No color for 0 (undefined)
 }
 
+func (nB *NextcloudBackend) GetBackendDisplayName() string {
+	username := nB.getUsername()
+	host := ""
+	if nB.Connector.URL != nil {
+		host = nB.Connector.URL.Host
+	}
+	return fmt.Sprintf("[nextcloud:%s@%s]", username, host)
+}
+
+func (nB *NextcloudBackend) GetBackendType() string {
+	return "nextcloud"
+}
+
+func (nB *NextcloudBackend) GetBackendContext() string {
+	username := nB.getUsername()
+	host := ""
+	if nB.Connector.URL != nil {
+		host = nB.Connector.URL.Host
+	}
+	return fmt.Sprintf("%s@%s", username, host)
+}
+
 func NewNextcloudBackend(connectorConfig ConnectorConfig) (TaskManager, error) {
 	nB := &NextcloudBackend{
 		Connector: connectorConfig,

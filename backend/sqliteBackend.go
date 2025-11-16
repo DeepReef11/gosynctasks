@@ -681,6 +681,29 @@ func (sb *SQLiteBackend) GetPriorityColor(priority int) string {
 	return "" // No color for priority 0 (undefined)
 }
 
+// GetBackendDisplayName returns a formatted string for display in task list headers
+func (sb *SQLiteBackend) GetBackendDisplayName() string {
+	dbPath := sb.Config.DBPath
+	if dbPath == "" {
+		dbPath, _ = getDatabasePath(sb.Config.DBPath)
+	}
+	return fmt.Sprintf("[sqlite:%s]", dbPath)
+}
+
+// GetBackendType returns the backend type identifier
+func (sb *SQLiteBackend) GetBackendType() string {
+	return "sqlite"
+}
+
+// GetBackendContext returns contextual details specific to the backend
+func (sb *SQLiteBackend) GetBackendContext() string {
+	dbPath := sb.Config.DBPath
+	if dbPath == "" {
+		dbPath, _ = getDatabasePath(sb.Config.DBPath)
+	}
+	return dbPath
+}
+
 // Sync-specific methods
 
 // MarkLocallyModified marks a task as locally modified
