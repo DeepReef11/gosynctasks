@@ -138,11 +138,11 @@ func TestFileBackend_GetBackendContext(t *testing.T) {
 func TestGitBackend_GetBackendDisplayName(t *testing.T) {
 	backend := &GitBackend{
 		repoPath: "/home/user/myproject",
-		fileName: "TODO.md",
+		filePath: "/home/user/myproject/TODO.md",
 	}
 
 	displayName := backend.GetBackendDisplayName()
-	expected := "[git:/home/user/myproject/TODO.md]"
+	expected := "[git:myproject/TODO.md]"
 	if displayName != expected {
 		t.Errorf("GetBackendDisplayName() = %q, want %q", displayName, expected)
 	}
@@ -162,11 +162,11 @@ func TestGitBackend_GetBackendType(t *testing.T) {
 func TestGitBackend_GetBackendContext(t *testing.T) {
 	backend := &GitBackend{
 		repoPath: "/opt/projects/gosynctasks",
-		fileName: "TASKS.md",
+		filePath: "/opt/projects/gosynctasks/TASKS.md",
 	}
 
 	context := backend.GetBackendContext()
-	expected := "/opt/projects/gosynctasks/TASKS.md"
+	expected := "gosynctasks/TASKS.md"
 	if context != expected {
 		t.Errorf("GetBackendContext() = %q, want %q", context, expected)
 	}
