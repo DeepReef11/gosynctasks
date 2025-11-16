@@ -233,15 +233,21 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 
 // HandleUpdateAction updates an existing task
 func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *config.Config, selectedList *backend.TaskList, searchSummary string) error {
-	// Get the task summary to search for
-	if searchSummary == "" {
-		return fmt.Errorf("task summary is required for update (usage: gosynctasks <list> update <task-summary>)")
-	}
+	var taskToUpdate *backend.Task
+	var err error
 
-	// Find the task by summary (handles exact/partial/multiple matches)
-	taskToUpdate, err := FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary)
-	if err != nil {
-		return err
+	// If no search summary provided, show interactive selection
+	if searchSummary == "" {
+		taskToUpdate, err = SelectTaskInteractively(taskManager, cfg, selectedList.ID)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Find the task by summary (handles exact/partial/multiple matches)
+		taskToUpdate, err = FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Get update flags
@@ -310,15 +316,21 @@ func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 
 // HandleCompleteAction marks a task with a status (defaults to COMPLETED)
 func HandleCompleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *config.Config, selectedList *backend.TaskList, searchSummary string) error {
-	// Get the task summary to search for
-	if searchSummary == "" {
-		return fmt.Errorf("task summary is required for complete (usage: gosynctasks <list> complete <task-summary>)")
-	}
+	var taskToComplete *backend.Task
+	var err error
 
-	// Find the task by summary (handles exact/partial/multiple matches)
-	taskToComplete, err := FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary)
-	if err != nil {
-		return err
+	// If no search summary provided, show interactive selection
+	if searchSummary == "" {
+		taskToComplete, err = SelectTaskInteractively(taskManager, cfg, selectedList.ID)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Find the task by summary (handles exact/partial/multiple matches)
+		taskToComplete, err = FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Get status flag (if provided), otherwise default to DONE
@@ -351,15 +363,21 @@ func HandleCompleteAction(cmd *cobra.Command, taskManager backend.TaskManager, c
 
 // HandleDeleteAction deletes a task by summary
 func HandleDeleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *config.Config, selectedList *backend.TaskList, searchSummary string) error {
-	// Get the task summary to search for
-	if searchSummary == "" {
-		return fmt.Errorf("task summary is required for delete (usage: gosynctasks <list> delete <task-summary>)")
-	}
+	var taskToDelete *backend.Task
+	var err error
 
-	// Find the task by summary (handles exact/partial/multiple matches)
-	taskToDelete, err := FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary)
-	if err != nil {
-		return err
+	// If no search summary provided, show interactive selection
+	if searchSummary == "" {
+		taskToDelete, err = SelectTaskInteractively(taskManager, cfg, selectedList.ID)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Find the task by summary (handles exact/partial/multiple matches)
+		taskToDelete, err = FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Show a final confirmation before deletion
