@@ -3,6 +3,7 @@ package operations
 import (
 	"fmt"
 	"gosynctasks/backend"
+	"gosynctasks/internal/cli"
 	"gosynctasks/internal/config"
 	"strings"
 
@@ -188,14 +189,30 @@ func SelectTaskInteractively(taskManager backend.TaskManager, cfg *config.Config
 	// Build task tree for hierarchical display
 	tree := BuildTaskTree(allTasks)
 
-	// Display tasks with numbering
-	fmt.Println("\n\033[1;36m┌─ Available Tasks ────────────────────────────────────────┐\033[0m")
+	// Get terminal width and calculate border width
+	termWidth := cli.GetTerminalWidth()
+	borderWidth := termWidth - 2
+	if borderWidth < 40 {
+		borderWidth = 40 // Minimum width
+	}
+	if borderWidth > 100 {
+		borderWidth = 100 // Maximum width for readability
+	}
+
+	// Display tasks with numbering - dynamic header
+	headerText := "─ Available Tasks "
+	headerPadding := borderWidth - len(headerText)
+	if headerPadding < 0 {
+		headerPadding = 0
+	}
+	fmt.Printf("\n\033[1;36m┌%s%s┐\033[0m\n", headerText, strings.Repeat("─", headerPadding))
 
 	// Flatten tree for numbered selection
 	var flatTasks []*backend.Task
 	displayTaskTreeNumbered(tree, taskManager, cfg.GetDateFormat(), &flatTasks, "", true)
 
-	fmt.Println("\033[1;36m└──────────────────────────────────────────────────────────┘\033[0m")
+	// Display footer with dynamic width
+	fmt.Printf("\033[1;36m└%s┘\033[0m\n", strings.Repeat("─", borderWidth))
 
 	// Prompt for selection
 	fmt.Printf("\n\033[1mSelect task (1-%d, or 0 to cancel):\033[0m ", len(flatTasks))
@@ -240,7 +257,7 @@ func displayTaskTreeNumbered(nodes []*TaskNode, taskManager backend.TaskManager,
 		}
 
 		// Format task number with color
-		numColor := "\033[36m"  // Cyan
+		numColor := "\033[36m" // Cyan
 		reset := "\033[0m"
 
 		// Display task with number and hierarchy
