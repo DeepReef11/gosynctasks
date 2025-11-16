@@ -6,7 +6,6 @@ import (
 	"gosynctasks/backend"
 	"gosynctasks/internal/operations"
 	"gosynctasks/internal/utils"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
