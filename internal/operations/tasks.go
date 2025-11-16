@@ -240,7 +240,7 @@ func displayTaskTreeNumbered(nodes []*TaskNode, taskManager backend.TaskManager,
 		}
 
 		// Format task number with color
-		numColor := "\033[36m"  // Cyan
+		numColor := "\033[36m" // Cyan
 		reset := "\033[0m"
 
 		// Display task with number and hierarchy
@@ -275,6 +275,7 @@ func displayTaskTreeNumbered(nodes []*TaskNode, taskManager backend.TaskManager,
 func BuildFilter(cmd *cobra.Command, taskManager backend.TaskManager) (*backend.TaskFilter, error) {
 	filter := &backend.TaskFilter{}
 
+	// Get status flags (errors ignored as flags are always defined by the command)
 	statuses, _ := cmd.Flags().GetStringArray("status")
 	if len(statuses) > 0 {
 		var allStatuses []string
