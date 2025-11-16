@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -184,16 +185,24 @@ func (sm *SyncManager) pull() (*pullResult, error) {
 					return nil, err
 				}
 
-				if isLocallyModified {
-					// Conflict detected
+				isRemoteModified, err := sm.isTaskRemoteModified(remoteTask)
+				if err != nil {
+					return nil, err
+				}
+
+				if isLocallyModified && isRemoteModified {
+					// Both modified - real conflict
 					result.ConflictsFound++
 					err := sm.resolveConflict(remoteList.ID, *localTask, remoteTask)
 					if err != nil {
 						return nil, fmt.Errorf("failed to resolve conflict for task %s: %w", remoteTask.UID, err)
 					}
 					result.ConflictsResolved++
+				} else if isLocallyModified {
+					// Only local modified - will be pushed in push phase, don't update local
+					// Do nothing here, let push phase handle it
 				} else {
-					// No conflict - update local with remote
+					// Remote modified or neither modified - update local with remote
 					err := sm.updateTaskLocally(remoteList.ID, remoteTask)
 					if err != nil {
 						return nil, fmt.Errorf("failed to update task %s: %w", remoteTask.UID, err)
@@ -397,6 +406,42 @@ func (sm *SyncManager) isTaskLocallyModified(taskUID string) (bool, error) {
 	}
 
 	return locallyModified == 1, nil
+}
+
+// isTaskRemoteModified checks if a remote task has been modified since last sync
+func (sm *SyncManager) isTaskRemoteModified(remoteTask Task) (bool, error) {
+	db, err := sm.local.GetDB()
+	if err != nil {
+		return false, err
+	}
+
+	var remoteModifiedAt sql.NullInt64
+	err = db.QueryRow(`
+		SELECT remote_modified_at
+		FROM sync_metadata
+		WHERE task_uid = ?
+	`, remoteTask.UID).Scan(&remoteModifiedAt)
+	if err != nil {
+		// If no sync metadata exists, treat as modified (new from our perspective)
+		return true, nil
+	}
+
+	// If we don't have a remote modified timestamp, treat as modified
+	if !remoteModifiedAt.Valid {
+		return true, nil
+	}
+
+	// Compare remote task's Modified timestamp with stored remote_modified_at
+	// Truncate to second precision since we store timestamps as Unix seconds
+	lastRemoteModified := time.Unix(remoteModifiedAt.Int64, 0)
+	currentRemoteModified := time.Unix(remoteTask.Modified.Unix(), 0)
+
+	// If remote task's Modified is newer than our stored timestamp, it's been modified
+	if !remoteTask.Modified.IsZero() && currentRemoteModified.After(lastRemoteModified) {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // resolveConflict resolves a conflict between local and remote versions
