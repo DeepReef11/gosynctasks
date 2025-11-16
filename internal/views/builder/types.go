@@ -183,10 +183,11 @@ func (b *ViewBuilder) BuildView() (*views.View, error) {
 			return nil, fmt.Errorf("invalid format %q for field %q", item.Format, item.Name)
 		}
 
+		showTrue := true
 		field := views.FieldConfig{
 			Name:   item.Name,
 			Format: item.Format,
-			Show:   true,
+			Show:   &showTrue,
 			Color:  item.Color,
 		}
 
