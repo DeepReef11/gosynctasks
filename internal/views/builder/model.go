@@ -9,7 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// builderModel is the bubbletea builderModel for the view builder
+// builderModel is the bubbletea model for the view builder.
+// It manages UI state including cursor position, text input, and error messages.
 type builderModel struct {
 	builder       *ViewBuilder
 	textInput     textinput.Model
@@ -18,7 +19,7 @@ type builderModel struct {
 	quitting      bool
 	width         int
 	height        int
-	errorMsg      string // Validation error message to display
+	errorMsg      string // Error message to display to user
 }
 
 // newModel creates a new bubbletea builderModel
@@ -127,15 +128,6 @@ func (m builderModel) View() string {
 	s.WriteString(m.renderHeader())
 	s.WriteString("\n\n")
 
-	// Error message if present
-	if m.errorMsg != "" {
-		errorStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196")).
-			Bold(true)
-		s.WriteString(errorStyle.Render("⚠ " + m.errorMsg))
-		s.WriteString("\n\n")
-	}
-
 	// Current state view
 	switch m.builder.CurrentState {
 	case StateWelcome:
@@ -155,6 +147,16 @@ func (m builderModel) View() string {
 	}
 
 	s.WriteString("\n\n")
+
+	// Show error message if any
+	if m.errorMsg != "" {
+		errorStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("196")).
+			Bold(true)
+		s.WriteString(errorStyle.Render("❌ " + m.errorMsg))
+		s.WriteString("\n\n")
+	}
+
 	s.WriteString(m.renderHelp())
 
 	return s.String()
@@ -225,9 +227,6 @@ func (m builderModel) renderHelp() string {
 // State transition handlers
 
 func (m builderModel) handleEnter() (tea.Model, tea.Cmd) {
-	// Clear any previous error message
-	m.errorMsg = ""
-
 	switch m.builder.CurrentState {
 	case StateWelcome:
 		m.builder.CurrentState = StateBasicInfo
@@ -235,22 +234,20 @@ func (m builderModel) handleEnter() (tea.Model, tea.Cmd) {
 		m.textInput.Focus()
 
 	case StateBasicInfo:
-		// Validate view name
-		if err := m.validateViewName(); err != nil {
-			m.errorMsg = err.Error()
-			return m, nil
-		}
 		m.builder.ViewDescription = m.textInput.Value()
 		m.builder.CurrentState = StateFieldSelection
 		m.cursor = 0
 
 	case StateFieldSelection:
-		// Validate field selection
-		if err := m.validateFieldSelection(); err != nil {
-			m.errorMsg = err.Error()
+		m.builder.UpdateSelectedFields()
+
+		// Validation: At least one field must be selected
+		if len(m.builder.SelectedFields) == 0 {
+			m.errorMsg = "Please select at least one field"
 			return m, nil
 		}
-		m.builder.UpdateSelectedFields()
+
+		m.errorMsg = "" // Clear any previous error
 		m.builder.UpdateFieldOrder()
 		m.builder.CurrentState = StateFieldOrdering
 		m.cursor = 0
@@ -261,11 +258,6 @@ func (m builderModel) handleEnter() (tea.Model, tea.Cmd) {
 		m.selectedIndex = 0
 
 	case StateFieldConfig:
-		// Validate field configurations
-		if err := m.validateFieldConfigs(); err != nil {
-			m.errorMsg = err.Error()
-			return m, nil
-		}
 		m.builder.CurrentState = StateDisplayOptions
 		m.cursor = 0
 
@@ -274,7 +266,7 @@ func (m builderModel) handleEnter() (tea.Model, tea.Cmd) {
 		m.cursor = 0
 
 	case StateConfirm:
-		// Build and validate complete view
+		// Build and save
 		view, err := m.builder.BuildView()
 		if err != nil {
 			m.builder.Err = err
@@ -316,11 +308,9 @@ func (m builderModel) handleSpace() (tea.Model, tea.Cmd) {
 		// Toggle color for current field
 		if m.cursor < len(m.builder.FieldOrder) {
 			fieldName := m.builder.FieldOrder[m.cursor]
-			for i := range m.builder.AvailableFields {
-				if m.builder.AvailableFields[i].Name == fieldName {
-					m.builder.AvailableFields[i].Color = !m.builder.AvailableFields[i].Color
-					break
-				}
+			item := m.builder.getFieldItem(fieldName)
+			if item != nil {
+				item.Color = !item.Color
 			}
 		}
 
@@ -389,18 +379,4 @@ func (m builderModel) getMaxCursor() int {
 	default:
 		return 0
 	}
-}
-
-// Validation methods
-
-func (m builderModel) validateViewName() error {
-	return m.builder.ValidateViewName()
-}
-
-func (m builderModel) validateFieldSelection() error {
-	return m.builder.ValidateFieldSelection()
-}
-
-func (m builderModel) validateFieldConfigs() error {
-	return m.builder.ValidateFieldConfigs()
 }

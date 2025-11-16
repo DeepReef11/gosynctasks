@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"gosynctasks/backend"
+	"gosynctasks/internal/operations"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -97,10 +98,7 @@ The color parameter is Nextcloud-specific and will be ignored by other backends.
 			}
 
 			// Clear cache
-			if err := application.RefreshTaskLists(); err != nil {
-				// Non-fatal, just warn
-				fmt.Printf("Warning: failed to refresh cache: %v\n", err)
-			}
+			application.RefreshTaskListsOrWarn()
 
 			fmt.Printf("List '%s' created successfully (ID: %s)\n", name, listID)
 			return nil
@@ -138,22 +136,16 @@ WARNING: This permanently deletes the list and all its tasks.`,
 
 			// Find the list by name
 			taskLists := application.GetTaskLists()
-			var listID string
-			var taskCount int
-			for _, list := range taskLists {
-				if list.Name == name {
-					listID = list.ID
-					// Get task count
-					tasks, err := taskManager.GetTasks(list.ID, nil)
-					if err == nil {
-						taskCount = len(tasks)
-					}
-					break
-				}
+			listID, err := operations.FindListByName(taskLists, name)
+			if err != nil {
+				return err
 			}
 
-			if listID == "" {
-				return fmt.Errorf("list '%s' not found", name)
+			// Get task count
+			var taskCount int
+			tasks, err := taskManager.GetTasks(listID, nil)
+			if err == nil {
+				taskCount = len(tasks)
 			}
 
 			// Confirm deletion unless --force
@@ -178,10 +170,7 @@ WARNING: This permanently deletes the list and all its tasks.`,
 			}
 
 			// Clear cache
-			if err := application.RefreshTaskLists(); err != nil {
-				// Non-fatal, just warn
-				fmt.Printf("Warning: failed to refresh cache: %v\n", err)
-			}
+			application.RefreshTaskListsOrWarn()
 
 			fmt.Printf("List '%s' deleted successfully.\n", name)
 			return nil
@@ -217,23 +206,15 @@ By default, prompts for confirmation.`,
 
 			// Find the old list by name
 			taskLists := application.GetTaskLists()
-			var listID string
-			for _, list := range taskLists {
-				if list.Name == oldName {
-					listID = list.ID
-					break
-				}
-			}
-
-			if listID == "" {
-				return fmt.Errorf("list '%s' not found", oldName)
+			listID, err := operations.FindListByName(taskLists, oldName)
+			if err != nil {
+				return err
 			}
 
 			// Check if new name already exists
-			for _, list := range taskLists {
-				if list.Name == newName {
-					return fmt.Errorf("list '%s' already exists", newName)
-				}
+			_, err = operations.FindListByName(taskLists, newName)
+			if err == nil {
+				return fmt.Errorf("list '%s' already exists", newName)
 			}
 
 			// Confirm rename unless --force
@@ -257,10 +238,7 @@ By default, prompts for confirmation.`,
 			}
 
 			// Clear cache
-			if err := application.RefreshTaskLists(); err != nil {
-				// Non-fatal, just warn
-				fmt.Printf("Warning: failed to refresh cache: %v\n", err)
-			}
+			application.RefreshTaskListsOrWarn()
 
 			fmt.Printf("List renamed from '%s' to '%s' successfully.\n", oldName, newName)
 			return nil
@@ -314,19 +292,12 @@ Use --json or --yaml for machine-readable output.`,
 				}
 
 				name := args[0]
-				var found bool
-				for _, list := range taskLists {
-					if list.Name == name {
-						info := buildListInfo(taskManager, list)
-						listsToShow = append(listsToShow, info)
-						found = true
-						break
-					}
+				list, err := operations.FindListByNameFull(taskLists, name)
+				if err != nil {
+					return err
 				}
-
-				if !found {
-					return fmt.Errorf("list '%s' not found", name)
-				}
+				info := buildListInfo(taskManager, *list)
+				listsToShow = append(listsToShow, info)
 			}
 
 			// Output in requested format
@@ -518,15 +489,8 @@ The list will be restored to its original state before deletion.`,
 				return fmt.Errorf("failed to get deleted lists: %w", err)
 			}
 
-			var listID string
-			for _, list := range deletedLists {
-				if list.Name == name {
-					listID = list.ID
-					break
-				}
-			}
-
-			if listID == "" {
+			listID, err := operations.FindListByName(deletedLists, name)
+			if err != nil {
 				return fmt.Errorf("list '%s' not found in trash", name)
 			}
 
@@ -536,10 +500,7 @@ The list will be restored to its original state before deletion.`,
 			}
 
 			// Clear cache
-			if err := application.RefreshTaskLists(); err != nil {
-				// Non-fatal, just warn
-				fmt.Printf("Warning: failed to refresh cache: %v\n", err)
-			}
+			application.RefreshTaskListsOrWarn()
 
 			fmt.Printf("List '%s' restored successfully.\n", name)
 			return nil
@@ -596,18 +557,11 @@ WARNING: This permanently and irreversibly deletes the list and all its tasks.`,
 				}
 
 				name := args[0]
-				var found bool
-				for _, list := range deletedLists {
-					if list.Name == name {
-						listsToDelete = append(listsToDelete, list)
-						found = true
-						break
-					}
-				}
-
-				if !found {
+				list, err := operations.FindListByNameFull(deletedLists, name)
+				if err != nil {
 					return fmt.Errorf("list '%s' not found in trash", name)
 				}
+				listsToDelete = append(listsToDelete, *list)
 			}
 
 			// Confirm deletion unless --force
@@ -643,10 +597,7 @@ WARNING: This permanently and irreversibly deletes the list and all its tasks.`,
 			}
 
 			// Clear cache
-			if err := application.RefreshTaskLists(); err != nil {
-				// Non-fatal, just warn
-				fmt.Printf("Warning: failed to refresh cache: %v\n", err)
-			}
+			application.RefreshTaskListsOrWarn()
 
 			if emptyAll {
 				fmt.Printf("Successfully permanently deleted %d lists from trash.\n", deletedCount)
