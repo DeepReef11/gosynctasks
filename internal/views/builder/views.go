@@ -197,6 +197,65 @@ func (m builderModel) renderDisplayOptions() string {
 	return s.String()
 }
 
+// renderFilterConfig renders the filter configuration screen
+func (m builderModel) renderFilterConfig() string {
+	var s strings.Builder
+
+	s.WriteString("Filter Configuration\n\n")
+	s.WriteString("Select which task statuses to display in your view:\n")
+	s.WriteString(dimStyle.Render("(Unselected statuses will be filtered out)\n\n"))
+
+	// Define available statuses with descriptions
+	statuses := []struct {
+		name        string
+		description string
+	}{
+		{"NEEDS-ACTION", "Tasks that need to be done (TODO)"},
+		{"IN-PROCESS", "Tasks currently being worked on"},
+		{"COMPLETED", "Finished tasks (DONE)"},
+		{"CANCELLED", "Cancelled tasks"},
+	}
+
+	for i, status := range statuses {
+		cursor := " "
+		if i == m.cursor {
+			cursor = ">"
+		}
+
+		// Check if this status is in the filter
+		checked := false
+		for _, filterStatus := range m.builder.FilterStatus {
+			if filterStatus == status.name {
+				checked = true
+				break
+			}
+		}
+
+		checkbox := "[ ]"
+		if checked {
+			checkbox = checkboxStyle.Render("[✓]")
+		}
+
+		line := fmt.Sprintf("%s %s %s", cursor, checkbox, status.name)
+		if i == m.cursor {
+			line = selectedStyle.Render(line)
+		}
+
+		s.WriteString(line)
+		s.WriteString(dimStyle.Render(" - " + status.description))
+		s.WriteString("\n")
+	}
+
+	selectedCount := len(m.builder.FilterStatus)
+	s.WriteString(fmt.Sprintf("\n%s\n", dimStyle.Render(fmt.Sprintf("%d statuses selected", selectedCount))))
+
+	if selectedCount == 0 {
+		s.WriteString(dimStyle.Render("Note: If no statuses are selected, all tasks will be displayed.\n"))
+	}
+
+	return s.String()
+}
+
 // renderConfirm renders the confirmation screen
 func (m builderModel) renderConfirm() string {
 	var s strings.Builder

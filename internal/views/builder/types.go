@@ -7,7 +7,8 @@
 //  4. Field ordering (arrange field display order)
 //  5. Field configuration (customize formats, colors, widths)
 //  6. Display options (headers, borders, sorting)
-//  7. Confirmation (review and save)
+//  7. Filter configuration (status filters)
+//  8. Confirmation (review and save)
 //
 // Usage:
 //
@@ -55,6 +56,10 @@ const (
 	// show header, show border, compact mode, date format, and sorting.
 	StateDisplayOptions
 
+	// StateFilterConfig allows configuration of default filters:
+	// status filtering (which statuses to display).
+	StateFilterConfig
+
 	// StateConfirm shows a preview and asks for final confirmation (Y/N).
 	StateConfirm
 
@@ -82,6 +87,8 @@ func (s BuilderState) String() string {
 		return "Field Configuration"
 	case StateDisplayOptions:
 		return "Display Options"
+	case StateFilterConfig:
+		return "Filter Configuration"
 	case StateConfirm:
 		return "Confirm"
 	case StateDone:

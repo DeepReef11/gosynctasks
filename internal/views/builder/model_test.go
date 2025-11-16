@@ -53,11 +53,18 @@ func TestModelStateTransitions(t *testing.T) {
 		t.Error("Enter at FieldConfig should go to DisplayOptions")
 	}
 
-	// DisplayOptions → Confirm
+	// DisplayOptions → FilterConfig
+	updated, _ = m.handleEnter()
+	m = updated.(builderModel)
+	if m.builder.CurrentState != StateFilterConfig {
+		t.Error("Enter at DisplayOptions should go to FilterConfig")
+	}
+
+	// FilterConfig → Confirm
 	updated, _ = m.handleEnter()
 	m = updated.(builderModel)
 	if m.builder.CurrentState != StateConfirm {
-		t.Error("Enter at DisplayOptions should go to Confirm")
+		t.Error("Enter at FilterConfig should go to Confirm")
 	}
 }
 
@@ -333,6 +340,7 @@ func TestModelCancelAnytime(t *testing.T) {
 		StateFieldOrdering,
 		StateFieldConfig,
 		StateDisplayOptions,
+		StateFilterConfig,
 	}
 
 	for _, state := range states {
@@ -391,6 +399,13 @@ func TestModelGetMaxCursor(t *testing.T) {
 			},
 			expectedMax: 2,
 		},
+		{
+			state: StateFilterConfig,
+			setupFunc: func() {
+				// Fixed 4 status options
+			},
+			expectedMax: 3,
+		},
 	}
 
 	for _, tt := range tests {
@@ -420,5 +435,98 @@ func TestModelWindowSize(t *testing.T) {
 	}
 	if m.height != 40 {
 		t.Errorf("Expected height 40, got %d", m.height)
+	}
+}
+
+func TestModelStatusFilterToggle(t *testing.T) {
+	builder := NewViewBuilder("test")
+	m := newModel(builder)
+	m.builder.CurrentState = StateFilterConfig
+
+	// Initial state should have NEEDS-ACTION and IN-PROCESS selected
+	if len(m.builder.FilterStatus) != 2 {
+		t.Errorf("Expected 2 initial statuses, got %d", len(m.builder.FilterStatus))
+	}
+
+	// Toggle COMPLETED (cursor 2)
+	m.cursor = 2
+	updated, _ := m.handleSpace()
+	m = updated.(builderModel)
+
+	// Should now have 3 statuses
+	if len(m.builder.FilterStatus) != 3 {
+		t.Errorf("Expected 3 statuses after adding COMPLETED, got %d", len(m.builder.FilterStatus))
+	}
+
+	// Check if COMPLETED is in the filter
+	found := false
+	for _, status := range m.builder.FilterStatus {
+		if status == "COMPLETED" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("COMPLETED should be in filter after toggle")
+	}
+
+	// Toggle COMPLETED again to remove it
+	updated, _ = m.handleSpace()
+	m = updated.(builderModel)
+
+	// Should be back to 2 statuses
+	if len(m.builder.FilterStatus) != 2 {
+		t.Errorf("Expected 2 statuses after removing COMPLETED, got %d", len(m.builder.FilterStatus))
+	}
+
+	// Check if COMPLETED is no longer in the filter
+	found = false
+	for _, status := range m.builder.FilterStatus {
+		if status == "COMPLETED" {
+			found = true
+			break
+		}
+	}
+	if found {
+		t.Error("COMPLETED should not be in filter after second toggle")
+	}
+}
+
+func TestModelStatusFilterRemoveDefault(t *testing.T) {
+	builder := NewViewBuilder("test")
+	m := newModel(builder)
+	m.builder.CurrentState = StateFilterConfig
+
+	// Remove NEEDS-ACTION (cursor 0)
+	m.cursor = 0
+	updated, _ := m.handleSpace()
+	m = updated.(builderModel)
+
+	// Should now have 1 status (IN-PROCESS)
+	if len(m.builder.FilterStatus) != 1 {
+		t.Errorf("Expected 1 status after removing NEEDS-ACTION, got %d", len(m.builder.FilterStatus))
+	}
+
+	// Check if NEEDS-ACTION is not in the filter
+	found := false
+	for _, status := range m.builder.FilterStatus {
+		if status == "NEEDS-ACTION" {
+			found = true
+			break
+		}
+	}
+	if found {
+		t.Error("NEEDS-ACTION should not be in filter after toggle")
+	}
+}
+
+func TestModelFilterConfigMaxCursor(t *testing.T) {
+	builder := NewViewBuilder("test")
+	m := newModel(builder)
+	m.builder.CurrentState = StateFilterConfig
+
+	maxCursor := m.getMaxCursor()
+	if maxCursor != 3 {
+		t.Errorf("Expected max cursor 3 for FilterConfig (4 statuses), got %d", maxCursor)
 	}
 }

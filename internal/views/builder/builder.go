@@ -19,7 +19,8 @@ import (
 //  3. Field ordering (arrange display order)
 //  4. Field configuration (formats, colors, widths)
 //  5. Display options (headers, borders, sorting)
-//  6. Confirmation (review and accept/cancel)
+//  6. Filter configuration (status filters)
+//  7. Confirmation (review and accept/cancel)
 //
 // User interaction:
 //   - Arrow keys (↑/↓) navigate options
