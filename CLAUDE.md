@@ -698,7 +698,7 @@ Full `TaskManager` implementation with sync support:
 - `MarkLocallyDeleted(taskUID)`: Marks task for deletion sync
 - `GetLocallyModifiedTasks()`: Retrieves tasks needing sync
 - `GetPendingSyncOperations()`: Returns queued operations
-- `ClearSyncFlags(taskUID)`: Clears modification flags
+- `ClearSyncFlags(taskUID)`: Clears modification flags and removes all pending sync operations for the task
 - `UpdateSyncMetadata()`: Updates remote state tracking
 - `RemoveSyncOperation()`: Removes operation from queue
 
