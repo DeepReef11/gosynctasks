@@ -285,16 +285,10 @@ func (sm *SyncManager) push() (*pushResult, error) {
 			}
 			time.Sleep(time.Duration(backoffSeconds) * time.Second)
 		} else {
-			// Success - remove from queue
-			err := sm.local.RemoveSyncOperation(op.TaskUID, op.Operation)
+			// Success - remove from queue and clear flags
+			err := sm.local.ClearSyncFlagsAndQueue(op.TaskUID)
 			if err != nil {
-				return nil, fmt.Errorf("failed to remove sync operation: %w", err)
-			}
-
-			// Clear local modification flag
-			err = sm.local.ClearSyncFlags(op.TaskUID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to clear sync flags: %w", err)
+				return nil, fmt.Errorf("failed to clear sync flags and queue: %w", err)
 			}
 
 			result.PushedTasks++

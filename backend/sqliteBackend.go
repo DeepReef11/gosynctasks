@@ -835,17 +835,40 @@ func (sb *SQLiteBackend) GetPendingSyncOperations() ([]SyncOperation, error) {
 	return operations, rows.Err()
 }
 
-// ClearSyncFlags clears locally_modified flag for a task and removes all pending sync operations
+// ClearSyncFlags clears locally_modified and locally_deleted flags for a task
+// Note: This does NOT remove pending sync operations from the queue.
+// Use ClearSyncFlagsAndQueue() if you need to remove queue entries as well.
 func (sb *SQLiteBackend) ClearSyncFlags(taskUID string) error {
 	db, err := sb.GetDB()
 	if err != nil {
 		return &SQLiteError{Op: "ClearSyncFlags", TaskUID: taskUID, Err: err}
 	}
 
+	_, err = db.Exec(`
+		UPDATE sync_metadata
+		SET locally_modified = 0, locally_deleted = 0
+		WHERE task_uid = ?
+	`, taskUID)
+	if err != nil {
+		return &SQLiteError{Op: "ClearSyncFlags", TaskUID: taskUID, Err: err}
+	}
+
+	return nil
+}
+
+// ClearSyncFlagsAndQueue clears locally_modified and locally_deleted flags for a task
+// and removes all pending sync operations from the queue.
+// This should be called after successfully pushing all operations for a task.
+func (sb *SQLiteBackend) ClearSyncFlagsAndQueue(taskUID string) error {
+	db, err := sb.GetDB()
+	if err != nil {
+		return &SQLiteError{Op: "ClearSyncFlagsAndQueue", TaskUID: taskUID, Err: err}
+	}
+
 	// Start transaction to ensure both operations succeed or fail together
 	tx, err := db.Begin()
 	if err != nil {
-		return &SQLiteError{Op: "ClearSyncFlags", TaskUID: taskUID, Err: err}
+		return &SQLiteError{Op: "ClearSyncFlagsAndQueue", TaskUID: taskUID, Err: err}
 	}
 	defer tx.Rollback()
 
@@ -856,7 +879,7 @@ func (sb *SQLiteBackend) ClearSyncFlags(taskUID string) error {
 		WHERE task_uid = ?
 	`, taskUID)
 	if err != nil {
-		return &SQLiteError{Op: "ClearSyncFlags", TaskUID: taskUID, Err: err}
+		return &SQLiteError{Op: "ClearSyncFlagsAndQueue", TaskUID: taskUID, Err: err}
 	}
 
 	// Remove all pending sync operations for this task
@@ -865,7 +888,7 @@ func (sb *SQLiteBackend) ClearSyncFlags(taskUID string) error {
 		WHERE task_uid = ?
 	`, taskUID)
 	if err != nil {
-		return &SQLiteError{Op: "ClearSyncFlags", TaskUID: taskUID, Err: err}
+		return &SQLiteError{Op: "ClearSyncFlagsAndQueue", TaskUID: taskUID, Err: err}
 	}
 
 	return tx.Commit()
