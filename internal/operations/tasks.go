@@ -5,6 +5,7 @@ import (
 	"gosynctasks/backend"
 	"gosynctasks/internal/cli"
 	"gosynctasks/internal/config"
+	"gosynctasks/internal/utils"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -94,8 +95,8 @@ func selectTask(tasks []backend.Task, searchSummary string, taskManager backend.
 	}
 
 	fmt.Printf("\nSelect task (1-%d) or 0 to skip: ", len(tasks))
-	var choice int
-	if _, err := fmt.Scanf("%d", &choice); err != nil {
+	choice, err := utils.ReadInt()
+	if err != nil {
 		return nil, fmt.Errorf("invalid input: %w", err)
 	}
 
@@ -121,8 +122,8 @@ func selectTaskSimple(tasks []backend.Task, searchSummary string, taskManager ba
 	}
 
 	fmt.Printf("\nSelect task (1-%d) or 0 to skip: ", len(tasks))
-	var choice int
-	if _, err := fmt.Scanf("%d", &choice); err != nil {
+	choice, err := utils.ReadInt()
+	if err != nil {
 		return nil, fmt.Errorf("invalid input: %w", err)
 	}
 
@@ -162,12 +163,12 @@ func confirmTask(task *backend.Task, taskManager backend.TaskManager, cfg *confi
 	fmt.Print(task.FormatWithView("all", taskManager, dateFormat))
 	fmt.Print("\nProceed with this task? (y/n): ")
 
-	var response string
-	if _, err := fmt.Scanf("%s", &response); err != nil {
+	response, err := utils.ReadString()
+	if err != nil {
 		return false, fmt.Errorf("invalid input: %w", err)
 	}
 
-	response = strings.ToLower(strings.TrimSpace(response))
+	response = strings.ToLower(response)
 	return response == "y" || response == "yes", nil
 }
 
@@ -216,8 +217,8 @@ func SelectTaskInteractively(taskManager backend.TaskManager, cfg *config.Config
 
 	// Prompt for selection
 	fmt.Printf("\n\033[1mSelect task (1-%d, or 0 to cancel):\033[0m ", len(flatTasks))
-	var choice int
-	if _, err := fmt.Scanf("%d", &choice); err != nil {
+	choice, err := utils.ReadInt()
+	if err != nil {
 		return nil, fmt.Errorf("invalid input")
 	}
 
