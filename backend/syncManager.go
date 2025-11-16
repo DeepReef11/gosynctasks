@@ -417,8 +417,9 @@ func (sm *SyncManager) resolveServerWins(listID string, localTask, remoteTask Ta
 		return err
 	}
 
-	// Clear locally modified flag
-	return sm.local.ClearSyncFlags(remoteTask.UID)
+	// Clear locally modified flag AND remove pending operations
+	// Server wins means we discard local changes and don't push them
+	return sm.local.ClearSyncFlagsAndQueue(remoteTask.UID)
 }
 
 // resolveLocalWins keeps local changes for push to server
@@ -493,8 +494,9 @@ func (sm *SyncManager) resolveKeepBoth(listID string, localTask, remoteTask Task
 		return err
 	}
 
-	// Clear original task's sync flags
-	return sm.local.ClearSyncFlags(remoteTask.UID)
+	// Clear original task's sync flags AND remove pending operations
+	// We're accepting the remote version for the original, local copy is separate
+	return sm.local.ClearSyncFlagsAndQueue(remoteTask.UID)
 }
 
 // insertTaskLocally inserts a remote task into local storage
