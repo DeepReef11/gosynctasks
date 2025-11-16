@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gosynctasks/backend"
 	"gosynctasks/internal/config"
+	"gosynctasks/internal/utils"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -159,15 +160,8 @@ func confirmTask(task *backend.Task, taskManager backend.TaskManager, cfg *confi
 	dateFormat := cfg.GetDateFormat()
 	fmt.Println("\nTask found:")
 	fmt.Print(task.FormatWithView("all", taskManager, dateFormat))
-	fmt.Print("\nProceed with this task? (y/n): ")
-
-	var response string
-	if _, err := fmt.Scanf("%s", &response); err != nil {
-		return false, fmt.Errorf("invalid input: %w", err)
-	}
-
-	response = strings.ToLower(strings.TrimSpace(response))
-	return response == "y" || response == "yes", nil
+	fmt.Println()
+	return utils.PromptConfirmation("Proceed with this task?")
 }
 
 // SelectTaskInteractively displays all tasks from a list and prompts user to select one
@@ -240,7 +234,7 @@ func displayTaskTreeNumbered(nodes []*TaskNode, taskManager backend.TaskManager,
 		}
 
 		// Format task number with color
-		numColor := "\033[36m"  // Cyan
+		numColor := "\033[36m" // Cyan
 		reset := "\033[0m"
 
 		// Display task with number and hierarchy

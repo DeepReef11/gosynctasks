@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"gosynctasks/backend"
+	"gosynctasks/internal/utils"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -159,14 +160,11 @@ WARNING: This permanently deletes the list and all its tasks.`,
 			// Confirm deletion unless --force
 			if !force {
 				fmt.Printf("This will delete the list '%s' and all %d tasks in it.\n", name, taskCount)
-				fmt.Print("Are you sure? (y/n): ")
-				var response string
-				if _, err := fmt.Scanf("%s", &response); err != nil {
-					return fmt.Errorf("invalid input: %w", err)
+				confirmed, err := utils.PromptConfirmation("Are you sure?")
+				if err != nil {
+					return err
 				}
-
-				response = strings.ToLower(strings.TrimSpace(response))
-				if response != "y" && response != "yes" {
+				if !confirmed {
 					fmt.Println("Deletion cancelled.")
 					return nil
 				}
@@ -238,14 +236,11 @@ By default, prompts for confirmation.`,
 
 			// Confirm rename unless --force
 			if !force {
-				fmt.Printf("Rename list '%s' to '%s'? (y/n): ", oldName, newName)
-				var response string
-				if _, err := fmt.Scanf("%s", &response); err != nil {
-					return fmt.Errorf("invalid input: %w", err)
+				confirmed, err := utils.PromptConfirmation(fmt.Sprintf("Rename list '%s' to '%s'?", oldName, newName))
+				if err != nil {
+					return err
 				}
-
-				response = strings.ToLower(strings.TrimSpace(response))
-				if response != "y" && response != "yes" {
+				if !confirmed {
 					fmt.Println("Rename cancelled.")
 					return nil
 				}
@@ -619,14 +614,11 @@ WARNING: This permanently and irreversibly deletes the list and all its tasks.`,
 					fmt.Printf("This will PERMANENTLY delete the list '%s' from trash.\n", listsToDelete[0].Name)
 					fmt.Println("This operation is IRREVERSIBLE and will delete all tasks in this list.")
 				}
-				fmt.Print("Are you sure? (y/n): ")
-				var response string
-				if _, err := fmt.Scanf("%s", &response); err != nil {
-					return fmt.Errorf("invalid input: %w", err)
+				confirmed, err := utils.PromptConfirmation("Are you sure?")
+				if err != nil {
+					return err
 				}
-
-				response = strings.ToLower(strings.TrimSpace(response))
-				if response != "y" && response != "yes" {
+				if !confirmed {
 					fmt.Println("Operation cancelled.")
 					return nil
 				}
