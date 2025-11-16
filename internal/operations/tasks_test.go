@@ -2,6 +2,7 @@ package operations
 
 import (
 	"errors"
+	"fmt"
 	"gosynctasks/backend"
 	"gosynctasks/internal/config"
 	"strings"
