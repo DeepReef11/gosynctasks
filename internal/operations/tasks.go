@@ -3,6 +3,7 @@ package operations
 import (
 	"fmt"
 	"gosynctasks/backend"
+	"gosynctasks/internal/cli"
 	"gosynctasks/internal/config"
 	"gosynctasks/internal/utils"
 	"strings"
@@ -94,8 +95,8 @@ func selectTask(tasks []backend.Task, searchSummary string, taskManager backend.
 	}
 
 	fmt.Printf("\nSelect task (1-%d) or 0 to skip: ", len(tasks))
-	var choice int
-	if _, err := fmt.Scanf("%d", &choice); err != nil {
+	choice, err := utils.ReadInt()
+	if err != nil {
 		return nil, fmt.Errorf("invalid input: %w", err)
 	}
 
@@ -121,8 +122,8 @@ func selectTaskSimple(tasks []backend.Task, searchSummary string, taskManager ba
 	}
 
 	fmt.Printf("\nSelect task (1-%d) or 0 to skip: ", len(tasks))
-	var choice int
-	if _, err := fmt.Scanf("%d", &choice); err != nil {
+	choice, err := utils.ReadInt()
+	if err != nil {
 		return nil, fmt.Errorf("invalid input: %w", err)
 	}
 
@@ -182,19 +183,39 @@ func SelectTaskInteractively(taskManager backend.TaskManager, cfg *config.Config
 	// Build task tree for hierarchical display
 	tree := BuildTaskTree(allTasks)
 
-	// Display tasks with numbering
-	fmt.Println("\n\033[1;36m┌─ Available Tasks ────────────────────────────────────────┐\033[0m")
-
-	// Flatten tree for numbered selection
+	// Build flat list for selection
 	var flatTasks []*backend.Task
-	displayTaskTreeNumbered(tree, taskManager, cfg.GetDateFormat(), &flatTasks, "", true)
+	buildFlatTaskList(tree, &flatTasks)
 
-	fmt.Println("\033[1;36m└──────────────────────────────────────────────────────────┘\033[0m")
+	// Get terminal width and calculate border width
+	termWidth := cli.GetTerminalWidth()
+	borderWidth := termWidth - 2
+	if borderWidth < 40 {
+		borderWidth = 40 // Minimum width
+	}
+	if borderWidth > 100 {
+		borderWidth = 100 // Maximum width for readability
+	}
+
+	// Display tasks with numbering - dynamic header
+	headerText := "─ Available Tasks "
+	headerPadding := borderWidth - len(headerText)
+	if headerPadding < 0 {
+		headerPadding = 0
+	}
+	fmt.Printf("\n\033[1;36m┌%s%s┐\033[0m\n", headerText, strings.Repeat("─", headerPadding))
+
+	// Format and print the tree
+	output, _ := formatTaskTreeNumbered(tree, taskManager, cfg.GetDateFormat(), 1, "", true)
+	fmt.Print(output)
+
+	// Display footer with dynamic width
+	fmt.Printf("\033[1;36m└%s┘\033[0m\n", strings.Repeat("─", borderWidth))
 
 	// Prompt for selection
 	fmt.Printf("\n\033[1mSelect task (1-%d, or 0 to cancel):\033[0m ", len(flatTasks))
-	var choice int
-	if _, err := fmt.Scanf("%d", &choice); err != nil {
+	choice, err := utils.ReadInt()
+	if err != nil {
 		return nil, fmt.Errorf("invalid input")
 	}
 
@@ -209,14 +230,25 @@ func SelectTaskInteractively(taskManager backend.TaskManager, cfg *config.Config
 	return flatTasks[choice-1], nil
 }
 
-// displayTaskTreeNumbered recursively displays tasks with numbering and hierarchy
-func displayTaskTreeNumbered(nodes []*TaskNode, taskManager backend.TaskManager, dateFormat string, flatTasks *[]*backend.Task, prefix string, isRoot bool) {
+// buildFlatTaskList recursively builds a flat list of tasks from the tree
+// This is useful for numbered selection where we need sequential access
+func buildFlatTaskList(nodes []*TaskNode, flatTasks *[]*backend.Task) {
+	for _, node := range nodes {
+		*flatTasks = append(*flatTasks, node.Task)
+		if len(node.Children) > 0 {
+			buildFlatTaskList(node.Children, flatTasks)
+		}
+	}
+}
+
+// formatTaskTreeNumbered recursively formats tasks with numbering and hierarchy
+// Returns a string representation instead of printing directly (for testability)
+func formatTaskTreeNumbered(nodes []*TaskNode, taskManager backend.TaskManager, dateFormat string, startNum int, prefix string, isRoot bool) (string, int) {
+	var result strings.Builder
+	currentNum := startNum
+
 	for i, node := range nodes {
 		isLast := i == len(nodes)-1
-
-		// Add task to flat list and get its number
-		*flatTasks = append(*flatTasks, node.Task)
-		taskNum := len(*flatTasks)
 
 		// Determine the tree characters
 		var nodePrefix, childPrefix string
@@ -243,7 +275,8 @@ func displayTaskTreeNumbered(nodes []*TaskNode, taskManager backend.TaskManager,
 
 		// First line with number and tree prefix
 		if len(lines) > 0 && lines[0] != "" {
-			fmt.Printf("  %s%2d.%s %s%s\n", numColor, taskNum, reset, nodePrefix, lines[0])
+			result.WriteString(fmt.Sprintf("  %s%2d.%s %s%s\n", numColor, currentNum, reset, nodePrefix, lines[0]))
+			currentNum++
 
 			// Additional lines maintain indentation
 			for j := 1; j < len(lines); j++ {
@@ -252,16 +285,31 @@ func displayTaskTreeNumbered(nodes []*TaskNode, taskManager backend.TaskManager,
 					if !isRoot {
 						indent += childPrefix
 					}
-					fmt.Printf("%s%s\n", indent, lines[j])
+					result.WriteString(fmt.Sprintf("%s%s\n", indent, lines[j]))
 				}
 			}
 		}
 
-		// Recursively display children
+		// Recursively format children
 		if len(node.Children) > 0 {
-			displayTaskTreeNumbered(node.Children, taskManager, dateFormat, flatTasks, childPrefix, false)
+			childOutput, newNum := formatTaskTreeNumbered(node.Children, taskManager, dateFormat, currentNum, childPrefix, false)
+			result.WriteString(childOutput)
+			currentNum = newNum
 		}
 	}
+
+	return result.String(), currentNum
+}
+
+// displayTaskTreeNumbered recursively displays tasks with numbering and hierarchy
+// This is the original function maintained for backward compatibility
+func displayTaskTreeNumbered(nodes []*TaskNode, taskManager backend.TaskManager, dateFormat string, flatTasks *[]*backend.Task, prefix string, isRoot bool) {
+	// Build flat list
+	buildFlatTaskList(nodes, flatTasks)
+
+	// Format and print the tree
+	output, _ := formatTaskTreeNumbered(nodes, taskManager, dateFormat, 1, prefix, isRoot)
+	fmt.Print(output)
 }
 
 // BuildFilter constructs a TaskFilter from cobra command flags
@@ -269,6 +317,7 @@ func displayTaskTreeNumbered(nodes []*TaskNode, taskManager backend.TaskManager,
 func BuildFilter(cmd *cobra.Command, taskManager backend.TaskManager) (*backend.TaskFilter, error) {
 	filter := &backend.TaskFilter{}
 
+	// Get status flags (errors ignored as flags are always defined by the command)
 	statuses, _ := cmd.Flags().GetStringArray("status")
 	if len(statuses) > 0 {
 		var allStatuses []string
