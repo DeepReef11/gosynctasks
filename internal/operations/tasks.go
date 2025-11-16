@@ -293,6 +293,7 @@ func displayTaskTreeNumbered(nodes []*TaskNode, taskManager backend.TaskManager,
 func BuildFilter(cmd *cobra.Command, taskManager backend.TaskManager) (*backend.TaskFilter, error) {
 	filter := &backend.TaskFilter{}
 
+	// Get status flags (errors ignored as flags are always defined by the command)
 	statuses, _ := cmd.Flags().GetStringArray("status")
 	if len(statuses) > 0 {
 		var allStatuses []string

@@ -101,6 +101,7 @@ func HandleGetAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *c
 	// Sort using backend-specific sorting
 	taskManager.SortTasks(tasks)
 
+	// Get optional flags (errors ignored as flags are always defined by the command)
 	viewName, _ := cmd.Flags().GetString("view")
 	dateFormat := cfg.GetDateFormat()
 	termWidth := cli.GetTerminalWidth()
@@ -147,7 +148,7 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 		return fmt.Errorf("task summary cannot be empty")
 	}
 
-	// Get optional flags
+	// Get optional flags (errors ignored as flags are always defined by the command)
 	description, _ := cmd.Flags().GetString("description")
 	priority, _ := cmd.Flags().GetInt("priority")
 	statusFlag, _ := cmd.Flags().GetString("add-status")
@@ -250,7 +251,7 @@ func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 		}
 	}
 
-	// Get update flags
+	// Get update flags (errors ignored as flags are always defined by the command)
 	statusFlags, _ := cmd.Flags().GetStringArray("status")
 	description, _ := cmd.Flags().GetString("description")
 	priority, _ := cmd.Flags().GetInt("priority")
@@ -333,7 +334,8 @@ func HandleCompleteAction(cmd *cobra.Command, taskManager backend.TaskManager, c
 		}
 	}
 
-	// Get status flag (if provided), otherwise default to DONE
+	// Get status flag (errors ignored as flags are always defined by the command)
+	// If provided, use it; otherwise default to DONE
 	statusFlags, _ := cmd.Flags().GetStringArray("status")
 	var newStatus string
 
