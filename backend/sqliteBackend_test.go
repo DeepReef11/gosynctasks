@@ -614,8 +614,8 @@ func TestMarkLocallyModified(t *testing.T) {
 	task := Task{UID: "task-1", Summary: "Test", Status: "NEEDS-ACTION"}
 	backend.AddTask(listID, task)
 
-	// Clear the flag (AddTask sets it to 1)
-	backend.ClearSyncFlags("task-1")
+	// Clear the flag and queue entry (AddTask sets it to 1 and adds to queue)
+	backend.ClearSyncFlagsAndQueue("task-1")
 
 	// Mark as modified
 	err := backend.MarkLocallyModified("task-1")

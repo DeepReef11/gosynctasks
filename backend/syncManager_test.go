@@ -122,7 +122,7 @@ func TestPullUpdatedTasks(t *testing.T) {
 		Modified: now,
 	}
 	local.AddTask(listID, task)
-	local.ClearSyncFlags("task-1") // Clear modification flag
+	local.ClearSyncFlagsAndQueue("task-1") // Clear modification flag and queue entry
 
 	// Update task on remote
 	updated := now.Add(time.Hour)
@@ -387,7 +387,7 @@ func TestPushCreateOperation(t *testing.T) {
 
 // TestPushUpdateOperation tests pushing an update operation
 func TestPushUpdateOperation(t *testing.T) {
-	sm, local, remote, cleanup := createTestSyncManager(t, ServerWins)
+	sm, local, remote, cleanup := createTestSyncManager(t, LocalWins)
 	defer cleanup()
 
 	// Create list on both
@@ -410,7 +410,7 @@ func TestPushUpdateOperation(t *testing.T) {
 		Modified: now,
 	}
 	local.AddTask(listID, task)
-	local.ClearSyncFlags("task-1") // Clear create flag
+	local.ClearSyncFlagsAndQueue("task-1") // Clear create flag and queue entry
 
 	remote.AddTask(listID, task)
 
@@ -459,7 +459,7 @@ func TestPushDeleteOperation(t *testing.T) {
 		Modified: now,
 	}
 	local.AddTask(listID, task)
-	local.ClearSyncFlags("task-1")
+	local.ClearSyncFlagsAndQueue("task-1") // Clear create flag and queue entry
 
 	remote.AddTask(listID, task)
 

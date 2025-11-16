@@ -294,16 +294,10 @@ func (sm *SyncManager) push() (*pushResult, error) {
 			}
 			time.Sleep(time.Duration(backoffSeconds) * time.Second)
 		} else {
-			// Success - remove from queue
-			err := sm.local.RemoveSyncOperation(op.TaskUID, op.Operation)
+			// Success - remove from queue and clear flags
+			err := sm.local.ClearSyncFlagsAndQueue(op.TaskUID)
 			if err != nil {
-				return nil, fmt.Errorf("failed to remove sync operation: %w", err)
-			}
-
-			// Clear local modification flag
-			err = sm.local.ClearSyncFlags(op.TaskUID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to clear sync flags: %w", err)
+				return nil, fmt.Errorf("failed to clear sync flags and queue: %w", err)
 			}
 
 			result.PushedTasks++
@@ -468,8 +462,9 @@ func (sm *SyncManager) resolveServerWins(listID string, localTask, remoteTask Ta
 		return err
 	}
 
-	// Clear locally modified flag
-	return sm.local.ClearSyncFlags(remoteTask.UID)
+	// Clear locally modified flag AND remove pending operations
+	// Server wins means we discard local changes and don't push them
+	return sm.local.ClearSyncFlagsAndQueue(remoteTask.UID)
 }
 
 // resolveLocalWins keeps local changes for push to server
@@ -544,8 +539,9 @@ func (sm *SyncManager) resolveKeepBoth(listID string, localTask, remoteTask Task
 		return err
 	}
 
-	// Clear original task's sync flags
-	return sm.local.ClearSyncFlags(remoteTask.UID)
+	// Clear original task's sync flags AND remove pending operations
+	// We're accepting the remote version for the original, local copy is separate
+	return sm.local.ClearSyncFlagsAndQueue(remoteTask.UID)
 }
 
 // insertTaskLocally inserts a remote task into local storage
