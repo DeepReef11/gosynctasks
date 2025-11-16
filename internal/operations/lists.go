@@ -7,14 +7,26 @@ import (
 	"strings"
 )
 
-// FindListByName performs case-insensitive search for a task list by name
-func FindListByName(taskLists []backend.TaskList, name string) *backend.TaskList {
+// FindListByName searches for a task list by name and returns its ID.
+// Performs case-insensitive search. Returns an error if the list is not found.
+func FindListByName(taskLists []backend.TaskList, name string) (string, error) {
 	for _, list := range taskLists {
 		if strings.EqualFold(list.Name, name) {
-			return &list
+			return list.ID, nil
 		}
 	}
-	return nil
+	return "", fmt.Errorf("list '%s' not found", name)
+}
+
+// FindListByNameFull searches for a task list by name and returns the complete TaskList struct.
+// Performs case-insensitive search. Returns an error if the list is not found.
+func FindListByNameFull(taskLists []backend.TaskList, name string) (*backend.TaskList, error) {
+	for _, list := range taskLists {
+		if strings.EqualFold(list.Name, name) {
+			return &list, nil
+		}
+	}
+	return nil, fmt.Errorf("list '%s' not found", name)
 }
 
 // SelectListInteractively displays task lists and prompts user to select one
@@ -41,8 +53,8 @@ func SelectListInteractively(taskLists []backend.TaskList, taskManager backend.T
 // GetSelectedList returns a list by name or prompts for interactive selection
 func GetSelectedList(taskLists []backend.TaskList, taskManager backend.TaskManager, listName string) (*backend.TaskList, error) {
 	if listName != "" {
-		selectedList := FindListByName(taskLists, listName)
-		if selectedList == nil {
+		selectedList, err := FindListByNameFull(taskLists, listName)
+		if err != nil {
 			// If no task lists were loaded at all, suggest checking connection
 			if len(taskLists) == 0 {
 				return nil, fmt.Errorf("list '%s' not found - no task lists could be loaded. This usually means a connection or authentication failure. Please check your connection URL, username, and password in the config file", listName)
