@@ -142,6 +142,8 @@ func (m builderModel) View() string {
 		s.WriteString(m.renderFieldConfig())
 	case StateDisplayOptions:
 		s.WriteString(m.renderDisplayOptions())
+	case StateFilterConfig:
+		s.WriteString(m.renderFilterConfig())
 	case StateConfirm:
 		s.WriteString(m.renderConfirm())
 	}
@@ -169,7 +171,7 @@ func (m builderModel) renderHeader() string {
 		Foreground(lipgloss.Color("39")).
 		Render("Interactive View Builder")
 
-	step := fmt.Sprintf("Step %d/6: %s", m.getStateNumber(), m.builder.CurrentState.String())
+	step := fmt.Sprintf("Step %d/7: %s", m.getStateNumber(), m.builder.CurrentState.String())
 	stepStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("241"))
 
@@ -191,8 +193,10 @@ func (m builderModel) getStateNumber() int {
 		return 4
 	case StateDisplayOptions:
 		return 5
-	case StateConfirm:
+	case StateFilterConfig:
 		return 6
+	case StateConfirm:
+		return 7
 	default:
 		return 0
 	}
@@ -216,6 +220,8 @@ func (m builderModel) renderHelp() string {
 	case StateFieldConfig:
 		help = "↑/↓: navigate • space: toggle • tab: next field • enter: continue • ctrl+c: cancel"
 	case StateDisplayOptions:
+		help = "↑/↓: navigate • space: toggle • enter: continue • ctrl+c: cancel"
+	case StateFilterConfig:
 		help = "↑/↓: navigate • space: toggle • enter: continue • ctrl+c: cancel"
 	case StateConfirm:
 		help = "y: save • n: cancel • ctrl+c: cancel"
@@ -262,6 +268,10 @@ func (m builderModel) handleEnter() (tea.Model, tea.Cmd) {
 		m.cursor = 0
 
 	case StateDisplayOptions:
+		m.builder.CurrentState = StateFilterConfig
+		m.cursor = 0
+
+	case StateFilterConfig:
 		m.builder.CurrentState = StateConfirm
 		m.cursor = 0
 
@@ -323,6 +333,33 @@ func (m builderModel) handleSpace() (tea.Model, tea.Cmd) {
 		case 2:
 			m.builder.CompactMode = !m.builder.CompactMode
 		}
+
+	case StateFilterConfig:
+		// Toggle status filter
+		statuses := []string{"NEEDS-ACTION", "IN-PROCESS", "COMPLETED", "CANCELLED"}
+		if m.cursor < len(statuses) {
+			status := statuses[m.cursor]
+			// Check if status is in filter
+			found := false
+			foundIndex := -1
+			for i, s := range m.builder.FilterStatus {
+				if s == status {
+					found = true
+					foundIndex = i
+					break
+				}
+			}
+
+			if found {
+				// Remove from filter
+				m.builder.FilterStatus = append(
+					m.builder.FilterStatus[:foundIndex],
+					m.builder.FilterStatus[foundIndex+1:]...)
+			} else {
+				// Add to filter
+				m.builder.FilterStatus = append(m.builder.FilterStatus, status)
+			}
+		}
 	}
 
 	return m, nil
@@ -376,6 +413,8 @@ func (m builderModel) getMaxCursor() int {
 		return len(m.builder.FieldOrder) - 1
 	case StateDisplayOptions:
 		return 2 // 3 options: ShowHeader, ShowBorder, CompactMode
+	case StateFilterConfig:
+		return 3 // 4 status options: NEEDS-ACTION, IN-PROCESS, COMPLETED, CANCELLED
 	default:
 		return 0
 	}

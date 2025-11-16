@@ -432,7 +432,8 @@ func TestGetStateNumber(t *testing.T) {
 		{StateFieldOrdering, 3},
 		{StateFieldConfig, 4},
 		{StateDisplayOptions, 5},
-		{StateConfirm, 6},
+		{StateFilterConfig, 6},
+		{StateConfirm, 7},
 	}
 
 	builder := NewViewBuilder("test-view")
