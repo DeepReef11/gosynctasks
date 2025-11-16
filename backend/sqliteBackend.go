@@ -849,12 +849,24 @@ func (sb *SQLiteBackend) ClearSyncFlags(taskUID string) error {
 	}
 	defer tx.Rollback()
 
-	// Clear sync metadata flags
+	// Get current task modified timestamp to update remote_modified_at
+	var modifiedAt sql.NullInt64
+	err = tx.QueryRow(`
+		SELECT modified_at
+		FROM tasks
+		WHERE id = ?
+	`, taskUID).Scan(&modifiedAt)
+	if err != nil {
+		return &SQLiteError{Op: "ClearSyncFlags", TaskUID: taskUID, Err: err}
+	}
+
+	// Clear sync metadata flags and update remote_modified_at
+	// This indicates the task is now in sync with remote at this timestamp
 	_, err = tx.Exec(`
 		UPDATE sync_metadata
-		SET locally_modified = 0, locally_deleted = 0
+		SET locally_modified = 0, locally_deleted = 0, remote_modified_at = ?
 		WHERE task_uid = ?
-	`, taskUID)
+	`, modifiedAt, taskUID)
 	if err != nil {
 		return &SQLiteError{Op: "ClearSyncFlags", TaskUID: taskUID, Err: err}
 	}

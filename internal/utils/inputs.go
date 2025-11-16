@@ -4,8 +4,39 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
+
+// ReadInt reads an integer from stdin using bufio.NewReader
+// This avoids the buffer issues that fmt.Scanf has with leftover newlines
+func ReadInt() (int, error) {
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return 0, fmt.Errorf("failed to read input: %w", err)
+	}
+
+	input = strings.TrimSpace(input)
+	value, err := strconv.Atoi(input)
+	if err != nil {
+		return 0, fmt.Errorf("invalid number: %w", err)
+	}
+
+	return value, nil
+}
+
+// ReadString reads a string from stdin using bufio.NewReader
+// This avoids the buffer issues that fmt.Scanf has with leftover newlines
+func ReadString() (string, error) {
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return "", fmt.Errorf("failed to read input: %w", err)
+	}
+
+	return strings.TrimSpace(input), nil
+}
 
 // PromptYesNo prompts the user with a yes/no question and returns the result
 func PromptYesNo(question string) bool {
@@ -42,8 +73,8 @@ func PromptSelection[T any](items []T, prompt string, displayFunc func(int, T)) 
 
 	// Prompt for selection
 	fmt.Printf("\n%s (1-%d) or 0 to cancel: ", prompt, len(items))
-	var choice int
-	if _, err := fmt.Scanf("%d", &choice); err != nil {
+	choice, err := ReadInt()
+	if err != nil {
 		return -1, fmt.Errorf("invalid input: %w", err)
 	}
 
@@ -65,11 +96,11 @@ func PromptSelection[T any](items []T, prompt string, displayFunc func(int, T)) 
 // Returns true if user confirms, false otherwise, and error for invalid input
 func PromptConfirmation(message string) (bool, error) {
 	fmt.Print(message + " (y/n): ")
-	var response string
-	if _, err := fmt.Scanf("%s", &response); err != nil {
+	response, err := ReadString()
+	if err != nil {
 		return false, fmt.Errorf("invalid input: %w", err)
 	}
 
-	response = strings.ToLower(strings.TrimSpace(response))
+	response = strings.ToLower(response)
 	return response == "y" || response == "yes", nil
 }
