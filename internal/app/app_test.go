@@ -86,6 +86,14 @@ func (m *mockTaskManagerForApp) GetBackendType() string {
 	return m.backendType
 }
 
+func (m *mockTaskManagerForApp) GetBackendDisplayName() string {
+	return "[mock]"
+}
+
+func (m *mockTaskManagerForApp) GetBackendContext() string {
+	return "mock-backend"
+}
+
 func (m *mockTaskManagerForApp) CanDetect() (bool, error) {
 	return m.canDetect, nil
 }
