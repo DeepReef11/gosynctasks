@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"gosynctasks/internal/utils"
 	"gosynctasks/internal/views"
 	"gosynctasks/internal/views/builder"
 	"os"
@@ -286,14 +287,11 @@ func newViewDeleteCmd() *cobra.Command {
 
 			// Confirm deletion unless --force
 			if !force {
-				fmt.Printf("Delete view '%s'? (y/n): ", viewName)
-				var response string
-				if _, err := fmt.Scanf("%s", &response); err != nil {
-					return fmt.Errorf("invalid input: %w", err)
+				confirmed, err := utils.PromptConfirmation(fmt.Sprintf("Delete view '%s'?", viewName))
+				if err != nil {
+					return err
 				}
-
-				response = strings.ToLower(strings.TrimSpace(response))
-				if response != "y" && response != "yes" {
+				if !confirmed {
 					fmt.Println("Deletion cancelled.")
 					return nil
 				}

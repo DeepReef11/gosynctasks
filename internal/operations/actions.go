@@ -383,14 +383,12 @@ func HandleDeleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 	}
 
 	// Show a final confirmation before deletion
-	fmt.Printf("\nAre you sure you want to delete task '%s'? This action cannot be undone. (y/n): ", taskToDelete.Summary)
-	var response string
-	if _, err := fmt.Scanf("%s", &response); err != nil {
-		return fmt.Errorf("invalid input: %w", err)
+	fmt.Println()
+	confirmed, err := utils.PromptConfirmation(fmt.Sprintf("Are you sure you want to delete task '%s'? This action cannot be undone.", taskToDelete.Summary))
+	if err != nil {
+		return err
 	}
-
-	response = strings.ToLower(strings.TrimSpace(response))
-	if response != "y" && response != "yes" {
+	if !confirmed {
 		return fmt.Errorf("deletion cancelled")
 	}
 

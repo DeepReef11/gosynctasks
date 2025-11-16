@@ -161,15 +161,8 @@ func confirmTask(task *backend.Task, taskManager backend.TaskManager, cfg *confi
 	dateFormat := cfg.GetDateFormat()
 	fmt.Println("\nTask found:")
 	fmt.Print(task.FormatWithView("all", taskManager, dateFormat))
-	fmt.Print("\nProceed with this task? (y/n): ")
-
-	response, err := utils.ReadString()
-	if err != nil {
-		return false, fmt.Errorf("invalid input: %w", err)
-	}
-
-	response = strings.ToLower(response)
-	return response == "y" || response == "yes", nil
+	fmt.Println()
+	return utils.PromptConfirmation("Proceed with this task?")
 }
 
 // SelectTaskInteractively displays all tasks from a list and prompts user to select one
