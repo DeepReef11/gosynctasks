@@ -35,8 +35,11 @@ func TestIntegration_FullWizardFlow(t *testing.T) {
 	// Field Config -> Display Options
 	m = assertTransition(t, m, StateFieldConfig, StateDisplayOptions)
 
-	// Display Options -> Confirm
-	m = assertTransition(t, m, StateDisplayOptions, StateConfirm)
+	// Display Options -> FilterConfig
+	m = assertTransition(t, m, StateDisplayOptions, StateFilterConfig)
+
+	// FilterConfig -> Confirm
+	m = assertTransition(t, m, StateFilterConfig, StateConfirm)
 
 	// Confirm -> Done (via 'y' key)
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}}

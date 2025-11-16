@@ -25,6 +25,8 @@ const (
 	StateFieldConfig
 	// StateDisplayOptions configures view-level display options
 	StateDisplayOptions
+	// StateFilterConfig allows configuration of default filters
+	StateFilterConfig
 	// StateConfirm shows final configuration for confirmation
 	StateConfirm
 	// StateDone indicates successful completion
@@ -48,6 +50,8 @@ func (s BuilderState) String() string {
 			return "Field Configuration"
 		case StateDisplayOptions:
 			return "Display Options"
+		case StateFilterConfig:
+			return "Filter Configuration"
 		case StateConfirm:
 			return "Confirm"
 		case StateDone:
@@ -94,6 +98,9 @@ type ViewBuilder struct {
 	DateFormat  string // Date format string
 	SortBy      string // Field to sort by
 	SortOrder   string // Sort order ("asc" or "desc")
+
+	// Filter options
+	FilterStatus []string // Status filters (e.g., "NEEDS-ACTION", "COMPLETED")
 
 	// State management
 	CurrentState BuilderState // Current state in the wizard
@@ -156,6 +163,7 @@ func NewViewBuilder(name string) *ViewBuilder {
 		DateFormat:      "2006-01-02",
 		SortBy:          "",
 		SortOrder:       "asc",
+		FilterStatus:    []string{"NEEDS-ACTION", "IN-PROCESS"}, // Default: filter out completed tasks
 	}
 }
 
