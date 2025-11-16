@@ -171,6 +171,24 @@ func (mb *MockBackend) GetPriorityColor(priority int) string {
 	return ""
 }
 
+func (mb *MockBackend) GetBackendDisplayName() string {
+	if mb.name != "" {
+		return "[mock:" + mb.name + "]"
+	}
+	return "[mock]"
+}
+
+func (mb *MockBackend) GetBackendType() string {
+	return "mock"
+}
+
+func (mb *MockBackend) GetBackendContext() string {
+	if mb.name != "" {
+		return mb.name
+	}
+	return "mock-backend"
+}
+
 // MockDetectableBackend is a mock that implements DetectableBackend
 type MockDetectableBackend struct {
 	MockBackend
