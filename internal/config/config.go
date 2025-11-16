@@ -50,8 +50,20 @@ type Config struct {
 	BackendPriority   []string                         `json:"backend_priority,omitempty"`
 
 	// Common settings
-	UI         string `json:"ui" validate:"oneof=cli tui"`
-	DateFormat string `json:"date_format,omitempty"` // Go time format string, defaults to "2006-01-02"
+	UI         string      `json:"ui" validate:"oneof=cli tui"`
+	DateFormat string      `json:"date_format,omitempty"` // Go time format string, defaults to "2006-01-02"
+	Sync       *SyncConfig `json:"sync,omitempty"`        // Sync configuration
+}
+
+// SyncConfig represents sync-related settings
+type SyncConfig struct {
+	Enabled            bool   `json:"enabled"`                       // Enable sync functionality
+	ConflictResolution string `json:"conflict_resolution,omitempty"` // Strategy: server_wins, local_wins, merge, keep_both
+	AutoSync           bool   `json:"auto_sync,omitempty"`           // Auto-sync on command execution
+	SyncInterval       int    `json:"sync_interval,omitempty"`       // Minutes between auto-syncs (0=disabled)
+	OfflineMode        string `json:"offline_mode,omitempty"`        // Mode: auto, online, offline
+	LocalBackend       string `json:"local_backend,omitempty"`       // Name of local SQLite backend for sync
+	RemoteBackend      string `json:"remote_backend,omitempty"`      // Name of remote backend to sync with
 }
 
 // IsOldFormat returns true if this config uses the old single-backend format
@@ -198,21 +210,40 @@ func (c *Config) GetDateFormat() string {
 
 // SetCustomConfigPath sets a custom config path to use instead of the default user config directory.
 // If path is empty or ".", it uses "./gosynctasks/config.json" (current directory).
-// If path is a directory, it looks for "config.json" inside it.
+// If path is a directory (or looks like one), it looks for "config.json" inside it.
 // If path is a file, it uses that file directly.
 // This must be called before GetConfig() is called for the first time.
+// If GetConfig() was already called, this function will reset it to allow reloading with the new path.
 func SetCustomConfigPath(path string) {
 	if path == "" || path == "." {
 		customConfigPath = filepath.Join(".", CONFIG_DIR_PATH, CONFIG_FILE_PATH)
 	} else {
-		// Check if path is a directory
+		// Check if path exists and is a directory
 		info, err := os.Stat(path)
 		if err == nil && info.IsDir() {
+			// Path exists and is a directory
 			customConfigPath = filepath.Join(path, CONFIG_FILE_PATH)
+		} else if err != nil {
+			// Path doesn't exist - determine intent from path structure
+			// If path ends with .json, treat as file path
+			// Otherwise, assume it's a directory path
+			ext := filepath.Ext(path)
+			if ext == ".json" || ext == ".JSON" {
+				customConfigPath = path
+			} else {
+				// Assume directory, join with config.json
+				customConfigPath = filepath.Join(path, CONFIG_FILE_PATH)
+			}
 		} else {
+			// Path exists and is a file
 			customConfigPath = path
 		}
 	}
+
+	// Reset the sync.Once to force config reload with new path
+	// This is necessary if GetConfig() was already called before this function
+	configOnce = sync.Once{}
+	globalConfig = nil
 }
 
 func GetConfig() *Config {

@@ -5,6 +5,7 @@ import (
 	"gosynctasks/backend"
 	"gosynctasks/internal/cli"
 	"gosynctasks/internal/config"
+	"gosynctasks/internal/utils"
 	"gosynctasks/internal/views"
 	"strings"
 
@@ -105,20 +106,27 @@ func HandleGetAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *c
 	termWidth := cli.GetTerminalWidth()
 
 	// Try to use custom view rendering first
+	// Note: Custom views currently don't support hierarchical display
+	// This will be added in a future enhancement
 	rendered, err := RenderWithCustomView(tasks, viewName, taskManager, dateFormat)
 	if err == nil {
 		// Custom view found and rendered successfully
-		fmt.Print(selectedList.StringWithWidth(termWidth))
+		fmt.Print(selectedList.StringWithWidthAndBackend(termWidth, taskManager))
 		fmt.Print(rendered)
 		fmt.Print(selectedList.BottomBorderWithWidth(termWidth))
 		return nil
 	}
 
-	// Fall back to legacy formatting for built-in views
-	fmt.Print(selectedList.StringWithWidth(termWidth))
-	for _, task := range tasks {
-		fmt.Print(task.FormatWithView(viewName, taskManager, dateFormat))
-	}
+	// Fall back to tree-based hierarchical display
+	fmt.Print(selectedList.StringWithWidthAndBackend(termWidth, taskManager))
+
+	// Build task tree
+	tree := BuildTaskTree(tasks)
+
+	// Format and display tree
+	treeOutput := FormatTaskTree(tree, viewName, taskManager, dateFormat)
+	fmt.Print(treeOutput)
+
 	fmt.Print(selectedList.BottomBorderWithWidth(termWidth))
 	return nil
 }
@@ -145,6 +153,8 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 	statusFlag, _ := cmd.Flags().GetString("add-status")
 	dueDateStr, _ := cmd.Flags().GetString("due-date")
 	startDateStr, _ := cmd.Flags().GetString("start-date")
+	parentRef, _ := cmd.Flags().GetString("parent")
+	literal, _ := cmd.Flags().GetBool("literal")
 
 	// Default status: use backend's parser with "TODO" as default
 	var taskStatus string
@@ -159,54 +169,85 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 	}
 
 	// Validate priority
-	if priority < 0 || priority > 9 {
-		return fmt.Errorf("priority must be between 0-9 (0=undefined, 1=highest, 9=lowest)")
+	if err := utils.ValidatePriority(priority); err != nil {
+		return err
 	}
 
-	// Parse dates
-	dueDate, err := ParseDateFlag(dueDateStr)
+	// Parse and validate dates
+	dueDate, err := utils.ParseDateFlag(dueDateStr)
 	if err != nil {
 		return err
 	}
 
-	startDate, err := ParseDateFlag(startDateStr)
+	startDate, err := utils.ParseDateFlag(startDateStr)
 	if err != nil {
 		return err
 	}
 
-	// Validate dates
-	if err := ValidateDates(startDate, dueDate); err != nil {
+	if err := utils.ValidateDates(startDate, dueDate); err != nil {
 		return err
+	}
+
+	cfg := config.GetConfig()
+	var parentUID string
+	var actualTaskName string
+
+	// Handle path-based task creation or parent resolution
+	if parentRef != "" {
+		// Explicit parent provided via -P flag
+		parentUID, err = ResolveParentTask(taskManager, cfg, selectedList.ID, parentRef, taskStatus)
+		if err != nil {
+			return fmt.Errorf("failed to resolve parent task: %w", err)
+		}
+		actualTaskName = taskSummary
+	} else if !literal && strings.Contains(taskSummary, "/") {
+		// Path-based shorthand: "parent/child/task" creates hierarchy automatically
+		// Skip if --literal flag is set
+		fmt.Printf("Detected path-based task creation: '%s'\n", taskSummary)
+		parentUID, actualTaskName, err = CreateOrFindTaskPath(taskManager, cfg, selectedList.ID, taskSummary, taskStatus)
+		if err != nil {
+			return fmt.Errorf("failed to create task path: %w", err)
+		}
+	} else {
+		// Simple task with no parent (or literal mode)
+		actualTaskName = taskSummary
 	}
 
 	task := backend.Task{
-		Summary:     taskSummary,
+		Summary:     actualTaskName,
 		Description: description,
 		Status:      taskStatus,
 		Priority:    priority,
 		DueDate:     dueDate,
 		StartDate:   startDate,
+		ParentUID:   parentUID,
 	}
 
 	if err := taskManager.AddTask(selectedList.ID, task); err != nil {
 		return fmt.Errorf("error adding task: %w", err)
 	}
 
-	fmt.Printf("Task '%s' added successfully to list '%s'\n", taskSummary, selectedList.Name)
+	fmt.Printf("Task '%s' added successfully to list '%s'\n", actualTaskName, selectedList.Name)
 	return nil
 }
 
 // HandleUpdateAction updates an existing task
 func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *config.Config, selectedList *backend.TaskList, searchSummary string) error {
-	// Get the task summary to search for
-	if searchSummary == "" {
-		return fmt.Errorf("task summary is required for update (usage: gosynctasks <list> update <task-summary>)")
-	}
+	var taskToUpdate *backend.Task
+	var err error
 
-	// Find the task by summary (handles exact/partial/multiple matches)
-	taskToUpdate, err := FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary)
-	if err != nil {
-		return err
+	// If no search summary provided, show interactive selection
+	if searchSummary == "" {
+		taskToUpdate, err = SelectTaskInteractively(taskManager, cfg, selectedList.ID)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Find the task by summary (handles exact/partial/multiple matches)
+		taskToUpdate, err = FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Get update flags
@@ -236,15 +277,15 @@ func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 	}
 
 	if cmd.Flags().Changed("priority") {
-		if priority < 0 || priority > 9 {
-			return fmt.Errorf("priority must be between 0-9 (0=undefined, 1=highest, 9=lowest)")
+		if err := utils.ValidatePriority(priority); err != nil {
+			return err
 		}
 		taskToUpdate.Priority = priority
 	}
 
 	// Parse and update dates if changed
 	if cmd.Flags().Changed("due-date") {
-		dueDate, err := ParseDateFlag(dueDateStr)
+		dueDate, err := utils.ParseDateFlag(dueDateStr)
 		if err != nil {
 			return err
 		}
@@ -252,7 +293,7 @@ func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 	}
 
 	if cmd.Flags().Changed("start-date") {
-		startDate, err := ParseDateFlag(startDateStr)
+		startDate, err := utils.ParseDateFlag(startDateStr)
 		if err != nil {
 			return err
 		}
@@ -260,7 +301,7 @@ func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 	}
 
 	// Validate dates (after all updates applied)
-	if err := ValidateDates(taskToUpdate.StartDate, taskToUpdate.DueDate); err != nil {
+	if err := utils.ValidateDates(taskToUpdate.StartDate, taskToUpdate.DueDate); err != nil {
 		return err
 	}
 
@@ -275,15 +316,21 @@ func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 
 // HandleCompleteAction marks a task with a status (defaults to COMPLETED)
 func HandleCompleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *config.Config, selectedList *backend.TaskList, searchSummary string) error {
-	// Get the task summary to search for
-	if searchSummary == "" {
-		return fmt.Errorf("task summary is required for complete (usage: gosynctasks <list> complete <task-summary>)")
-	}
+	var taskToComplete *backend.Task
+	var err error
 
-	// Find the task by summary (handles exact/partial/multiple matches)
-	taskToComplete, err := FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary)
-	if err != nil {
-		return err
+	// If no search summary provided, show interactive selection
+	if searchSummary == "" {
+		taskToComplete, err = SelectTaskInteractively(taskManager, cfg, selectedList.ID)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Find the task by summary (handles exact/partial/multiple matches)
+		taskToComplete, err = FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Get status flag (if provided), otherwise default to DONE
@@ -316,15 +363,21 @@ func HandleCompleteAction(cmd *cobra.Command, taskManager backend.TaskManager, c
 
 // HandleDeleteAction deletes a task by summary
 func HandleDeleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *config.Config, selectedList *backend.TaskList, searchSummary string) error {
-	// Get the task summary to search for
-	if searchSummary == "" {
-		return fmt.Errorf("task summary is required for delete (usage: gosynctasks <list> delete <task-summary>)")
-	}
+	var taskToDelete *backend.Task
+	var err error
 
-	// Find the task by summary (handles exact/partial/multiple matches)
-	taskToDelete, err := FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary)
-	if err != nil {
-		return err
+	// If no search summary provided, show interactive selection
+	if searchSummary == "" {
+		taskToDelete, err = SelectTaskInteractively(taskManager, cfg, selectedList.ID)
+		if err != nil {
+			return err
+		}
+	} else {
+		// Find the task by summary (handles exact/partial/multiple matches)
+		taskToDelete, err = FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Show a final confirmation before deletion
@@ -350,6 +403,7 @@ func HandleDeleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 
 // RenderWithCustomView attempts to render tasks using a custom view
 // Returns the rendered output or an error if the view cannot be loaded
+// This version supports hierarchical display with tree structure
 func RenderWithCustomView(tasks []backend.Task, viewName string, taskManager backend.TaskManager, dateFormat string) (string, error) {
 	// Don't use custom rendering for built-in legacy views
 	if viewName == "basic" || viewName == "all" {
@@ -362,7 +416,64 @@ func RenderWithCustomView(tasks []backend.Task, viewName string, taskManager bac
 		return "", err
 	}
 
-	// Create renderer and render tasks
+	// Create renderer
 	renderer := views.NewViewRenderer(view, taskManager, dateFormat)
-	return renderer.RenderTasks(tasks), nil
+
+	// Apply view-specific filters
+	filteredTasks := tasks
+	if filters := renderer.GetFilters(); filters != nil {
+		filteredTasks = views.ApplyFilters(tasks, filters)
+	}
+
+	// Build task tree BEFORE sorting
+	// This preserves parent-child relationships
+	tree := BuildTaskTree(filteredTasks)
+
+	// Apply view-specific sorting hierarchically
+	// This sorts root tasks and recursively sorts children within each parent
+	sortBy, sortOrder := renderer.GetSortConfig()
+	if sortBy != "" {
+		SortTaskTree(tree, sortBy, sortOrder)
+	}
+
+	// Render tasks with hierarchy
+	return RenderTaskTreeWithCustomView(tree, renderer), nil
+}
+
+// RenderTaskTreeWithCustomView formats a task tree using a custom view renderer
+func RenderTaskTreeWithCustomView(nodes []*TaskNode, renderer *views.ViewRenderer) string {
+	var result strings.Builder
+	formatNodeWithCustomView(&result, nodes, "", true, renderer)
+	return result.String()
+}
+
+// formatNodeWithCustomView recursively formats a task node with proper indentation using custom view
+func formatNodeWithCustomView(result *strings.Builder, nodes []*TaskNode, prefix string, isRoot bool, renderer *views.ViewRenderer) {
+	for i, node := range nodes {
+		isLast := i == len(nodes)-1
+
+		// Determine the tree characters
+		var nodePrefix, childPrefix string
+		if isRoot {
+			nodePrefix = ""
+			childPrefix = ""
+		} else {
+			if isLast {
+				nodePrefix = prefix + "└─ "
+				childPrefix = prefix + "   "
+			} else {
+				nodePrefix = prefix + "├─ "
+				childPrefix = prefix + "│  "
+			}
+		}
+
+		// Render the task with hierarchy using the custom view
+		taskOutput := renderer.RenderTaskHierarchical(*node.Task, nodePrefix, childPrefix)
+		result.WriteString(taskOutput)
+
+		// Recursively format children
+		if len(node.Children) > 0 {
+			formatNodeWithCustomView(result, node.Children, childPrefix, false, renderer)
+		}
+	}
 }

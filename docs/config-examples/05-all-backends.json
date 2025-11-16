@@ -1,0 +1,29 @@
+{
+  "backends": {
+    "nextcloud": {
+      "type": "nextcloud",
+      "enabled": true,
+      "url": "nextcloud://user:pass@nextcloud.example.com:443/nextcloud",
+      "insecure_skip_verify": false
+    },
+    "git-main": {
+      "type": "git",
+      "enabled": true,
+      "file": "TODO.md",
+      "auto_detect": true,
+      "auto_commit": false
+    },
+    "git-work": {
+      "type": "git",
+      "enabled": true,
+      "file": "/home/user/work/TODO.md",
+      "auto_detect": false,
+      "auto_commit": true
+    }
+  },
+  "default_backend": "nextcloud",
+  "auto_detect_backend": true,
+  "backend_priority": ["git-main", "git-work", "nextcloud"],
+  "ui": "cli",
+  "can_write_config": true
+}

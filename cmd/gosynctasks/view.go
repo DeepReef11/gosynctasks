@@ -177,18 +177,33 @@ Available templates:
 				view = template
 			} else {
 				// Create from editor
+				trueVal := true
+				falseVal := false
 				view = &views.View{
 					Name:        viewName,
 					Description: "New view",
 					Fields: []views.FieldConfig{
-						{Name: "status", Format: "symbol", Show: true},
-						{Name: "summary", Format: "full", Show: true},
+						{Name: "summary", Format: "full", Show: &trueVal},
+						{Name: "description", Format: "full", Show: &falseVal, Width: 70},
+						{Name: "status", Format: "symbol", Show: &trueVal, Color: true},
+						{Name: "priority", Format: "number", Show: &trueVal, Color: true},
+						{Name: "due_date", Format: "relative", Show: &trueVal, Color: true},
+						{Name: "start_date", Format: "short", Show: &falseVal, Color: true},
+						{Name: "created", Format: "relative", Show: &falseVal},
+						{Name: "modified", Format: "relative", Show: &falseVal},
+						{Name: "completed", Format: "short", Show: &falseVal},
+						{Name: "tags", Format: "comma", Show: &falseVal},
+					},
+					Filters: &views.ViewFilters{
+						Status: []string{"NEEDS-ACTION", "IN-PROCESS"},
 					},
 					Display: views.DisplayOptions{
 						ShowHeader:  true,
 						ShowBorder:  true,
 						CompactMode: false,
 						DateFormat:  "2006-01-02",
+						SortBy:      "priority",
+						SortOrder:   "asc",
 					},
 				}
 
@@ -369,7 +384,7 @@ func newViewValidateCmd() *cobra.Command {
 	}
 }
 
-// editViewInEditor opens a view in the user's editor
+// editViewInEditor opens a view in the user's editor with validation loop
 func editViewInEditor(view *views.View) (*views.View, error) {
 	// Get editor from environment
 	editor := os.Getenv("EDITOR")
@@ -384,54 +399,127 @@ func editViewInEditor(view *views.View) (*views.View, error) {
 	}
 	defer os.Remove(tmpfile.Name())
 
-	// Marshal view to YAML
+	// Marshal initial view to YAML
 	data, err := yaml.Marshal(view)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal view: %w", err)
 	}
 
-	// Write to temp file
-	if _, err := tmpfile.Write(data); err != nil {
-		return nil, fmt.Errorf("failed to write temp file: %w", err)
+	currentContent := data
+
+	// Validation loop
+	for {
+		// Write current content to temp file
+		if err := os.WriteFile(tmpfile.Name(), currentContent, 0644); err != nil {
+			return nil, fmt.Errorf("failed to write temp file: %w", err)
+		}
+
+		// Open in editor
+		cmd := exec.Command(editor, tmpfile.Name())
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			return nil, fmt.Errorf("editor failed: %w", err)
+		}
+
+		// Read edited content
+		editedData, err := os.ReadFile(tmpfile.Name())
+		if err != nil {
+			return nil, fmt.Errorf("failed to read edited file: %w", err)
+		}
+
+		// Try to parse the YAML first
+		var parsedView views.View
+		if err := yaml.Unmarshal(editedData, &parsedView); err != nil {
+			fmt.Printf("\n❌ YAML parsing failed: %v\n\n", err)
+			fmt.Print("The YAML syntax is invalid. Would you like to:\n")
+			fmt.Print("  [r] Retry - reopen editor to fix errors\n")
+			fmt.Print("  [c] Cancel - discard changes\n")
+			fmt.Print("Choice (r/c): ")
+
+			var choice string
+			if _, err := fmt.Scanf("%s", &choice); err != nil {
+				return nil, fmt.Errorf("failed to read choice: %w", err)
+			}
+
+			choice = strings.ToLower(strings.TrimSpace(choice))
+			if choice == "c" || choice == "cancel" {
+				return nil, fmt.Errorf("edit cancelled by user")
+			}
+
+			// User wants to retry - keep current content with YAML error at top
+			errorComment := fmt.Sprintf("# YAML SYNTAX ERROR:\n# %s\n# Please fix the YAML syntax above and try again.\n\n", err.Error())
+			currentContent = append([]byte(errorComment), editedData...)
+			continue
+		}
+
+		// Set the view name if not in YAML
+		if parsedView.Name == "" {
+			parsedView.Name = view.Name
+		}
+
+		// Perform comprehensive validation
+		validationErrors := views.ValidateViewComprehensive(&parsedView)
+
+		if validationErrors != nil && len(validationErrors.Errors) > 0 {
+			// Validation failed - show errors
+			fmt.Printf("\n❌ Validation failed with %d error(s):\n", len(validationErrors.Errors))
+			for i, err := range validationErrors.Errors {
+				fmt.Printf("  %d. %s: %s\n", i+1, err.Field, err.Message)
+				if err.Hint != "" {
+					fmt.Printf("     Hint: %s\n", err.Hint)
+				}
+			}
+			fmt.Println()
+
+			// Ask user what to do
+			fmt.Print("Would you like to:\n")
+			fmt.Print("  [r] Retry - reopen editor with inline error comments\n")
+			fmt.Print("  [c] Cancel - discard changes\n")
+			fmt.Print("Choice (r/c): ")
+
+			var choice string
+			if _, err := fmt.Scanf("%s", &choice); err != nil {
+				return nil, fmt.Errorf("failed to read choice: %w", err)
+			}
+
+			choice = strings.ToLower(strings.TrimSpace(choice))
+			if choice == "c" || choice == "cancel" {
+				return nil, fmt.Errorf("edit cancelled by user")
+			}
+
+			// User wants to retry - annotate YAML with errors
+			annotatedYAML := views.AnnotateYAMLWithErrors(string(editedData), validationErrors)
+			currentContent = []byte(annotatedYAML)
+			continue
+		}
+
+		// Validation passed! Apply defaults and return
+		edited, err := views.LoadViewFromBytes(editedData, view.Name)
+		if err != nil {
+			// This shouldn't happen since we already validated, but handle it
+			return nil, fmt.Errorf("failed to load view: %w", err)
+		}
+
+		return edited, nil
 	}
-	tmpfile.Close()
-
-	// Open in editor
-	cmd := exec.Command(editor, tmpfile.Name())
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("editor failed: %w", err)
-	}
-
-	// Read edited content
-	editedData, err := os.ReadFile(tmpfile.Name())
-	if err != nil {
-		return nil, fmt.Errorf("failed to read edited file: %w", err)
-	}
-
-	// Parse edited view
-	edited, err := views.LoadViewFromBytes(editedData, view.Name)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse edited view: %w", err)
-	}
-
-	return edited, nil
 }
 
 // getViewTemplate returns a built-in view template
 func getViewTemplate(name string) (*views.View, error) {
+	trueVal := true
+
 	switch name {
 	case "minimal":
 		return &views.View{
 			Name:        "minimal",
 			Description: "Minimalist view showing only essential information",
 			Fields: []views.FieldConfig{
-				{Name: "status", Format: "symbol", Show: true},
-				{Name: "summary", Format: "full", Show: true},
-				{Name: "due_date", Format: "short", Color: true, Show: true},
+				{Name: "status", Format: "symbol", Show: &trueVal},
+				{Name: "summary", Format: "full", Show: &trueVal},
+				{Name: "due_date", Format: "short", Color: true, Show: &trueVal},
 			},
 			Display: views.DisplayOptions{
 				ShowHeader:  true,
@@ -446,16 +534,16 @@ func getViewTemplate(name string) (*views.View, error) {
 			Name:        "full",
 			Description: "Comprehensive view with all task metadata",
 			Fields: []views.FieldConfig{
-				{Name: "status", Format: "text", Show: true},
-				{Name: "priority", Format: "stars", Color: true, Show: true},
-				{Name: "summary", Format: "full", Show: true},
-				{Name: "description", Format: "first_line", Width: 80, Show: true},
-				{Name: "start_date", Format: "full", Color: true, Show: true},
-				{Name: "due_date", Format: "full", Color: true, Show: true},
-				{Name: "tags", Format: "hash", Show: true},
-				{Name: "created", Format: "relative", Show: true},
-				{Name: "modified", Format: "relative", Show: true},
-				{Name: "uid", Format: "short", Show: true},
+				{Name: "status", Format: "text", Show: &trueVal},
+				{Name: "priority", Format: "stars", Color: true, Show: &trueVal},
+				{Name: "summary", Format: "full", Show: &trueVal},
+				{Name: "description", Format: "first_line", Width: 80, Show: &trueVal},
+				{Name: "start_date", Format: "full", Color: true, Show: &trueVal},
+				{Name: "due_date", Format: "full", Color: true, Show: &trueVal},
+				{Name: "tags", Format: "hash", Show: &trueVal},
+				{Name: "created", Format: "relative", Show: &trueVal},
+				{Name: "modified", Format: "relative", Show: &trueVal},
+				{Name: "uid", Format: "short", Show: &trueVal},
 			},
 			FieldOrder: []string{"status", "priority", "summary", "description", "start_date", "due_date", "tags", "created", "modified", "uid"},
 			Display: views.DisplayOptions{
@@ -473,11 +561,11 @@ func getViewTemplate(name string) (*views.View, error) {
 			Name:        "kanban",
 			Description: "Kanban-style view grouped by status",
 			Fields: []views.FieldConfig{
-				{Name: "status", Format: "emoji", Show: true},
-				{Name: "summary", Format: "truncate", Width: 50, Show: true},
-				{Name: "priority", Format: "color", Color: true, Show: true},
-				{Name: "due_date", Format: "relative", Color: true, Show: true},
-				{Name: "tags", Format: "comma", Show: true},
+				{Name: "status", Format: "emoji", Show: &trueVal},
+				{Name: "summary", Format: "truncate", Width: 50, Show: &trueVal},
+				{Name: "priority", Format: "color", Color: true, Show: &trueVal},
+				{Name: "due_date", Format: "relative", Color: true, Show: &trueVal},
+				{Name: "tags", Format: "comma", Show: &trueVal},
 			},
 			FieldOrder: []string{"status", "priority", "summary", "due_date", "tags"},
 			Display: views.DisplayOptions{
@@ -495,12 +583,12 @@ func getViewTemplate(name string) (*views.View, error) {
 			Name:        "timeline",
 			Description: "Timeline view focusing on dates and scheduling",
 			Fields: []views.FieldConfig{
-				{Name: "start_date", Format: "full", Color: true, Label: "Starts", Show: true},
-				{Name: "due_date", Format: "full", Color: true, Label: "Due", Show: true},
-				{Name: "status", Format: "short", Show: true},
-				{Name: "summary", Format: "full", Show: true},
-				{Name: "priority", Format: "number", Color: true, Show: true},
-				{Name: "description", Format: "truncate", Width: 60, Show: true},
+				{Name: "start_date", Format: "full", Color: true, Label: "Starts", Show: &trueVal},
+				{Name: "due_date", Format: "full", Color: true, Label: "Due", Show: &trueVal},
+				{Name: "status", Format: "short", Show: &trueVal},
+				{Name: "summary", Format: "full", Show: &trueVal},
+				{Name: "priority", Format: "number", Color: true, Show: &trueVal},
+				{Name: "description", Format: "truncate", Width: 60, Show: &trueVal},
 			},
 			FieldOrder: []string{"start_date", "due_date", "status", "priority", "summary", "description"},
 			Display: views.DisplayOptions{
@@ -518,10 +606,10 @@ func getViewTemplate(name string) (*views.View, error) {
 			Name:        "compact",
 			Description: "Single-line compact view",
 			Fields: []views.FieldConfig{
-				{Name: "status", Format: "short", Show: true},
-				{Name: "priority", Format: "number", Show: true},
-				{Name: "summary", Format: "truncate", Width: 40, Show: true},
-				{Name: "due_date", Format: "short", Color: true, Show: true},
+				{Name: "status", Format: "short", Show: &trueVal},
+				{Name: "priority", Format: "number", Show: &trueVal},
+				{Name: "summary", Format: "truncate", Width: 40, Show: &trueVal},
+				{Name: "due_date", Format: "short", Color: true, Show: &trueVal},
 			},
 			FieldOrder: []string{"status", "priority", "summary", "due_date"},
 			Display: views.DisplayOptions{

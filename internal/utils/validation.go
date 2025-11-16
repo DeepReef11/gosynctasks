@@ -1,9 +1,17 @@
-package operations
+package utils
 
 import (
 	"fmt"
 	"time"
 )
+
+// ValidatePriority checks if priority is within valid range (0-9)
+func ValidatePriority(priority int) error {
+	if priority < 0 || priority > 9 {
+		return fmt.Errorf("priority must be between 0-9 (0=undefined, 1=highest, 9=lowest)")
+	}
+	return nil
+}
 
 // ParseDateFlag parses a date string in ISO format (YYYY-MM-DD).
 // Returns nil for empty strings (used to clear dates).

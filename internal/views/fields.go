@@ -54,7 +54,7 @@ var FieldRegistry = map[string]FieldDefinition{
 	"completed": {
 		Name:          "completed",
 		Description:   "Task completion timestamp",
-		Formats:       []string{"full", "relative", "date_only"},
+		Formats:       []string{"full", "relative", "date_only", "short"},
 		DefaultFormat: "full",
 	},
 	"tags": {

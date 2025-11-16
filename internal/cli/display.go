@@ -51,8 +51,8 @@ func ShowTaskLists(taskLists []backend.TaskList, taskManager backend.TaskManager
 
 		// Format the line
 		nameColor := "\033[1;37m" // Bold white
-		numColor := "\033[36m"     // Cyan
-		countColor := "\033[90m"   // Gray
+		numColor := "\033[36m"    // Cyan
+		countColor := "\033[90m"  // Gray
 		reset := "\033[0m"
 
 		fmt.Printf("  %s%2d.%s %s%-30s%s", numColor, i+1, reset, nameColor, list.Name, reset)

@@ -118,8 +118,8 @@ func (bc *BackendConfig) TaskManager() (TaskManager, error) {
 		return NewGitBackend(*bc)
 
 	case "sqlite":
-		// SQLite backend will be implemented later
-		return nil, fmt.Errorf("sqlite backend not yet implemented")
+		// Create SQLite backend
+		return NewSQLiteBackend(*bc)
 
 	default:
 		return nil, &UnsupportedSchemeError{
@@ -162,6 +162,35 @@ type TaskManager interface {
 	// Returns a BackendError with IsNotFound() == true if the task doesn't exist.
 	DeleteTask(listID string, taskUID string) error
 
+	// CreateTaskList creates a new task list with the given name and optional description.
+	// The color parameter is optional and may be ignored by backends that don't support it.
+	// Returns the ID of the newly created list or an error if creation fails.
+	CreateTaskList(name, description, color string) (string, error)
+
+	// DeleteTaskList permanently removes a task list and all tasks within it.
+	// Returns an error if the list doesn't exist or cannot be deleted.
+	DeleteTaskList(listID string) error
+
+	// RenameTaskList changes the name of an existing task list.
+	// Returns an error if the list doesn't exist or the new name is already in use.
+	RenameTaskList(listID, newName string) error
+
+	// GetDeletedTaskLists retrieves all task lists that have been moved to trash.
+	// This is backend-specific and may not be supported by all backends.
+	// For Nextcloud, returns calendars with the DeletedAt field set.
+	// Returns an empty list if trash is not supported or empty.
+	GetDeletedTaskLists() ([]TaskList, error)
+
+	// RestoreTaskList restores a deleted task list from trash.
+	// The listID parameter identifies the list to restore.
+	// Returns an error if the list doesn't exist in trash or cannot be restored.
+	RestoreTaskList(listID string) error
+
+	// PermanentlyDeleteTaskList permanently deletes a task list from trash.
+	// This operation is irreversible and removes the list completely.
+	// Returns an error if the list doesn't exist in trash or cannot be deleted.
+	PermanentlyDeleteTaskList(listID string) error
+
 	// ParseStatusFlag converts user input (abbreviations, app names, or backend names)
 	// to the backend's internal status format.
 	// Examples: "T" → "NEEDS-ACTION" (Nextcloud), "T" → "TODO" (File)
@@ -181,6 +210,19 @@ type TaskManager interface {
 	// Returns an empty string if no color should be applied.
 	// Priority range: 0-9 (0=undefined, 1=highest, 9=lowest)
 	GetPriorityColor(priority int) string
+
+	// GetBackendDisplayName returns a formatted string for display in task list headers.
+	// Examples: "[nextcloud:admin@localhost]", "[sqlite → nextcloud]", "[git:gosynctasks/TODO.md]"
+	// This provides user context about which backend is being used.
+	GetBackendDisplayName() string
+
+	// GetBackendType returns the backend type identifier.
+	// Returns one of: "nextcloud", "git", "sqlite", "file"
+	GetBackendType() string
+
+	// GetBackendContext returns contextual details specific to the backend.
+	// Examples: "admin@localhost:8080" (nextcloud), "/path/to/repo/TODO.md" (git), "/path/to/tasks.db" (sqlite)
+	GetBackendContext() string
 }
 
 // DetectableBackend extends TaskManager with auto-detection capabilities.
@@ -218,6 +260,9 @@ type TaskFilter struct {
 
 	// CreatedAfter filters tasks created after this time (inclusive).
 	CreatedAfter *time.Time
+
+	// CreatedBefore filters tasks created before this time (inclusive).
+	CreatedBefore *time.Time
 }
 
 // StatusStringTranslateToStandardStatus converts app status names to CalDAV standard statuses.
@@ -334,24 +379,46 @@ func (t Task) String() string {
 //   - Start date colors: cyan (past), yellow (within 3 days), gray (future)
 //   - Due date colors: red (overdue), yellow (due soon), gray (future)
 func (t Task) FormatWithView(view string, backend TaskManager, dateFormat string) string {
+	return t.formatWithIndent(view, backend, dateFormat, 0)
+}
+
+// FormatWithIndentLevel formats the task for display with a specific indentation level.
+// This is useful for displaying hierarchical task structures where subtasks should be indented.
+//
+// Parameters:
+//   - view: "basic" (summary + status) or "all" (includes metadata like dates and priority)
+//   - backend: TaskManager for priority coloring (can be nil)
+//   - dateFormat: Go time format string for date display
+//   - indentLevel: number of indentation levels (0 = no indent, 1 = one level, etc.)
+func (t Task) FormatWithIndentLevel(view string, backend TaskManager, dateFormat string, indentLevel int) string {
+	return t.formatWithIndent(view, backend, dateFormat, indentLevel)
+}
+
+// formatWithIndent formats the task for display with indentation for subtasks.
+// The indentLevel parameter specifies how many levels deep the task is in the hierarchy.
+func (t Task) formatWithIndent(view string, backend TaskManager, dateFormat string, indentLevel int) string {
 	var result strings.Builder
 
-	// Status indicator
+	// Convert backend-specific status to canonical display name
+	displayStatus := t.Status
+	if backend != nil {
+		displayStatus = backend.StatusToDisplayName(t.Status)
+	}
+
+	// Status indicator (using canonical status names)
 	statusColor := ""
 	statusSymbol := "○"
-	// TODO: Implement uniform status names across all backends (see issue #36)
-	// Currently supporting both CalDAV names (COMPLETED, IN-PROCESS) and app names (DONE, PROCESSING)
-	switch t.Status {
-	case "COMPLETED", "DONE":
+	switch displayStatus {
+	case "DONE":
 		statusColor = "\033[32m" // Green
 		statusSymbol = "✓"
-	case "IN-PROCESS", "PROCESSING":
+	case "PROCESSING":
 		statusColor = "\033[33m" // Yellow
 		statusSymbol = "●"
 	case "CANCELLED":
 		statusColor = "\033[31m" // Red
 		statusSymbol = "✗"
-	default: // NEEDS-ACTION, TODO
+	default: // TODO or any other status
 		statusColor = "\033[37m" // White
 		statusSymbol = "○"
 	}
@@ -369,14 +436,14 @@ func (t Task) FormatWithView(view string, backend TaskManager, dateFormat string
 		start := *t.StartDate
 		hoursDiff := start.Sub(now).Hours()
 
-		if start.Before(now) {
-			// Past: work should have begun (cyan)
+		if start.Before(now) || start.Equal(now) {
+			// Past/present: work should have begun (cyan)
 			startStr = fmt.Sprintf(" \033[36m(starts: %s)\033[0m", start.Format(dateFormat))
-		} else if hoursDiff < 72 { // Within 3 days
-			// Within 3 days (yellow)
+		} else if hoursDiff <= 72 { // Within 3 days (inclusive)
+			// Within 3 days (yellow) - includes exactly 72 hours
 			startStr = fmt.Sprintf(" \033[33m(starts: %s)\033[0m", start.Format(dateFormat))
 		} else {
-			// Future (gray)
+			// Future beyond 3 days (gray)
 			startStr = fmt.Sprintf(" \033[90m(starts: %s)\033[0m", start.Format(dateFormat))
 		}
 	}
@@ -396,14 +463,16 @@ func (t Task) FormatWithView(view string, backend TaskManager, dateFormat string
 	}
 
 	// Main line: status + colored summary (by priority) + start + due
+	// Add indentation for subtasks (2 spaces per level, plus the base 2 spaces)
+	indent := strings.Repeat("  ", indentLevel)
 	summaryColor := priorityColor
 	if summaryColor == "" {
 		summaryColor = "\033[1m" // Bold if no priority color
 	} else {
 		summaryColor = summaryColor + "\033[1m" // Bold + priority color
 	}
-	result.WriteString(fmt.Sprintf("  %s%s\033[0m %s%s\033[0m%s%s\n",
-		statusColor, statusSymbol, summaryColor, t.Summary, startStr, dueStr))
+	result.WriteString(fmt.Sprintf("  %s%s%s\033[0m %s%s\033[0m%s%s\n",
+		indent, statusColor, statusSymbol, summaryColor, t.Summary, startStr, dueStr))
 
 	// Description (if present)
 	if t.Description != "" {
@@ -411,7 +480,7 @@ func (t Task) FormatWithView(view string, backend TaskManager, dateFormat string
 		if len(desc) > 70 {
 			desc = desc[:67] + "..."
 		}
-		result.WriteString(fmt.Sprintf("     \033[2m%s\033[0m\n", desc))
+		result.WriteString(fmt.Sprintf("     %s\033[2m%s\033[0m\n", indent, desc))
 	}
 
 	// Metadata line: created, modified, priority (only for "all" view)
@@ -431,11 +500,78 @@ func (t Task) FormatWithView(view string, backend TaskManager, dateFormat string
 		}
 
 		if len(metadata) > 0 {
-			result.WriteString(fmt.Sprintf("     \033[2m%s\033[0m\n", strings.Join(metadata, " | ")))
+			result.WriteString(fmt.Sprintf("     %s\033[2m%s\033[0m\n", indent, strings.Join(metadata, " | ")))
 		}
 	}
 
 	return result.String()
+}
+
+// TaskWithLevel represents a task and its hierarchical depth level.
+// This is used when displaying tasks in a hierarchy where subtasks are indented.
+type TaskWithLevel struct {
+	Task  Task
+	Level int
+}
+
+// OrganizeTasksHierarchically organizes tasks into a hierarchical structure where
+// subtasks appear immediately after their parent tasks with appropriate indentation levels.
+// Tasks without parents (or whose parents don't exist in the list) are treated as root tasks.
+func OrganizeTasksHierarchically(tasks []Task) []TaskWithLevel {
+	if len(tasks) == 0 {
+		return nil
+	}
+
+	// Build maps for quick lookups
+	taskByUID := make(map[string]*Task)
+	childrenMap := make(map[string][]Task)
+
+	for i := range tasks {
+		task := &tasks[i]
+		taskByUID[task.UID] = task
+
+		if task.ParentUID != "" {
+			childrenMap[task.ParentUID] = append(childrenMap[task.ParentUID], *task)
+		}
+	}
+
+	// Find root tasks (tasks without parents or whose parents don't exist)
+	var rootTasks []Task
+	for _, task := range tasks {
+		if task.ParentUID == "" || taskByUID[task.ParentUID] == nil {
+			rootTasks = append(rootTasks, task)
+		}
+	}
+
+	// Recursively build the hierarchical list
+	var result []TaskWithLevel
+	visited := make(map[string]bool)
+
+	var addTaskWithChildren func(task Task, level int)
+	addTaskWithChildren = func(task Task, level int) {
+		// Prevent infinite loops in case of circular references
+		if visited[task.UID] {
+			return
+		}
+		visited[task.UID] = true
+
+		// Add the current task
+		result = append(result, TaskWithLevel{Task: task, Level: level})
+
+		// Add children recursively
+		if children, ok := childrenMap[task.UID]; ok {
+			for _, child := range children {
+				addTaskWithChildren(child, level+1)
+			}
+		}
+	}
+
+	// Process all root tasks
+	for _, task := range rootTasks {
+		addTaskWithChildren(task, 0)
+	}
+
+	return result
 }
 
 // TaskList represents a collection/category of tasks.
@@ -460,6 +596,11 @@ type TaskList struct {
 	// CTags is a synchronization token that changes when the list is modified.
 	// Used for efficient sync operations (CalDAV-specific, optional).
 	CTags string `json:"ctags,omitempty"`
+
+	// DeletedAt indicates when the list was deleted (moved to trash).
+	// Empty string means the list is not deleted.
+	// Used by Nextcloud to track trashed calendars (Nextcloud-specific, optional).
+	DeletedAt string `json:"deleted_at,omitempty"`
 }
 
 func (t TaskList) String() string {
@@ -513,4 +654,73 @@ func (t TaskList) BottomBorderWithWidth(termWidth int) string {
 
 	// Bottom border
 	return fmt.Sprintf("\033[1;36m└%s┘\033[0m\n", strings.Repeat("─", borderWidth))
+}
+
+// StringWithBackend returns the list header with backend information displayed on the right side.
+// The backend parameter can be nil, in which case no backend info is shown.
+func (t TaskList) StringWithBackend(backend TaskManager) string {
+	return t.StringWithWidthAndBackend(80, backend)
+}
+
+// StringWithWidthAndBackend formats the list header with backend information.
+// The backend info is positioned on the right side of the header, adapting to terminal width.
+func (t TaskList) StringWithWidthAndBackend(termWidth int, backend TaskManager) string {
+	// If no backend provided, fall back to standard display
+	if backend == nil {
+		return t.StringWithWidth(termWidth)
+	}
+
+	var result strings.Builder
+
+	// Calculate border width
+	borderWidth := termWidth - 2
+	if borderWidth < 40 {
+		borderWidth = 40
+	}
+	if borderWidth > 100 {
+		borderWidth = 100
+	}
+
+	// Get backend display name
+	backendInfo := backend.GetBackendDisplayName()
+
+	// Build the title text
+	titleText := "─ " + t.Name
+	if t.Description != "" {
+		titleText += " - " + t.Description
+	}
+	titleText += " "
+
+	// Calculate available space for padding between title and backend info
+	// Format: ┌─ Title ──────── [backend] ┐
+	titleLen := len(titleText)
+	backendLen := len(backendInfo)
+	totalContentLen := titleLen + backendLen + 2 // +2 for space and corner
+
+	if totalContentLen >= borderWidth {
+		// Not enough space, truncate description or show without backend
+		maxTitleLen := borderWidth - backendLen - 3
+		if maxTitleLen < 10 {
+			// If still not enough space, show without backend info
+			return t.StringWithWidth(termWidth)
+		}
+		// Truncate title
+		if len(titleText) > maxTitleLen {
+			titleText = titleText[:maxTitleLen-3] + "... "
+		}
+	}
+
+	// Calculate padding between title and backend info
+	paddingLen := borderWidth - len(titleText) - len(backendInfo) - 1
+	if paddingLen < 1 {
+		paddingLen = 1
+	}
+
+	// Top border with corner, title, padding, backend info
+	result.WriteString(fmt.Sprintf("\n\033[1;36m┌%s%s%s┐\033[0m\n",
+		titleText,
+		strings.Repeat("─", paddingLen),
+		backendInfo))
+
+	return result.String()
 }

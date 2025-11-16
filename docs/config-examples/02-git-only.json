@@ -1,0 +1,16 @@
+{
+  "backends": {
+    "git": {
+      "type": "git",
+      "enabled": true,
+      "file": "TODO.md",
+      "auto_detect": true,
+      "auto_commit": false
+    }
+  },
+  "default_backend": "git",
+  "auto_detect_backend": true,
+  "backend_priority": ["git"],
+  "ui": "cli",
+  "can_write_config": true
+}

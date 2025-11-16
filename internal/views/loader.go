@@ -67,9 +67,10 @@ func LoadView(path string) (*View, error) {
 			view.Fields[i].Format = GetDefaultFormat(field.Name)
 		}
 
-		// Set default Show to true if not explicitly set
-		if !field.Show {
-			view.Fields[i].Show = true
+		// Set default Show to true if not explicitly set (nil means not specified)
+		if field.Show == nil {
+			trueVal := true
+			view.Fields[i].Show = &trueVal
 		}
 	}
 
@@ -122,8 +123,9 @@ func LoadViewFromBytes(data []byte, name string) (*View, error) {
 			view.Fields[i].Format = GetDefaultFormat(field.Name)
 		}
 
-		if !field.Show {
-			view.Fields[i].Show = true
+		if field.Show == nil {
+			trueVal := true
+			view.Fields[i].Show = &trueVal
 		}
 	}
 

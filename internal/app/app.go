@@ -73,6 +73,24 @@ func (a *App) GetTaskManager() backend.TaskManager {
 	return a.taskManager
 }
 
+// RefreshTaskLists refreshes the task list cache from the backend
+func (a *App) RefreshTaskLists() error {
+	lists, err := cache.RefreshAndCacheTaskLists(a.taskManager)
+	if err != nil {
+		return err
+	}
+	a.taskLists = lists
+	return nil
+}
+
+// RefreshTaskListsOrWarn refreshes the task list cache, printing a warning on error
+// This is a convenience wrapper for non-critical cache refresh operations
+func (a *App) RefreshTaskListsOrWarn() {
+	if err := a.RefreshTaskLists(); err != nil {
+		fmt.Printf("Warning: failed to refresh cache: %v\n", err)
+	}
+}
+
 // ListBackends displays all configured backends and their status
 func (a *App) ListBackends() error {
 	fmt.Println("\n=== Configured Backends ===")
