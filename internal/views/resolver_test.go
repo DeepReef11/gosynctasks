@@ -134,28 +134,25 @@ func TestInvalidateViewCache(t *testing.T) {
 func TestGetBuiltInViews(t *testing.T) {
 	views := GetBuiltInViews()
 
-	if len(views) == 0 {
-		t.Error("Expected at least one built-in view")
+	// Should have 7 built-in views
+	expectedCount := 7
+	if len(views) != expectedCount {
+		t.Errorf("Expected %d built-in views, got %d", expectedCount, len(views))
 	}
 
-	// Check for known built-in views
-	hasBasic := false
-	hasAll := false
-	for _, name := range views {
-		if name == "basic" {
-			hasBasic = true
+	// Check for all expected built-in views
+	expectedViews := []string{"basic", "all", "minimal", "full", "kanban", "timeline", "compact"}
+	for _, expected := range expectedViews {
+		found := false
+		for _, name := range views {
+			if name == expected {
+				found = true
+				break
+			}
 		}
-		if name == "all" {
-			hasAll = true
+		if !found {
+			t.Errorf("Expected '%s' in built-in views list", expected)
 		}
-	}
-
-	if !hasBasic {
-		t.Error("Expected 'basic' in built-in views list")
-	}
-
-	if !hasAll {
-		t.Error("Expected 'all' in built-in views list")
 	}
 }
 
@@ -166,8 +163,13 @@ func TestIsBuiltInView(t *testing.T) {
 	}{
 		{"basic", true},
 		{"all", true},
+		{"minimal", true},
+		{"full", true},
+		{"kanban", true},
+		{"timeline", true},
+		{"compact", true},
 		{"custom", false},
-		{"minimal", false},
+		{"nonexistent", false},
 		{"", false},
 	}
 
@@ -212,7 +214,73 @@ func TestGetBuiltInView_Invalid(t *testing.T) {
 		t.Error("Expected error for invalid built-in view name")
 	}
 
-	if !strings.Contains(err.Error(), "unknown built-in view") {
-		t.Errorf("Expected 'unknown built-in view' error, got: %v", err)
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("Expected 'not found' error, got: %v", err)
+	}
+}
+
+// TestAllBuiltInViewsLoadable verifies that all built-in views can be loaded from embedded YAML
+func TestAllBuiltInViewsLoadable(t *testing.T) {
+	ClearViewCache()
+
+	builtInViews := GetBuiltInViews()
+	for _, viewName := range builtInViews {
+		t.Run(viewName, func(t *testing.T) {
+			view, err := getBuiltInView(viewName)
+			if err != nil {
+				t.Fatalf("Failed to load built-in view '%s': %v", viewName, err)
+			}
+
+			// Verify basic structure
+			if view.Name != viewName {
+				t.Errorf("Expected view name '%s', got '%s'", viewName, view.Name)
+			}
+
+			if view.Description == "" {
+				t.Errorf("View '%s' has no description", viewName)
+			}
+
+			if len(view.Fields) == 0 {
+				t.Errorf("View '%s' has no fields", viewName)
+			}
+
+			// Verify all fields have required properties
+			for i, field := range view.Fields {
+				if field.Name == "" {
+					t.Errorf("View '%s' field %d has no name", viewName, i)
+				}
+				if field.Format == "" {
+					t.Errorf("View '%s' field '%s' has no format", viewName, field.Name)
+				}
+				if field.Show == nil {
+					t.Errorf("View '%s' field '%s' has nil Show property", viewName, field.Name)
+				}
+			}
+		})
+	}
+}
+
+// TestEmbeddedYAMLViewsIntegration tests that embedded YAML views work through ResolveView
+func TestEmbeddedYAMLViewsIntegration(t *testing.T) {
+	ClearViewCache()
+
+	testCases := []string{"minimal", "full", "kanban", "timeline", "compact"}
+
+	for _, viewName := range testCases {
+		t.Run(viewName, func(t *testing.T) {
+			view, err := ResolveView(viewName)
+			if err != nil {
+				t.Fatalf("Failed to resolve embedded view '%s': %v", viewName, err)
+			}
+
+			if view.Name != viewName {
+				t.Errorf("Expected view name '%s', got '%s'", viewName, view.Name)
+			}
+
+			// These views should now be considered built-in
+			if !IsBuiltInView(viewName) {
+				t.Errorf("View '%s' should be a built-in view", viewName)
+			}
+		})
 	}
 }

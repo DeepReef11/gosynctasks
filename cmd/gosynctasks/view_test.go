@@ -1,6 +1,7 @@
 package main
 
 import (
+	"gosynctasks/internal/views"
 	"testing"
 )
 
@@ -9,7 +10,7 @@ func TestGetViewTemplate(t *testing.T) {
 
 	for _, templateName := range templates {
 		t.Run(templateName, func(t *testing.T) {
-			view, err := getViewTemplate(templateName)
+			view, err := views.ResolveView(templateName)
 			if err != nil {
 				t.Fatalf("Failed to get template '%s': %v", templateName, err)
 			}
@@ -46,14 +47,14 @@ func TestGetViewTemplate(t *testing.T) {
 }
 
 func TestGetViewTemplate_Invalid(t *testing.T) {
-	_, err := getViewTemplate("nonexistent")
+	_, err := views.ResolveView("nonexistent")
 	if err == nil {
 		t.Error("Expected error for non-existent template, got nil")
 	}
 }
 
 func TestGetViewTemplate_Minimal(t *testing.T) {
-	view, err := getViewTemplate("minimal")
+	view, err := views.ResolveView("minimal")
 	if err != nil {
 		t.Fatalf("Failed to get minimal template: %v", err)
 	}
@@ -70,7 +71,7 @@ func TestGetViewTemplate_Minimal(t *testing.T) {
 }
 
 func TestGetViewTemplate_Full(t *testing.T) {
-	view, err := getViewTemplate("full")
+	view, err := views.ResolveView("full")
 	if err != nil {
 		t.Fatalf("Failed to get full template: %v", err)
 	}
@@ -93,7 +94,7 @@ func TestGetViewTemplate_Full(t *testing.T) {
 }
 
 func TestGetViewTemplate_Kanban(t *testing.T) {
-	view, err := getViewTemplate("kanban")
+	view, err := views.ResolveView("kanban")
 	if err != nil {
 		t.Fatalf("Failed to get kanban template: %v", err)
 	}
@@ -118,7 +119,7 @@ func TestGetViewTemplate_Kanban(t *testing.T) {
 }
 
 func TestGetViewTemplate_Timeline(t *testing.T) {
-	view, err := getViewTemplate("timeline")
+	view, err := views.ResolveView("timeline")
 	if err != nil {
 		t.Fatalf("Failed to get timeline template: %v", err)
 	}
@@ -151,7 +152,7 @@ func TestGetViewTemplate_Timeline(t *testing.T) {
 }
 
 func TestGetViewTemplate_Compact(t *testing.T) {
-	view, err := getViewTemplate("compact")
+	view, err := views.ResolveView("compact")
 	if err != nil {
 		t.Fatalf("Failed to get compact template: %v", err)
 	}
@@ -183,7 +184,7 @@ func TestTemplateNameValidation(t *testing.T) {
 	}
 
 	for name, shouldExist := range templates {
-		_, err := getViewTemplate(name)
+		_, err := views.ResolveView(name)
 
 		if shouldExist && err != nil {
 			t.Errorf("Template '%s' should exist but got error: %v", name, err)

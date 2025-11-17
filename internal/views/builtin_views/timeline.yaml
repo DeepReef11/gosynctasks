@@ -1,0 +1,47 @@
+# Timeline view focusing on dates and scheduling
+# Best for time-sensitive tasks and deadline tracking
+
+name: timeline
+description: Timeline view focusing on dates and scheduling
+
+fields:
+  - name: start_date
+    format: full
+    label: "Starts"
+    show: true
+    color: true
+  - name: due_date
+    format: full
+    label: "Due"
+    show: true
+    color: true
+  - name: status
+    format: short
+    show: true
+  - name: summary
+    format: full
+    show: true
+  - name: priority
+    format: number
+    show: true
+    color: true
+  - name: description
+    format: truncate
+    width: 60
+    show: true
+
+field_order:
+  - start_date
+  - due_date
+  - status
+  - priority
+  - summary
+  - description
+
+display:
+  show_header: true
+  show_border: true
+  compact_mode: false
+  date_format: "Mon 01/02"
+  sort_by: start_date
+  sort_order: asc
