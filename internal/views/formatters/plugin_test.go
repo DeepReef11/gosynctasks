@@ -139,7 +139,7 @@ cat | jq -r 'if .due_date then "Due: " + .due_date else "No due date" end'
 		dueDate := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
 		task := backend.Task{
 			Summary: "test",
-			DueDate: dueDate,
+			DueDate: &dueDate,
 		}
 
 		result := formatter.Format(task, "", 0, false)
