@@ -9,7 +9,7 @@ gosynctasks is a Go-based task synchronization CLI that interfaces with multiple
 **Testing Requirements:**
 - After code changes: rebuild and provide test commands
 - Docker test server required for integration tests: `./scripts/start-test-server.sh`
-- Test config: `./gosynctasks/config/config.json` (pre-configured for localhost:8080)
+- Test config: `./gosynctasks/config/config.yaml` (pre-configured for localhost:8080)
 
 ## Quick Reference
 
@@ -70,7 +70,7 @@ gosynctasks sync queue                  # View pending operations
 ### Key Components
 
 **Configuration** (`internal/config/config.go`):
-- Location: `$XDG_CONFIG_HOME/gosynctasks/config.json`
+- Location: `$XDG_CONFIG_HOME/gosynctasks/config.yaml`
 - Singleton pattern with `sync.Once`
 - First-run setup from embedded sample
 
