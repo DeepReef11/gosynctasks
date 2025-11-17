@@ -417,8 +417,17 @@ func compareDatePointers(a, b *time.Time, nilsLast bool) bool {
 	return a.Before(*b)
 }
 
-// addParentIndicator adds a visual indicator to parent tasks showing they have children
-// It adds a prefix symbol (▶) and child count to the first line of the task output
+// addParentIndicator adds a visual indicator to parent tasks showing they have children.
+// It adds a prefix symbol (▶) and child count to the first line of the task output.
+//
+// This function works for all tasks with children, regardless of hierarchy level:
+// - Root parents (tasks at the top level)
+// - Intermediate parents (tasks that are both children AND have their own children)
+// - Deeply nested parents (at any level of the hierarchy)
+//
+// Example transformations:
+// Input:  "  ○ Phase 1\n"
+// Output: "  ▶ ○ Phase 1 (3)\n"  (if Phase 1 has 3 children)
 func addParentIndicator(taskOutput string, childCount int) string {
 	lines := strings.Split(taskOutput, "\n")
 	if len(lines) == 0 {
@@ -469,6 +478,10 @@ func formatNode(result *strings.Builder, nodes []*TaskNode, prefix string, isRoo
 		taskOutput := node.Task.FormatWithView(view, taskManager, dateFormat)
 
 		// Add parent indicator if this task has children
+		// This works for ALL tasks with children, including:
+		// - Root parents (top-level tasks with children)
+		// - Intermediate parents (tasks that are both parents AND children themselves)
+		// - Any level of nesting (grandparents, great-grandparents, etc.)
 		if len(node.Children) > 0 {
 			taskOutput = addParentIndicator(taskOutput, len(node.Children))
 		}

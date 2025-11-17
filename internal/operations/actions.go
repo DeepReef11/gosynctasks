@@ -471,6 +471,10 @@ func formatNodeWithCustomView(result *strings.Builder, nodes []*TaskNode, prefix
 		taskOutput := renderer.RenderTask(*node.Task)
 
 		// Add parent indicator if this task has children
+		// This works for ALL tasks with children, including:
+		// - Root parents (top-level tasks with children)
+		// - Intermediate parents (tasks that are both parents AND children themselves)
+		// - Any level of nesting (grandparents, great-grandparents, etc.)
 		if len(node.Children) > 0 {
 			taskOutput = addParentIndicator(taskOutput, len(node.Children))
 		}
