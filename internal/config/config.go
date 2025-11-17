@@ -94,11 +94,13 @@ func (c *Config) GetDefaultBackend() (*backend.BackendConfig, error) {
 		}
 
 		return &backend.BackendConfig{
-			Type:               c.Connector.URL.Scheme,
-			Enabled:            true,
-			URL:                c.Connector.URL.String(),
-			InsecureSkipVerify: c.Connector.InsecureSkipVerify,
-			SuppressSSLWarning: c.Connector.SuppressSSLWarning,
+			Type:                c.Connector.URL.Scheme,
+			Enabled:             true,
+			URL:                 c.Connector.URL.String(),
+			InsecureSkipVerify:  c.Connector.InsecureSkipVerify,
+			SuppressSSLWarning:  c.Connector.SuppressSSLWarning,
+			AllowHTTP:           c.Connector.AllowHTTP,
+			SuppressHTTPWarning: c.Connector.SuppressHTTPWarning,
 		}, nil
 	}
 
@@ -123,11 +125,13 @@ func (c *Config) GetEnabledBackends() map[string]backend.BackendConfig {
 		// For backward compatibility, return the old connector as a backend
 		if c.Connector != nil {
 			enabled[c.Connector.URL.Scheme] = backend.BackendConfig{
-				Type:               c.Connector.URL.Scheme,
-				Enabled:            true,
-				URL:                c.Connector.URL.String(),
-				InsecureSkipVerify: c.Connector.InsecureSkipVerify,
-				SuppressSSLWarning: c.Connector.SuppressSSLWarning,
+				Type:                c.Connector.URL.Scheme,
+				Enabled:             true,
+				URL:                 c.Connector.URL.String(),
+				InsecureSkipVerify:  c.Connector.InsecureSkipVerify,
+				SuppressSSLWarning:  c.Connector.SuppressSSLWarning,
+				AllowHTTP:           c.Connector.AllowHTTP,
+				SuppressHTTPWarning: c.Connector.SuppressHTTPWarning,
 			}
 		}
 		return enabled
@@ -406,11 +410,13 @@ func migrateConfig(oldConfig *Config) (*Config, error) {
 
 	// Build the new backend config
 	newBackendConfig := backend.BackendConfig{
-		Type:               backendType,
-		Enabled:            true,
-		URL:                oldConfig.Connector.URL.String(),
-		InsecureSkipVerify: oldConfig.Connector.InsecureSkipVerify,
-		SuppressSSLWarning: oldConfig.Connector.SuppressSSLWarning,
+		Type:                backendType,
+		Enabled:             true,
+		URL:                 oldConfig.Connector.URL.String(),
+		InsecureSkipVerify:  oldConfig.Connector.InsecureSkipVerify,
+		SuppressSSLWarning:  oldConfig.Connector.SuppressSSLWarning,
+		AllowHTTP:           oldConfig.Connector.AllowHTTP,
+		SuppressHTTPWarning: oldConfig.Connector.SuppressHTTPWarning,
 	}
 
 	// Create new config with migrated backend

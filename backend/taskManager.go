@@ -19,10 +19,11 @@ func (e *UnsupportedSchemeError) Error() string {
 
 // Base config struct (deprecated - use BackendConfig for new configurations)
 type ConnectorConfig struct {
-	URL                *url.URL `yaml:"url"`
-	InsecureSkipVerify bool     `yaml:"insecure_skip_verify,omitempty"` // WARNING: Only use for self-signed certificates in dev
-	SuppressSSLWarning bool     `yaml:"suppress_ssl_warning,omitempty"` // Suppress SSL warning when InsecureSkipVerify is true
-	AllowHTTP          bool     `yaml:"allow_http,omitempty"`           // Allow HTTP connections (insecure, only for testing)
+	URL                 *url.URL `yaml:"url"`
+	InsecureSkipVerify  bool     `yaml:"insecure_skip_verify,omitempty"`  // WARNING: Only use for self-signed certificates in dev
+	SuppressSSLWarning  bool     `yaml:"suppress_ssl_warning,omitempty"`  // Suppress SSL warning when InsecureSkipVerify is true
+	AllowHTTP           bool     `yaml:"allow_http,omitempty"`            // Allow HTTP connections (insecure, only for testing)
+	SuppressHTTPWarning bool     `yaml:"suppress_http_warning,omitempty"` // Suppress HTTP warning when AllowHTTP is true
 	// Type     string `yaml:"type" validate:"required,oneof=nextcloud local"`
 	//  Timeout  int    `yaml:"timeout,omitempty"`
 }
@@ -30,17 +31,18 @@ type ConnectorConfig struct {
 // BackendConfig represents configuration for a single backend in the multi-backend system.
 // Each backend has a type (nextcloud, git, file, sqlite) and type-specific configuration.
 type BackendConfig struct {
-	Type               string   `yaml:"type" validate:"required,oneof=nextcloud git file sqlite"`
-	Enabled            bool     `yaml:"enabled"`
-	URL                string   `yaml:"url,omitempty"`                  // Used by: nextcloud, file
-	InsecureSkipVerify bool     `yaml:"insecure_skip_verify,omitempty"` // Used by: nextcloud
-	SuppressSSLWarning bool     `yaml:"suppress_ssl_warning,omitempty"` // Used by: nextcloud
-	AllowHTTP          bool     `yaml:"allow_http,omitempty"`           // Used by: nextcloud (allow insecure HTTP)
-	File               string   `yaml:"file,omitempty"`                 // Used by: git (default: "TODO.md")
-	AutoDetect         bool     `yaml:"auto_detect,omitempty"`          // Used by: git
-	FallbackFiles      []string `yaml:"fallback_files,omitempty"`       // Used by: git
-	AutoCommit         bool     `yaml:"auto_commit,omitempty"`          // Used by: git
-	DBPath             string   `yaml:"db_path,omitempty"`              // Used by: sqlite
+	Type                string   `yaml:"type" validate:"required,oneof=nextcloud git file sqlite"`
+	Enabled             bool     `yaml:"enabled"`
+	URL                 string   `yaml:"url,omitempty"`                   // Used by: nextcloud, file
+	InsecureSkipVerify  bool     `yaml:"insecure_skip_verify,omitempty"`  // Used by: nextcloud
+	SuppressSSLWarning  bool     `yaml:"suppress_ssl_warning,omitempty"`  // Used by: nextcloud
+	AllowHTTP           bool     `yaml:"allow_http,omitempty"`            // Used by: nextcloud (allow insecure HTTP)
+	SuppressHTTPWarning bool     `yaml:"suppress_http_warning,omitempty"` // Used by: nextcloud (suppress HTTP warning)
+	File                string   `yaml:"file,omitempty"`                  // Used by: git (default: "TODO.md")
+	AutoDetect          bool     `yaml:"auto_detect,omitempty"`           // Used by: git
+	FallbackFiles       []string `yaml:"fallback_files,omitempty"`        // Used by: git
+	AutoCommit          bool     `yaml:"auto_commit,omitempty"`           // Used by: git
+	DBPath              string   `yaml:"db_path,omitempty"`               // Used by: sqlite
 }
 
 func (c *ConnectorConfig) UnmarshalYAML(value *yaml.Node) error {
@@ -48,10 +50,11 @@ func (c *ConnectorConfig) UnmarshalYAML(value *yaml.Node) error {
 
 	tmp := struct {
 		*ConnConfig
-		URL                string `yaml:"url"`
-		InsecureSkipVerify bool   `yaml:"insecure_skip_verify,omitempty"`
-		SuppressSSLWarning bool   `yaml:"suppress_ssl_warning,omitempty"`
-		AllowHTTP          bool   `yaml:"allow_http,omitempty"`
+		URL                 string `yaml:"url"`
+		InsecureSkipVerify  bool   `yaml:"insecure_skip_verify,omitempty"`
+		SuppressSSLWarning  bool   `yaml:"suppress_ssl_warning,omitempty"`
+		AllowHTTP           bool   `yaml:"allow_http,omitempty"`
+		SuppressHTTPWarning bool   `yaml:"suppress_http_warning,omitempty"`
 	}{
 		ConnConfig: (*ConnConfig)(c),
 	}
@@ -101,10 +104,11 @@ func (bc *BackendConfig) TaskManager() (TaskManager, error) {
 			return nil, fmt.Errorf("invalid URL for nextcloud backend: %w", err)
 		}
 		connConfig := ConnectorConfig{
-			URL:                u,
-			InsecureSkipVerify: bc.InsecureSkipVerify,
-			SuppressSSLWarning: bc.SuppressSSLWarning,
-			AllowHTTP:          bc.AllowHTTP,
+			URL:                 u,
+			InsecureSkipVerify:  bc.InsecureSkipVerify,
+			SuppressSSLWarning:  bc.SuppressSSLWarning,
+			AllowHTTP:           bc.AllowHTTP,
+			SuppressHTTPWarning: bc.SuppressHTTPWarning,
 		}
 		return NewNextcloudBackend(connConfig)
 

@@ -6,7 +6,10 @@ backends:
     type: nextcloud
     enabled: true
     url: "nextcloud://username:password@nextcloud.example.com"
-    insecure_skip_verify: false
+    insecure_skip_verify: false  # WARNING: Only use for self-signed certificates in dev
+    suppress_ssl_warning: false  # Suppress SSL warning when insecure_skip_verify is true
+    allow_http: false  # Allow insecure HTTP connections (only for local testing)
+    suppress_http_warning: false  # Suppress HTTP warning when allow_http is true
 
   git:
     type: git

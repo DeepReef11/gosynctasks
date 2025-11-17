@@ -809,7 +809,7 @@ func NewNextcloudBackend(connectorConfig ConnectorConfig) (TaskManager, error) {
 	}
 
 	// SECURITY: Check if AllowHTTP is enabled and warn
-	if nB.Connector.AllowHTTP {
+	if nB.Connector.AllowHTTP && !nB.Connector.SuppressHTTPWarning {
 		// Check if this will result in HTTP connections
 		host := nB.Connector.URL.Host
 		if strings.Contains(host, ":80") || strings.Contains(host, ":8080") || strings.Contains(host, ":8000") {
