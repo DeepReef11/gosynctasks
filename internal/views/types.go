@@ -46,6 +46,25 @@ type FieldConfig struct {
 	// Show controls whether this field is displayed
 	// nil = default to true, true = show, false = hide
 	Show *bool `yaml:"show,omitempty"`
+
+	// Plugin specifies an external script to use for custom formatting
+	// If set, this overrides the built-in formatter for this field
+	Plugin *PluginConfig `yaml:"plugin,omitempty"`
+}
+
+// PluginConfig specifies how to invoke an external formatter script
+type PluginConfig struct {
+	// Command is the path to the executable script
+	Command string `yaml:"command" validate:"required"`
+
+	// Args are optional arguments to pass to the script
+	Args []string `yaml:"args,omitempty"`
+
+	// Timeout is the maximum execution time in milliseconds (default: 1000, max: 5000)
+	Timeout int `yaml:"timeout,omitempty" validate:"min=0,max=5000"`
+
+	// Env are optional environment variables to set for the script
+	Env map[string]string `yaml:"env,omitempty"`
 }
 
 // ViewFilters defines default filtering rules for a view

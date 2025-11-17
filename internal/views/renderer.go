@@ -39,32 +39,45 @@ func (r *ViewRenderer) initializeFormatters() {
 	for _, field := range r.view.Fields {
 		var formatter formatters.FieldFormatter
 
-		switch field.Name {
-		case "status":
-			formatter = formatters.NewStatusFormatter(r.ctx)
-		case "priority":
-			formatter = formatters.NewPriorityFormatter(r.ctx)
-		case "summary":
-			formatter = formatters.NewSummaryFormatter(r.ctx)
-		case "description":
-			formatter = formatters.NewDescriptionFormatter(r.ctx)
-		case "due_date":
-			formatter = formatters.NewDateFormatter(r.ctx, "due_date")
-		case "start_date":
-			formatter = formatters.NewDateFormatter(r.ctx, "start_date")
-		case "created":
-			formatter = formatters.NewDateFormatter(r.ctx, "created")
-		case "modified":
-			formatter = formatters.NewDateFormatter(r.ctx, "modified")
-		case "completed":
-			formatter = formatters.NewDateFormatter(r.ctx, "completed")
-		case "tags":
-			formatter = formatters.NewTagsFormatter(r.ctx)
-		case "uid":
-			formatter = formatters.NewUIDFormatter(r.ctx)
-		case "parent":
-			// Parent uses UID formatter
-			formatter = formatters.NewUIDFormatter(r.ctx)
+		// Check if a plugin formatter is configured for this field
+		if field.Plugin != nil {
+			// Use plugin formatter
+			formatter = formatters.NewPluginFormatter(
+				r.ctx,
+				field.Plugin.Command,
+				field.Plugin.Args,
+				field.Plugin.Timeout,
+				field.Plugin.Env,
+			)
+		} else {
+			// Use built-in formatter based on field name
+			switch field.Name {
+			case "status":
+				formatter = formatters.NewStatusFormatter(r.ctx)
+			case "priority":
+				formatter = formatters.NewPriorityFormatter(r.ctx)
+			case "summary":
+				formatter = formatters.NewSummaryFormatter(r.ctx)
+			case "description":
+				formatter = formatters.NewDescriptionFormatter(r.ctx)
+			case "due_date":
+				formatter = formatters.NewDateFormatter(r.ctx, "due_date")
+			case "start_date":
+				formatter = formatters.NewDateFormatter(r.ctx, "start_date")
+			case "created":
+				formatter = formatters.NewDateFormatter(r.ctx, "created")
+			case "modified":
+				formatter = formatters.NewDateFormatter(r.ctx, "modified")
+			case "completed":
+				formatter = formatters.NewDateFormatter(r.ctx, "completed")
+			case "tags":
+				formatter = formatters.NewTagsFormatter(r.ctx)
+			case "uid":
+				formatter = formatters.NewUIDFormatter(r.ctx)
+			case "parent":
+				// Parent uses UID formatter
+				formatter = formatters.NewUIDFormatter(r.ctx)
+			}
 		}
 
 		if formatter != nil {

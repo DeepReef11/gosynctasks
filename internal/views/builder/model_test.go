@@ -282,9 +282,9 @@ func TestHandleSpace_TogglesDisplayOptions(t *testing.T) {
 	model.builder.CurrentState = StateDisplayOptions
 
 	tests := []struct {
-		cursor       int
-		checkField   func(*ViewBuilder) bool
-		name         string
+		cursor     int
+		checkField func(*ViewBuilder) bool
+		name       string
 	}{
 		{0, func(b *ViewBuilder) bool { return b.ShowHeader }, "ShowHeader"},
 		{1, func(b *ViewBuilder) bool { return b.ShowBorder }, "ShowBorder"},

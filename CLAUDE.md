@@ -113,6 +113,43 @@ gosynctasks sync queue                  # View pending operations
 - `internal/views/filter.go`: Filtering and sorting logic
 - `internal/views/builder/`: Interactive TUI builder
 
+**Plugin Formatters:**
+- External scripts for custom field formatting
+- Language-agnostic: supports bash, python, ruby, etc.
+- Input: JSON task data via stdin
+- Output: formatted string via stdout
+- Security: timeout enforcement (max 5s), error handling
+- Example plugins: `examples/view-plugins/`
+
+**Plugin Configuration (YAML):**
+```yaml
+fields:
+  - name: status
+    plugin:
+      command: "/path/to/script.sh"
+      args: ["--style", "emoji"]
+      timeout: 1000  # milliseconds
+      env:
+        CUSTOM_VAR: "value"
+```
+
+**Plugin Input Format:**
+```json
+{
+  "uid": "task-123",
+  "summary": "Task name",
+  "status": "TODO",
+  "priority": 1,
+  "due_date": "2025-01-15T00:00:00Z",
+  "categories": ["tag1", "tag2"]
+}
+```
+
+**Key Files:**
+- `internal/views/formatters/plugin.go`: Plugin execution
+- `internal/views/formatters/plugin_test.go`: Plugin tests
+- `examples/view-plugins/`: Example scripts
+
 ## Common Patterns
 
 **Terminal Width Detection:**

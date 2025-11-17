@@ -461,4 +461,3 @@ func matchesErrorFieldPrecise(line, fieldPath string) bool {
 
 	return matchesFieldInLine(line, fieldPath)
 }
-
