@@ -225,10 +225,10 @@ func SetCustomConfigPath(path string) {
 			customConfigPath = filepath.Join(path, CONFIG_FILE_PATH)
 		} else if err != nil {
 			// Path doesn't exist - determine intent from path structure
-			// If path ends with .yaml or .yml, treat as file path
+			// If path ends with config file extension, treat as file path
 			// Otherwise, assume it's a directory path
 			ext := filepath.Ext(path)
-			if ext == ".yaml" || ext == ".yml" || ext == ".YAML" || ext == ".YML" {
+			if ext == ".yaml" || ext == ".yml" || ext == ".YAML" || ext == ".YML" || ext == ".json" || ext == ".JSON" {
 				customConfigPath = path
 			} else {
 				// Assume directory, join with config.yaml
