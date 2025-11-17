@@ -1,14 +1,12 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"gosynctasks/backend"
 	"gosynctasks/internal/operations"
 	"gosynctasks/internal/utils"
 
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 // newListCmd creates the list management command with all subcommands
@@ -296,17 +294,13 @@ Use --json or --yaml for machine-readable output.`,
 
 			// Output in requested format
 			if jsonOutput {
-				data, err := json.MarshalIndent(listsToShow, "", "  ")
-				if err != nil {
-					return fmt.Errorf("failed to marshal JSON: %w", err)
+				if err := utils.OutputJSON(listsToShow); err != nil {
+					return err
 				}
-				fmt.Println(string(data))
 			} else if yamlOutput {
-				data, err := yaml.Marshal(listsToShow)
-				if err != nil {
-					return fmt.Errorf("failed to marshal YAML: %w", err)
+				if err := utils.OutputYAML(listsToShow); err != nil {
+					return err
 				}
-				fmt.Print(string(data))
 			} else {
 				// Human-readable format
 				for i, item := range listsToShow {
