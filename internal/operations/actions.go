@@ -467,8 +467,16 @@ func formatNodeWithCustomView(result *strings.Builder, nodes []*TaskNode, prefix
 			}
 		}
 
-		// Render the task with hierarchy using the custom view
-		taskOutput := renderer.RenderTaskHierarchical(*node.Task, nodePrefix, childPrefix)
+		// Render the task normally first
+		taskOutput := renderer.RenderTask(*node.Task)
+
+		// Add parent indicator if this task has children
+		if len(node.Children) > 0 {
+			taskOutput = addParentIndicator(taskOutput, len(node.Children))
+		}
+
+		// Apply hierarchical formatting with tree prefix
+		taskOutput = applyHierarchicalFormatting(taskOutput, nodePrefix, childPrefix)
 		result.WriteString(taskOutput)
 
 		// Recursively format children
@@ -476,4 +484,24 @@ func formatNodeWithCustomView(result *strings.Builder, nodes []*TaskNode, prefix
 			formatNodeWithCustomView(result, node.Children, childPrefix, false, renderer)
 		}
 	}
+}
+
+// applyHierarchicalFormatting adds tree indentation to task output
+func applyHierarchicalFormatting(taskOutput, nodePrefix, childPrefix string) string {
+	if nodePrefix == "" {
+		return taskOutput
+	}
+
+	var result strings.Builder
+	lines := strings.Split(strings.TrimRight(taskOutput, "\n"), "\n")
+	for j, line := range lines {
+		if j == 0 {
+			result.WriteString(nodePrefix)
+		} else {
+			result.WriteString(childPrefix)
+		}
+		result.WriteString(line)
+		result.WriteString("\n")
+	}
+	return result.String()
 }
