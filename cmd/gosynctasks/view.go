@@ -109,9 +109,9 @@ func newViewShowCmd() *cobra.Command {
 			}
 
 			// Marshal to YAML for display
-			data, err := yaml.Marshal(view)
+			data, err := utils.MarshalYAML(view)
 			if err != nil {
-				return fmt.Errorf("failed to format view: %w", err)
+				return err
 			}
 
 			fmt.Printf("View: %s\n", view.Name)
@@ -398,9 +398,9 @@ func editViewInEditor(view *views.View) (*views.View, error) {
 	defer os.Remove(tmpfile.Name())
 
 	// Marshal initial view to YAML
-	data, err := yaml.Marshal(view)
+	data, err := utils.MarshalYAML(view)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal view: %w", err)
+		return nil, err
 	}
 
 	currentContent := data
