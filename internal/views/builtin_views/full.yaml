@@ -1,0 +1,61 @@
+# Comprehensive view with all task metadata
+# Shows every field with enhanced formatting options
+
+name: full
+description: Comprehensive view with all task metadata
+
+fields:
+  - name: status
+    format: text
+    show: true
+  - name: priority
+    format: stars
+    show: true
+    color: true
+  - name: summary
+    format: full
+    show: true
+  - name: description
+    format: first_line
+    width: 80
+    show: true
+  - name: start_date
+    format: full
+    show: true
+    color: true
+  - name: due_date
+    format: full
+    show: true
+    color: true
+  - name: tags
+    format: hash
+    show: true
+  - name: created
+    format: relative
+    show: true
+  - name: modified
+    format: relative
+    show: true
+  - name: uid
+    format: short
+    show: true
+
+field_order:
+  - status
+  - priority
+  - summary
+  - description
+  - start_date
+  - due_date
+  - tags
+  - created
+  - modified
+  - uid
+
+display:
+  show_header: true
+  show_border: true
+  compact_mode: false
+  date_format: "2006-01-02 15:04"
+  sort_by: priority
+  sort_order: asc

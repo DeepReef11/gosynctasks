@@ -1,0 +1,51 @@
+# Complete view showing all task metadata
+# Use this view to see all available information about tasks
+
+name: all
+description: Complete view showing all task metadata
+
+fields:
+  - name: status
+    format: symbol
+    show: true
+  - name: summary
+    format: full
+    show: true
+  - name: start_date
+    format: full
+    show: true
+    color: true
+  - name: due_date
+    format: full
+    show: true
+    color: true
+  - name: description
+    format: truncate
+    width: 70
+    show: true
+  - name: created
+    format: full
+    show: true
+  - name: modified
+    format: full
+    show: true
+  - name: priority
+    format: number
+    show: true
+    color: true
+
+field_order:
+  - status
+  - summary
+  - start_date
+  - due_date
+  - description
+  - created
+  - modified
+  - priority
+
+display:
+  show_header: true
+  show_border: true
+  compact_mode: false
+  date_format: "2006-01-02"

@@ -167,15 +167,16 @@ Available templates:
 				}
 				view = built
 			} else if templateName != "" {
-				// Create from template
-				template, err := getViewTemplate(templateName)
+				// Create from built-in view (templates are now built-in views)
+				template, err := views.ResolveView(templateName)
 				if err != nil {
-					return err
+					return fmt.Errorf("template '%s' not found (available: minimal, full, kanban, timeline, compact)", templateName)
 				}
 
-				// Update name
-				template.Name = viewName
-				view = template
+				// Copy the view and update name
+				viewCopy := *template
+				viewCopy.Name = viewName
+				view = &viewCopy
 			} else {
 				// Create from editor
 				trueVal := true
@@ -505,120 +506,6 @@ func editViewInEditor(view *views.View) (*views.View, error) {
 	}
 }
 
-// getViewTemplate returns a built-in view template
-func getViewTemplate(name string) (*views.View, error) {
-	trueVal := true
-
-	switch name {
-	case "minimal":
-		return &views.View{
-			Name:        "minimal",
-			Description: "Minimalist view showing only essential information",
-			Fields: []views.FieldConfig{
-				{Name: "status", Format: "symbol", Show: &trueVal},
-				{Name: "summary", Format: "full", Show: &trueVal},
-				{Name: "due_date", Format: "short", Color: true, Show: &trueVal},
-			},
-			Display: views.DisplayOptions{
-				ShowHeader:  true,
-				ShowBorder:  false,
-				CompactMode: true,
-				DateFormat:  "01/02",
-			},
-		}, nil
-
-	case "full":
-		return &views.View{
-			Name:        "full",
-			Description: "Comprehensive view with all task metadata",
-			Fields: []views.FieldConfig{
-				{Name: "status", Format: "text", Show: &trueVal},
-				{Name: "priority", Format: "stars", Color: true, Show: &trueVal},
-				{Name: "summary", Format: "full", Show: &trueVal},
-				{Name: "description", Format: "first_line", Width: 80, Show: &trueVal},
-				{Name: "start_date", Format: "full", Color: true, Show: &trueVal},
-				{Name: "due_date", Format: "full", Color: true, Show: &trueVal},
-				{Name: "tags", Format: "hash", Show: &trueVal},
-				{Name: "created", Format: "relative", Show: &trueVal},
-				{Name: "modified", Format: "relative", Show: &trueVal},
-				{Name: "uid", Format: "short", Show: &trueVal},
-			},
-			FieldOrder: []string{"status", "priority", "summary", "description", "start_date", "due_date", "tags", "created", "modified", "uid"},
-			Display: views.DisplayOptions{
-				ShowHeader:  true,
-				ShowBorder:  true,
-				CompactMode: false,
-				DateFormat:  "2006-01-02 15:04",
-				SortBy:      "priority",
-				SortOrder:   "asc",
-			},
-		}, nil
-
-	case "kanban":
-		return &views.View{
-			Name:        "kanban",
-			Description: "Kanban-style view grouped by status",
-			Fields: []views.FieldConfig{
-				{Name: "status", Format: "emoji", Show: &trueVal},
-				{Name: "summary", Format: "truncate", Width: 50, Show: &trueVal},
-				{Name: "priority", Format: "color", Color: true, Show: &trueVal},
-				{Name: "due_date", Format: "relative", Color: true, Show: &trueVal},
-				{Name: "tags", Format: "comma", Show: &trueVal},
-			},
-			FieldOrder: []string{"status", "priority", "summary", "due_date", "tags"},
-			Display: views.DisplayOptions{
-				ShowHeader:  true,
-				ShowBorder:  true,
-				CompactMode: true,
-				DateFormat:  "Jan 02",
-				SortBy:      "status",
-				SortOrder:   "asc",
-			},
-		}, nil
-
-	case "timeline":
-		return &views.View{
-			Name:        "timeline",
-			Description: "Timeline view focusing on dates and scheduling",
-			Fields: []views.FieldConfig{
-				{Name: "start_date", Format: "full", Color: true, Label: "Starts", Show: &trueVal},
-				{Name: "due_date", Format: "full", Color: true, Label: "Due", Show: &trueVal},
-				{Name: "status", Format: "short", Show: &trueVal},
-				{Name: "summary", Format: "full", Show: &trueVal},
-				{Name: "priority", Format: "number", Color: true, Show: &trueVal},
-				{Name: "description", Format: "truncate", Width: 60, Show: &trueVal},
-			},
-			FieldOrder: []string{"start_date", "due_date", "status", "priority", "summary", "description"},
-			Display: views.DisplayOptions{
-				ShowHeader:  true,
-				ShowBorder:  true,
-				CompactMode: false,
-				DateFormat:  "Mon 01/02",
-				SortBy:      "start_date",
-				SortOrder:   "asc",
-			},
-		}, nil
-
-	case "compact":
-		return &views.View{
-			Name:        "compact",
-			Description: "Single-line compact view",
-			Fields: []views.FieldConfig{
-				{Name: "status", Format: "short", Show: &trueVal},
-				{Name: "priority", Format: "number", Show: &trueVal},
-				{Name: "summary", Format: "truncate", Width: 40, Show: &trueVal},
-				{Name: "due_date", Format: "short", Color: true, Show: &trueVal},
-			},
-			FieldOrder: []string{"status", "priority", "summary", "due_date"},
-			Display: views.DisplayOptions{
-				ShowHeader:  false,
-				ShowBorder:  false,
-				CompactMode: true,
-				DateFormat:  "01/02",
-			},
-		}, nil
-
-	default:
-		return nil, fmt.Errorf("unknown template: %s (available: minimal, full, kanban, timeline, compact)", name)
-	}
-}
+// getViewTemplate is deprecated and removed.
+// Templates are now built-in views loaded from embedded YAML files.
+// Use views.ResolveView(name) to load any built-in view.

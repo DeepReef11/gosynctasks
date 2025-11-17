@@ -1,10 +1,14 @@
 package views
 
 import (
+	"embed"
 	"fmt"
 	"path/filepath"
 	"sync"
 )
+
+//go:embed builtin_views/*.yaml
+var builtinViewFS embed.FS
 
 // viewCache stores loaded views for performance
 var viewCache = make(map[string]*View)
@@ -12,7 +16,7 @@ var cacheMutex sync.RWMutex
 
 // ResolveView loads a view by name with the following priority:
 // 1. User views (~/.config/gosynctasks/views/<name>.yaml)
-// 2. Built-in views (basic, all)
+// 2. Built-in views (basic, all, minimal, full, kanban, timeline, compact)
 //
 // Views are cached after first load for performance.
 func ResolveView(name string) (*View, error) {
@@ -69,62 +73,27 @@ func InvalidateViewCache(name string) {
 	delete(viewCache, name)
 }
 
-// getBuiltInView returns a built-in view by name
+// getBuiltInView returns a built-in view by name from embedded YAML files
 func getBuiltInView(name string) (*View, error) {
-	trueVal := true
-
-	switch name {
-	case "basic":
-		return &View{
-			Name:        "basic",
-			Description: "Basic view showing status, summary, and dates",
-			Fields: []FieldConfig{
-				{Name: "status", Format: "symbol", Show: &trueVal},
-				{Name: "summary", Format: "full", Show: &trueVal},
-				{Name: "start_date", Format: "full", Show: &trueVal, Color: true},
-				{Name: "due_date", Format: "full", Show: &trueVal, Color: true},
-				{Name: "description", Format: "truncate", Width: 70, Show: &trueVal},
-			},
-			FieldOrder: []string{"status", "summary", "start_date", "due_date", "description"},
-			Display: DisplayOptions{
-				ShowHeader:  true,
-				ShowBorder:  true,
-				CompactMode: false,
-				DateFormat:  "2006-01-02",
-			},
-		}, nil
-
-	case "all":
-		return &View{
-			Name:        "all",
-			Description: "Complete view showing all task metadata",
-			Fields: []FieldConfig{
-				{Name: "status", Format: "symbol", Show: &trueVal},
-				{Name: "summary", Format: "full", Show: &trueVal},
-				{Name: "start_date", Format: "full", Show: &trueVal, Color: true},
-				{Name: "due_date", Format: "full", Show: &trueVal, Color: true},
-				{Name: "description", Format: "truncate", Width: 70, Show: &trueVal},
-				{Name: "created", Format: "full", Show: &trueVal},
-				{Name: "modified", Format: "full", Show: &trueVal},
-				{Name: "priority", Format: "number", Show: &trueVal, Color: true},
-			},
-			FieldOrder: []string{"status", "summary", "start_date", "due_date", "description", "created", "modified", "priority"},
-			Display: DisplayOptions{
-				ShowHeader:  true,
-				ShowBorder:  true,
-				CompactMode: false,
-				DateFormat:  "2006-01-02",
-			},
-		}, nil
-
-	default:
-		return nil, fmt.Errorf("unknown built-in view: %s", name)
+	// Try to read the embedded YAML file
+	filePath := fmt.Sprintf("builtin_views/%s.yaml", name)
+	data, err := builtinViewFS.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("built-in view '%s' not found", name)
 	}
+
+	// Load view from YAML bytes
+	view, err := LoadViewFromBytes(data, name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load built-in view '%s': %w", name, err)
+	}
+
+	return view, nil
 }
 
 // GetBuiltInViews returns a list of built-in view names
 func GetBuiltInViews() []string {
-	return []string{"basic", "all"}
+	return []string{"basic", "all", "minimal", "full", "kanban", "timeline", "compact"}
 }
 
 // IsBuiltInView checks if a view name is a built-in view

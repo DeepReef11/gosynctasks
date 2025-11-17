@@ -1,0 +1,33 @@
+# Single-line compact view
+# Maximum information density for small terminal windows
+
+name: compact
+description: Single-line compact view
+
+fields:
+  - name: status
+    format: short
+    show: true
+  - name: priority
+    format: number
+    show: true
+  - name: summary
+    format: truncate
+    width: 40
+    show: true
+  - name: due_date
+    format: short
+    show: true
+    color: true
+
+field_order:
+  - status
+  - priority
+  - summary
+  - due_date
+
+display:
+  show_header: false
+  show_border: false
+  compact_mode: true
+  date_format: "01/02"

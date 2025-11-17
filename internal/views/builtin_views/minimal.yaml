@@ -1,0 +1,23 @@
+# Minimalist view showing only essential information
+# Perfect for quick task lists with minimal clutter
+
+name: minimal
+description: Minimalist view showing only essential information
+
+fields:
+  - name: status
+    format: symbol
+    show: true
+  - name: summary
+    format: full
+    show: true
+  - name: due_date
+    format: short
+    show: true
+    color: true
+
+display:
+  show_header: true
+  show_border: false
+  compact_mode: true
+  date_format: "01/02"
