@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 // TestIsOldFormat tests the IsOldFormat method
@@ -496,7 +498,7 @@ func TestConfigMigrationIntegration(t *testing.T) {
 	}
 
 	var newConfig map[string]interface{}
-	err = json.Unmarshal(newConfigData, &newConfig)
+	err = yaml.Unmarshal(newConfigData, &newConfig)
 	if err != nil {
 		t.Fatalf("failed to unmarshal new config: %v", err)
 	}

@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 
 	// "gosynctasks/backend"
@@ -14,6 +13,7 @@ import (
 	"sync"
 
 	"github.com/go-playground/validator/v10"
+	"gopkg.in/yaml.v3"
 
 	_ "embed"
 )
@@ -26,12 +26,12 @@ var customConfigPath string // Custom config path set via --config flag
 
 // var globalConnector *connectors.TaskConnector
 
-//go:embed config.sample.json
+//go:embed config.sample.yaml
 var sampleConfig []byte
 
 const (
 	CONFIG_DIR_PATH  = "gosynctasks"
-	CONFIG_FILE_PATH = "config.json"
+	CONFIG_FILE_PATH = "config.yaml"
 	CONFIG_DIR_PERM  = 0755
 	CONFIG_FILE_PERM = 0644
 )
@@ -40,30 +40,30 @@ const (
 // It supports both old single-backend format (deprecated) and new multi-backend format.
 type Config struct {
 	// Old format (deprecated - will be migrated automatically)
-	Connector      *backend.ConnectorConfig `json:"connector,omitempty"`
-	CanWriteConfig bool                     `json:"canWriteConfig"`
+	Connector      *backend.ConnectorConfig `yaml:"connector,omitempty"`
+	CanWriteConfig bool                     `yaml:"canWriteConfig"`
 
 	// New multi-backend format
-	Backends          map[string]backend.BackendConfig `json:"backends,omitempty"`
-	DefaultBackend    string                           `json:"default_backend,omitempty"`
-	AutoDetectBackend bool                             `json:"auto_detect_backend,omitempty"`
-	BackendPriority   []string                         `json:"backend_priority,omitempty"`
+	Backends          map[string]backend.BackendConfig `yaml:"backends,omitempty"`
+	DefaultBackend    string                           `yaml:"default_backend,omitempty"`
+	AutoDetectBackend bool                             `yaml:"auto_detect_backend,omitempty"`
+	BackendPriority   []string                         `yaml:"backend_priority,omitempty"`
 
 	// Common settings
-	UI         string      `json:"ui" validate:"oneof=cli tui"`
-	DateFormat string      `json:"date_format,omitempty"` // Go time format string, defaults to "2006-01-02"
-	Sync       *SyncConfig `json:"sync,omitempty"`        // Sync configuration
+	UI         string      `yaml:"ui" validate:"oneof=cli tui"`
+	DateFormat string      `yaml:"date_format,omitempty"` // Go time format string, defaults to "2006-01-02"
+	Sync       *SyncConfig `yaml:"sync,omitempty"`        // Sync configuration
 }
 
 // SyncConfig represents sync-related settings
 type SyncConfig struct {
-	Enabled            bool   `json:"enabled"`                       // Enable sync functionality
-	ConflictResolution string `json:"conflict_resolution,omitempty"` // Strategy: server_wins, local_wins, merge, keep_both
-	AutoSync           bool   `json:"auto_sync,omitempty"`           // Auto-sync on command execution
-	SyncInterval       int    `json:"sync_interval,omitempty"`       // Minutes between auto-syncs (0=disabled)
-	OfflineMode        string `json:"offline_mode,omitempty"`        // Mode: auto, online, offline
-	LocalBackend       string `json:"local_backend,omitempty"`       // Name of local SQLite backend for sync
-	RemoteBackend      string `json:"remote_backend,omitempty"`      // Name of remote backend to sync with
+	Enabled            bool   `yaml:"enabled"`                       // Enable sync functionality
+	ConflictResolution string `yaml:"conflict_resolution,omitempty"` // Strategy: server_wins, local_wins, merge, keep_both
+	AutoSync           bool   `yaml:"auto_sync,omitempty"`           // Auto-sync on command execution
+	SyncInterval       int    `yaml:"sync_interval,omitempty"`       // Minutes between auto-syncs (0=disabled)
+	OfflineMode        string `yaml:"offline_mode,omitempty"`        // Mode: auto, online, offline
+	LocalBackend       string `yaml:"local_backend,omitempty"`       // Name of local SQLite backend for sync
+	RemoteBackend      string `yaml:"remote_backend,omitempty"`      // Name of remote backend to sync with
 }
 
 // IsOldFormat returns true if this config uses the old single-backend format
@@ -209,8 +209,8 @@ func (c *Config) GetDateFormat() string {
 }
 
 // SetCustomConfigPath sets a custom config path to use instead of the default user config directory.
-// If path is empty or ".", it uses "./gosynctasks/config.json" (current directory).
-// If path is a directory (or looks like one), it looks for "config.json" inside it.
+// If path is empty or ".", it uses "./gosynctasks/config.yaml" (current directory).
+// If path is a directory (or looks like one), it looks for "config.yaml" inside it.
 // If path is a file, it uses that file directly.
 // This must be called before GetConfig() is called for the first time.
 // If GetConfig() was already called, this function will reset it to allow reloading with the new path.
@@ -225,13 +225,13 @@ func SetCustomConfigPath(path string) {
 			customConfigPath = filepath.Join(path, CONFIG_FILE_PATH)
 		} else if err != nil {
 			// Path doesn't exist - determine intent from path structure
-			// If path ends with .json, treat as file path
+			// If path ends with config file extension, treat as file path
 			// Otherwise, assume it's a directory path
 			ext := filepath.Ext(path)
-			if ext == ".json" || ext == ".JSON" {
+			if ext == ".yaml" || ext == ".yml" || ext == ".YAML" || ext == ".YML" || ext == ".json" || ext == ".JSON" {
 				customConfigPath = path
 			} else {
-				// Assume directory, join with config.json
+				// Assume directory, join with config.yaml
 				customConfigPath = filepath.Join(path, CONFIG_FILE_PATH)
 			}
 		} else {
@@ -320,11 +320,11 @@ func createConfigFromSample(configPath string) []byte {
 
 func parseConfig(configData []byte, configPath string) (*Config, error) {
 	var configObj Config
-	// configObj, err := UnmarshalJSON(configData)
-	err := json.Unmarshal(configData, &configObj)
+	// configObj, err := UnmarshalYAML(configData)
+	err := yaml.Unmarshal(configData, &configObj)
 
 	if err != nil {
-		log.Fatalf("Invalid JSON in config file %s: %v", configPath, err)
+		log.Fatalf("Invalid YAML in config file %s: %v", configPath, err)
 	}
 
 	// Check if migration is needed
@@ -351,7 +351,7 @@ func parseConfig(configData []byte, configPath string) (*Config, error) {
 		}
 
 		// Write migrated config
-		migratedData, err := json.MarshalIndent(migratedConfig, "", "  ")
+		migratedData, err := yaml.Marshal(migratedConfig)
 		if err != nil {
 			log.Fatalf("Failed to serialize migrated config: %v", err)
 		}
@@ -368,7 +368,7 @@ func parseConfig(configData []byte, configPath string) (*Config, error) {
 	}
 
 	if err = configObj.Validate(); err != nil {
-		log.Fatalf("Missing field(s) in JSON config file %s: %v", configPath, err)
+		log.Fatalf("Missing field(s) in YAML config file %s: %v", configPath, err)
 	}
 	return &configObj, err
 }

@@ -1,11 +1,12 @@
 package backend
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 type UnsupportedSchemeError struct {
@@ -18,44 +19,44 @@ func (e *UnsupportedSchemeError) Error() string {
 
 // Base config struct (deprecated - use BackendConfig for new configurations)
 type ConnectorConfig struct {
-	URL                *url.URL `json:"url"`
-	InsecureSkipVerify bool     `json:"insecure_skip_verify,omitempty"` // WARNING: Only use for self-signed certificates in dev
-	SuppressSSLWarning bool     `json:"suppress_ssl_warning,omitempty"` // Suppress SSL warning when InsecureSkipVerify is true
-	AllowHTTP          bool     `json:"allow_http,omitempty"`           // Allow HTTP connections (insecure, only for testing)
-	// Type     string `json:"type" validate:"required,oneof=nextcloud local"`
-	//  Timeout  int    `json:"timeout,omitempty"`
+	URL                *url.URL `yaml:"url"`
+	InsecureSkipVerify bool     `yaml:"insecure_skip_verify,omitempty"` // WARNING: Only use for self-signed certificates in dev
+	SuppressSSLWarning bool     `yaml:"suppress_ssl_warning,omitempty"` // Suppress SSL warning when InsecureSkipVerify is true
+	AllowHTTP          bool     `yaml:"allow_http,omitempty"`           // Allow HTTP connections (insecure, only for testing)
+	// Type     string `yaml:"type" validate:"required,oneof=nextcloud local"`
+	//  Timeout  int    `yaml:"timeout,omitempty"`
 }
 
 // BackendConfig represents configuration for a single backend in the multi-backend system.
 // Each backend has a type (nextcloud, git, file, sqlite) and type-specific configuration.
 type BackendConfig struct {
-	Type               string   `json:"type" validate:"required,oneof=nextcloud git file sqlite"`
-	Enabled            bool     `json:"enabled"`
-	URL                string   `json:"url,omitempty"`                  // Used by: nextcloud, file
-	InsecureSkipVerify bool     `json:"insecure_skip_verify,omitempty"` // Used by: nextcloud
-	SuppressSSLWarning bool     `json:"suppress_ssl_warning,omitempty"` // Used by: nextcloud
-	AllowHTTP          bool     `json:"allow_http,omitempty"`           // Used by: nextcloud (allow insecure HTTP)
-	File               string   `json:"file,omitempty"`                 // Used by: git (default: "TODO.md")
-	AutoDetect         bool     `json:"auto_detect,omitempty"`          // Used by: git
-	FallbackFiles      []string `json:"fallback_files,omitempty"`       // Used by: git
-	AutoCommit         bool     `json:"auto_commit,omitempty"`          // Used by: git
-	DBPath             string   `json:"db_path,omitempty"`              // Used by: sqlite
+	Type               string   `yaml:"type" validate:"required,oneof=nextcloud git file sqlite"`
+	Enabled            bool     `yaml:"enabled"`
+	URL                string   `yaml:"url,omitempty"`                  // Used by: nextcloud, file
+	InsecureSkipVerify bool     `yaml:"insecure_skip_verify,omitempty"` // Used by: nextcloud
+	SuppressSSLWarning bool     `yaml:"suppress_ssl_warning,omitempty"` // Used by: nextcloud
+	AllowHTTP          bool     `yaml:"allow_http,omitempty"`           // Used by: nextcloud (allow insecure HTTP)
+	File               string   `yaml:"file,omitempty"`                 // Used by: git (default: "TODO.md")
+	AutoDetect         bool     `yaml:"auto_detect,omitempty"`          // Used by: git
+	FallbackFiles      []string `yaml:"fallback_files,omitempty"`       // Used by: git
+	AutoCommit         bool     `yaml:"auto_commit,omitempty"`          // Used by: git
+	DBPath             string   `yaml:"db_path,omitempty"`              // Used by: sqlite
 }
 
-func (c *ConnectorConfig) UnmarshalJSON(data []byte) error {
+func (c *ConnectorConfig) UnmarshalYAML(value *yaml.Node) error {
 	type ConnConfig ConnectorConfig
 
 	tmp := struct {
 		*ConnConfig
-		URL                string `json:"url"`
-		InsecureSkipVerify bool   `json:"insecure_skip_verify,omitempty"`
-		SuppressSSLWarning bool   `json:"suppress_ssl_warning,omitempty"`
-		AllowHTTP          bool   `json:"allow_http,omitempty"`
+		URL                string `yaml:"url"`
+		InsecureSkipVerify bool   `yaml:"insecure_skip_verify,omitempty"`
+		SuppressSSLWarning bool   `yaml:"suppress_ssl_warning,omitempty"`
+		AllowHTTP          bool   `yaml:"allow_http,omitempty"`
 	}{
 		ConnConfig: (*ConnConfig)(c),
 	}
 
-	if err := json.Unmarshal(data, &tmp); err != nil {
+	if err := value.Decode(&tmp); err != nil {
 		return err
 	}
 
