@@ -2,6 +2,102 @@
 
 This document outlines planned future enhancements and features for gosynctasks. These are aspirational goals that may change based on project priorities and community feedback.
 
+## Open Issues
+
+This section tracks all open GitHub issues for the project, organized by category.
+
+### UI & Display Enhancements
+
+#### Issue #119: Improve task display formatting: add visual indicators for parent tasks
+
+**Status**: Open
+**Created**: 2025-11-17
+**GitHub**: https://github.com/DeepReef11/gosynctasks/issues/119
+
+Currently subtasks display with tree characters (└─, ├─) but parent tasks lack visual indicators. This makes the hierarchical relationship less clear. Need to improve the display to make the parent-child structure more visually linked and consistent.
+
+Possible approaches include:
+- Adding prefix symbols (▶, +) to parent tasks
+- Different styling (bold, color) for parent tasks
+- Explicit indicators like "[Parent]" or child count "(2 children)"
+- Enhanced indentation markers to show hierarchy levels
+
+Related files: `internal/operations/subtasks.go`, `internal/views/renderer.go`
+
+### Code Quality & Refactoring
+
+#### Issue #94: Remove old config migration code
+
+**Status**: Open
+**Created**: 2025-11-16
+**Labels**: None
+**GitHub**: https://github.com/DeepReef11/gosynctasks/issues/94
+
+See: docs/issues/issue-94.md for full details
+
+Summary: Remove legacy config migration code that is no longer needed. This code cleanup will simplify the config loading logic and reduce maintenance burden. Priority: Low.
+
+#### Issue #93: Change config.json to YAML format
+
+**Status**: Open
+**Created**: 2025-11-16
+**Labels**: None
+**GitHub**: https://github.com/DeepReef11/gosynctasks/issues/93
+
+See: docs/issues/issue-93.md for full details
+
+Summary: Convert configuration file format from JSON to YAML for better readability, comment support, and consistency with the views system. This is for developer/maintainer use only with no user impact. Priority: Low.
+
+#### Issue #87: Enhancement: Create OutputData utility for structured output
+
+**Status**: Open
+**Created**: 2025-11-15
+**Labels**: enhancement
+**GitHub**: https://github.com/DeepReef11/gosynctasks/issues/87
+
+JSON/YAML output handling is repeated 2-3 times across the codebase with similar boilerplate. Create a utility function in `internal/utils/output.go` to consolidate this pattern and improve code consistency.
+
+Priority: Medium - Nice to have for code quality.
+
+#### Issue #31: Reduce duplication between built-in views and view templates
+
+**Status**: Open
+**Created**: 2025-11-12
+**Labels**: None
+**GitHub**: https://github.com/DeepReef11/gosynctasks/issues/31
+
+See: docs/issues/issue-31.md for full details
+
+Summary: Built-in views are defined in two places (internal/views/resolver.go and cmd/gosynctasks/view.go) creating maintenance burden. Proposed solution is to embed views as YAML files for better maintainability and consistency. Priority: Low.
+
+### Documentation
+
+#### Issue #82: Documentation: Code review findings and positive patterns
+
+**Status**: Open
+**Created**: 2025-11-15
+**Labels**: documentation
+**GitHub**: https://github.com/DeepReef11/gosynctasks/issues/82
+
+See: docs/issues/issue-82.md for full details
+
+Summary: Comprehensive code review findings documenting positive patterns, recommended refactoring opportunities, and patterns that should NOT be changed. Includes action plan with estimated effort for each improvement.
+
+### Features & Enhancements
+
+#### Issue #32: Add view plugin system for custom field formatters
+
+**Status**: Open
+**Created**: 2025-11-12
+**Labels**: None
+**GitHub**: https://github.com/DeepReef11/gosynctasks/issues/32
+
+Allow users to define custom field formatters via external scripts without modifying source code. Use cases include custom status indicators (Jira-style chips), business-specific formatters (sprint numbers from tags), and integration with external tools (GitHub issue links).
+
+Proposed approach: Execute user scripts and capture output in a language-agnostic way (bash, python, ruby) with sandboxing and timeouts.
+
+Priority: Low - Advanced feature for power users.
+
 ## Future Work: Multi-Backend Support & Git Backend
 
 ### Overview
