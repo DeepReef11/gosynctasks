@@ -38,28 +38,28 @@ const (
 // String returns the string representation of the state
 func (s BuilderState) String() string {
 	switch s {
-		case StateWelcome:
-			return "Welcome"
-		case StateBasicInfo:
-			return "Basic Info"
-		case StateFieldSelection:
-			return "Field Selection"
-		case StateFieldOrdering:
-			return "Field Ordering"
-		case StateFieldConfig:
-			return "Field Configuration"
-		case StateDisplayOptions:
-			return "Display Options"
-		case StateFilterConfig:
-			return "Filter Configuration"
-		case StateConfirm:
-			return "Confirm"
-		case StateDone:
-			return "Done"
-		case StateCancelled:
-			return "Cancelled"
-		default:
-			return "Unknown"
+	case StateWelcome:
+		return "Welcome"
+	case StateBasicInfo:
+		return "Basic Info"
+	case StateFieldSelection:
+		return "Field Selection"
+	case StateFieldOrdering:
+		return "Field Ordering"
+	case StateFieldConfig:
+		return "Field Configuration"
+	case StateDisplayOptions:
+		return "Display Options"
+	case StateFilterConfig:
+		return "Filter Configuration"
+	case StateConfirm:
+		return "Confirm"
+	case StateDone:
+		return "Done"
+	case StateCancelled:
+		return "Cancelled"
+	default:
+		return "Unknown"
 	}
 }
 
@@ -137,9 +137,9 @@ func NewViewBuilder(name string) *ViewBuilder {
 			Description: def.Description,
 			Selected:    selected,
 			Format:      def.DefaultFormat,
-			Width:       0,  // Will use default
+			Width:       0,     // Will use default
 			Color:       false, // User can toggle in config
-			Label:       "",  // Will use default
+			Label:       "",    // Will use default
 		}
 
 		// Description field gets special treatment for width

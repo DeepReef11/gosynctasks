@@ -1,0 +1,43 @@
+# Sample view configuration demonstrating plugin formatters
+# Save this to ~/.config/gosynctasks/views/plugin-demo.yaml
+
+name: plugin-demo
+description: Demonstration of custom plugin formatters
+
+fields:
+  # Custom status formatter with emoji
+  - name: status
+    plugin:
+      command: "/path/to/gosynctasks/examples/view-plugins/status-emoji.sh"
+      timeout: 1000
+
+  # Standard summary (no plugin)
+  - name: summary
+    width: 50
+
+  # Custom priority formatter
+  - name: priority
+    plugin:
+      command: "/path/to/gosynctasks/examples/view-plugins/priority-visual.sh"
+
+  # Relative date formatting (Python)
+  - name: due_date
+    label: "Due"
+    plugin:
+      command: "/path/to/gosynctasks/examples/view-plugins/date-relative.py"
+
+  # Tags as badges
+  - name: tags
+    plugin:
+      command: "/path/to/gosynctasks/examples/view-plugins/tags-badges.sh"
+
+display:
+  show_header: true
+  show_border: true
+  compact_mode: false
+  date_format: "2006-01-02"
+  sort_by: priority
+  sort_order: asc
+
+filters:
+  status: ["TODO", "PROCESSING"]
