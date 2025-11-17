@@ -5,8 +5,8 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -79,16 +79,19 @@ func (nB *NextcloudBackend) getPassword() string {
 func (nB *NextcloudBackend) getBaseURL() string {
 	if nB.baseURL == "" {
 		if nB.Connector.URL != nil {
-			// Determine HTTP vs HTTPS based on port
-			// Common HTTP ports: 80, 8080, 8000
-			// Everything else uses HTTPS by default
+			// SECURITY: Always use HTTPS by default for Nextcloud connections
+			// HTTP is only allowed if explicitly configured via AllowHTTP flag
 			protocol := "https"
 			host := nB.Connector.URL.Host
 
-			// Check if port is specified and is a common HTTP port
-			if strings.Contains(host, ":80") || strings.Contains(host, ":8080") || strings.Contains(host, ":8000") {
-				protocol = "http"
+			// Only use HTTP if explicitly allowed in config
+			if nB.Connector.AllowHTTP {
+				// Check if port is specified and is a common HTTP port
+				if strings.Contains(host, ":80") || strings.Contains(host, ":8080") || strings.Contains(host, ":8000") {
+					protocol = "http"
+				}
 			}
+			// Otherwise, always use HTTPS regardless of port
 
 			nB.baseURL = fmt.Sprintf("%s://%s", protocol, host)
 		}
@@ -805,9 +808,39 @@ func NewNextcloudBackend(connectorConfig ConnectorConfig) (TaskManager, error) {
 		return nil, err
 	}
 
-	// Warn if TLS verification is disabled
+	// SECURITY: Check if AllowHTTP is enabled and warn
+	if nB.Connector.AllowHTTP {
+		// Check if this will result in HTTP connections
+		host := nB.Connector.URL.Host
+		if strings.Contains(host, ":80") || strings.Contains(host, ":8080") || strings.Contains(host, ":8000") {
+			fmt.Fprintln(os.Stderr, "")
+			fmt.Fprintln(os.Stderr, "╔═══════════════════════════════════════════════════════════════════╗")
+			fmt.Fprintln(os.Stderr, "║                     ⚠️  SECURITY WARNING  ⚠️                      ║")
+			fmt.Fprintln(os.Stderr, "╠═══════════════════════════════════════════════════════════════════╣")
+			fmt.Fprintln(os.Stderr, "║ HTTP connections are INSECURE and transmit data in PLAINTEXT     ║")
+			fmt.Fprintln(os.Stderr, "║ including your username and password!                            ║")
+			fmt.Fprintln(os.Stderr, "║                                                                   ║")
+			fmt.Fprintln(os.Stderr, "║ Only use HTTP for local testing with trusted networks.           ║")
+			fmt.Fprintln(os.Stderr, "║ For production, use HTTPS with valid certificates.               ║")
+			fmt.Fprintln(os.Stderr, "╚═══════════════════════════════════════════════════════════════════╝")
+			fmt.Fprintln(os.Stderr, "")
+		}
+	}
+
+	// SECURITY: Warn if TLS verification is disabled
 	if nB.Connector.InsecureSkipVerify && !nB.Connector.SuppressSSLWarning {
-		log.Println("WARNING: TLS certificate verification is disabled. This is insecure and should only be used for development with self-signed certificates.")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "╔═══════════════════════════════════════════════════════════════════╗")
+		fmt.Fprintln(os.Stderr, "║                     ⚠️  SECURITY WARNING  ⚠️                      ║")
+		fmt.Fprintln(os.Stderr, "╠═══════════════════════════════════════════════════════════════════╣")
+		fmt.Fprintln(os.Stderr, "║ TLS certificate verification is DISABLED!                        ║")
+		fmt.Fprintln(os.Stderr, "║ This makes you vulnerable to man-in-the-middle attacks.          ║")
+		fmt.Fprintln(os.Stderr, "║                                                                   ║")
+		fmt.Fprintln(os.Stderr, "║ Only use this for development with self-signed certificates.     ║")
+		fmt.Fprintln(os.Stderr, "║ For production, use properly signed certificates or add your     ║")
+		fmt.Fprintln(os.Stderr, "║ CA certificate to the system trust store.                        ║")
+		fmt.Fprintln(os.Stderr, "╚═══════════════════════════════════════════════════════════════════╝")
+		fmt.Fprintln(os.Stderr, "")
 	}
 
 	return nB, nil
