@@ -22,6 +22,7 @@ type ConnectorConfig struct {
 	URL                *url.URL `yaml:"url"`
 	InsecureSkipVerify bool     `yaml:"insecure_skip_verify,omitempty"` // WARNING: Only use for self-signed certificates in dev
 	SuppressSSLWarning bool     `yaml:"suppress_ssl_warning,omitempty"` // Suppress SSL warning when InsecureSkipVerify is true
+	AllowHTTP          bool     `yaml:"allow_http,omitempty"`           // Allow HTTP connections (insecure, only for testing)
 	// Type     string `yaml:"type" validate:"required,oneof=nextcloud local"`
 	//  Timeout  int    `yaml:"timeout,omitempty"`
 }
@@ -34,6 +35,7 @@ type BackendConfig struct {
 	URL                string   `yaml:"url,omitempty"`                  // Used by: nextcloud, file
 	InsecureSkipVerify bool     `yaml:"insecure_skip_verify,omitempty"` // Used by: nextcloud
 	SuppressSSLWarning bool     `yaml:"suppress_ssl_warning,omitempty"` // Used by: nextcloud
+	AllowHTTP          bool     `yaml:"allow_http,omitempty"`           // Used by: nextcloud (allow insecure HTTP)
 	File               string   `yaml:"file,omitempty"`                 // Used by: git (default: "TODO.md")
 	AutoDetect         bool     `yaml:"auto_detect,omitempty"`          // Used by: git
 	FallbackFiles      []string `yaml:"fallback_files,omitempty"`       // Used by: git
@@ -49,6 +51,7 @@ func (c *ConnectorConfig) UnmarshalYAML(value *yaml.Node) error {
 		URL                string `yaml:"url"`
 		InsecureSkipVerify bool   `yaml:"insecure_skip_verify,omitempty"`
 		SuppressSSLWarning bool   `yaml:"suppress_ssl_warning,omitempty"`
+		AllowHTTP          bool   `yaml:"allow_http,omitempty"`
 	}{
 		ConnConfig: (*ConnConfig)(c),
 	}
@@ -65,6 +68,7 @@ func (c *ConnectorConfig) UnmarshalYAML(value *yaml.Node) error {
 	tmp.ConnConfig.URL = u
 	tmp.ConnConfig.InsecureSkipVerify = tmp.InsecureSkipVerify
 	tmp.ConnConfig.SuppressSSLWarning = tmp.SuppressSSLWarning
+	tmp.ConnConfig.AllowHTTP = tmp.AllowHTTP
 
 	return nil
 }
@@ -100,6 +104,7 @@ func (bc *BackendConfig) TaskManager() (TaskManager, error) {
 			URL:                u,
 			InsecureSkipVerify: bc.InsecureSkipVerify,
 			SuppressSSLWarning: bc.SuppressSSLWarning,
+			AllowHTTP:          bc.AllowHTTP,
 		}
 		return NewNextcloudBackend(connConfig)
 

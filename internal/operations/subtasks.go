@@ -417,6 +417,27 @@ func compareDatePointers(a, b *time.Time, nilsLast bool) bool {
 	return a.Before(*b)
 }
 
+// addParentIndicator adds a visual indicator to parent tasks showing they have children
+// It adds a prefix symbol (▶) and child count to the first line of the task output
+func addParentIndicator(taskOutput string, childCount int) string {
+	lines := strings.Split(taskOutput, "\n")
+	if len(lines) == 0 {
+		return taskOutput
+	}
+
+	// Add the parent indicator to the first line
+	// Format: "▶ [original first line] (N)"
+	firstLine := lines[0]
+
+	// Insert the indicator at the beginning (after any leading spaces)
+	trimmed := strings.TrimLeft(firstLine, " ")
+	leadingSpaces := firstLine[:len(firstLine)-len(trimmed)]
+
+	lines[0] = leadingSpaces + "▶ " + trimmed + fmt.Sprintf(" (%d)", childCount)
+
+	return strings.Join(lines, "\n")
+}
+
 // FormatTaskTree formats a task tree with box-drawing characters for hierarchical display
 func FormatTaskTree(nodes []*TaskNode, view string, taskManager backend.TaskManager, dateFormat string) string {
 	var result strings.Builder
@@ -446,6 +467,11 @@ func formatNode(result *strings.Builder, nodes []*TaskNode, prefix string, isRoo
 
 		// Format the task
 		taskOutput := node.Task.FormatWithView(view, taskManager, dateFormat)
+
+		// Add parent indicator if this task has children
+		if len(node.Children) > 0 {
+			taskOutput = addParentIndicator(taskOutput, len(node.Children))
+		}
 
 		// Add indentation to each line of the task output
 		if nodePrefix != "" {
