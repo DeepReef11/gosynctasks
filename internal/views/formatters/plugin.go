@@ -77,10 +77,10 @@ func (f *PluginFormatter) prepareTaskData(task backend.Task, format string, widt
 	}
 
 	// Add date fields (convert to ISO 8601 format)
-	if !task.DueDate.IsZero() {
+	if task.DueDate != nil && !task.DueDate.IsZero() {
 		data["due_date"] = task.DueDate.Format(time.RFC3339)
 	}
-	if !task.StartDate.IsZero() {
+	if task.StartDate != nil && !task.StartDate.IsZero() {
 		data["start_date"] = task.StartDate.Format(time.RFC3339)
 	}
 	if !task.Created.IsZero() {
@@ -89,7 +89,7 @@ func (f *PluginFormatter) prepareTaskData(task backend.Task, format string, widt
 	if !task.Modified.IsZero() {
 		data["modified"] = task.Modified.Format(time.RFC3339)
 	}
-	if !task.Completed.IsZero() {
+	if task.Completed != nil && !task.Completed.IsZero() {
 		data["completed"] = task.Completed.Format(time.RFC3339)
 	}
 
