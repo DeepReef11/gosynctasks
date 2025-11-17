@@ -991,3 +991,122 @@ func TestNextcloudBackend_RenameTaskList(t *testing.T) {
 		})
 	}
 }
+
+// TestHTTPSEnforcement tests that HTTPS is enforced by default
+func TestHTTPSEnforcement(t *testing.T) {
+	tests := []struct {
+		name          string
+		host          string
+		allowHTTP     bool
+		expectedProto string
+	}{
+		{
+			name:          "Default HTTPS for standard port",
+			host:          "nextcloud.example.com",
+			allowHTTP:     false,
+			expectedProto: "https",
+		},
+		{
+			name:          "Default HTTPS for port 443",
+			host:          "nextcloud.example.com:443",
+			allowHTTP:     false,
+			expectedProto: "https",
+		},
+		{
+			name:          "Default HTTPS even for port 80 when AllowHTTP is false",
+			host:          "nextcloud.example.com:80",
+			allowHTTP:     false,
+			expectedProto: "https",
+		},
+		{
+			name:          "Default HTTPS even for port 8080 when AllowHTTP is false",
+			host:          "localhost:8080",
+			allowHTTP:     false,
+			expectedProto: "https",
+		},
+		{
+			name:          "HTTP allowed for port 80 when AllowHTTP is true",
+			host:          "localhost:80",
+			allowHTTP:     true,
+			expectedProto: "http",
+		},
+		{
+			name:          "HTTP allowed for port 8080 when AllowHTTP is true",
+			host:          "localhost:8080",
+			allowHTTP:     true,
+			expectedProto: "http",
+		},
+		{
+			name:          "HTTP allowed for port 8000 when AllowHTTP is true",
+			host:          "localhost:8000",
+			allowHTTP:     true,
+			expectedProto: "http",
+		},
+		{
+			name:          "HTTPS for non-standard port even with AllowHTTP",
+			host:          "localhost:9090",
+			allowHTTP:     true,
+			expectedProto: "https",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create URL
+			u, err := url.Parse("nextcloud://user:pass@" + tt.host)
+			if err != nil {
+				t.Fatalf("Failed to parse URL: %v", err)
+			}
+
+			// Create connector config
+			config := ConnectorConfig{
+				URL:                u,
+				AllowHTTP:          tt.allowHTTP,
+				InsecureSkipVerify: true,
+				SuppressSSLWarning: true,
+			}
+
+			// Create backend
+			backend := &NextcloudBackend{
+				Connector: config,
+			}
+
+			// Get base URL (this triggers protocol selection)
+			baseURL := backend.getBaseURL()
+
+			// Verify the protocol
+			if !strings.HasPrefix(baseURL, tt.expectedProto+"://") {
+				t.Errorf("Expected protocol %s://, got %s", tt.expectedProto, baseURL)
+			}
+
+			// Verify the host is included
+			if !strings.Contains(baseURL, tt.host) {
+				t.Errorf("Expected baseURL to contain host %s, got %s", tt.host, baseURL)
+			}
+		})
+	}
+}
+
+// TestHTTPSEnforcementDefault verifies HTTPS is the default without any config
+func TestHTTPSEnforcementDefault(t *testing.T) {
+	// Create URL without AllowHTTP (defaults to false)
+	u, _ := url.Parse("nextcloud://user:pass@localhost:8080")
+
+	config := ConnectorConfig{
+		URL:                u,
+		InsecureSkipVerify: true,
+		SuppressSSLWarning: true,
+		// AllowHTTP is not set, defaults to false
+	}
+
+	backend := &NextcloudBackend{
+		Connector: config,
+	}
+
+	baseURL := backend.getBaseURL()
+
+	// Should use HTTPS even though port is 8080 (common HTTP port)
+	if !strings.HasPrefix(baseURL, "https://") {
+		t.Errorf("Expected HTTPS by default, got %s", baseURL)
+	}
+}
