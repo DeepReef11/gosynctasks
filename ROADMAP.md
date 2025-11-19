@@ -2,28 +2,22 @@
 
 This document outlines planned future enhancements and features for gosynctasks. These are aspirational goals that may change based on project priorities and community feedback.
 
+## Current Status
+
+All major features have been implemented:
+- ✅ Multi-backend support (Nextcloud, SQLite, File)
+- ✅ Bidirectional sync with offline mode
+- ✅ Custom views system with plugin formatters
+- ✅ Subtask hierarchy support
+- ✅ Interactive view builder
+- ✅ List management (create, delete, trash, restore)
+
 ## Open Issues
 
-This section tracks all open GitHub issues for the project, organized by category.
+For current open issues, see: https://github.com/DeepReef11/gosynctasks/issues
 
-### Documentation
-
-#### Issue #82: Documentation: Code review findings and positive patterns
-
-**Status**: Phase 1 Complete (Updated 2025-11-17)
-**Created**: 2025-11-15
-**Labels**: documentation
-**GitHub**: https://github.com/DeepReef11/gosynctasks/issues/82
-
-See: docs/issues/issue-82.md for full details
-
-Summary: Comprehensive code review findings documenting positive patterns, recommended refactoring opportunities, and patterns that should NOT be changed. Includes action plan with estimated effort for each improvement.
-
-**Phase 1 Complete** (2025-11-17):
-- ✅ FindListByName() helper implemented and in use
-- ✅ PromptConfirmation() utility implemented and in use
-- ✅ RefreshTaskListsOrWarn() helper implemented and in use
-- ✅ OutputData() utility implemented and in use (#87)
+Notable documentation issue:
+- **Issue #82**: Code review findings and positive patterns - Phase 1 complete, tracks ongoing code quality improvements
 
 ## Future Work: Multi-Backend Support & Git Backend
 
