@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
 
 // TestGetDefaultBackend tests the GetDefaultBackend method
