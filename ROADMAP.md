@@ -10,19 +10,33 @@ This section tracks all open GitHub issues for the project, organized by categor
 
 #### Issue #119: Improve task display formatting: add visual indicators for parent tasks
 
-**Status**: Open
+**Status**: Completed (2025-11-17)
 **Created**: 2025-11-17
 **GitHub**: https://github.com/DeepReef11/gosynctasks/issues/119
+**Completed in**: PR #121, commit 2093505
 
-Currently subtasks display with tree characters (└─, ├─) but parent tasks lack visual indicators. This makes the hierarchical relationship less clear. Need to improve the display to make the parent-child structure more visually linked and consistent.
+Parent tasks now display with clear visual indicators:
+- ✅ ▶ prefix symbol for all parent tasks
+- ✅ Child count in parentheses (e.g., "(3)")
+- ✅ Works for all hierarchy levels including intermediate parents
+- ✅ Integrated with both legacy views and custom view system
 
-Possible approaches include:
-- Adding prefix symbols (▶, +) to parent tasks
-- Different styling (bold, color) for parent tasks
-- Explicit indicators like "[Parent]" or child count "(2 children)"
-- Enhanced indentation markers to show hierarchy levels
+**Example output:**
+```
+▶ Project (2)
+  ├─ ▶ Phase 1 (3)
+  │  ├─ Task 1.1
+  │  ├─ Task 1.2
+  │  └─ Task 1.3
+  └─ Phase 2
+```
 
-Related files: `internal/operations/subtasks.go`, `internal/views/renderer.go`
+**Implementation:**
+- `internal/operations/subtasks.go`: Added `addParentIndicator()` function
+- `internal/operations/actions.go`: Integrated with custom view rendering
+- `internal/operations/parent_indicator_test.go`: Comprehensive tests
+
+**Note**: Issue #123 addressed a follow-up bug fix for nested parent indicators, completed in PR #128.
 
 ### Code Quality & Refactoring
 
