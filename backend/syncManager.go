@@ -759,3 +759,26 @@ func sortTasksByHierarchy(tasks []Task) []Task {
 
 	return sorted
 }
+
+// PushOnly executes only the push phase of sync (no pull)
+// This is useful for background sync after write operations
+func (sm *SyncManager) PushOnly() (*SyncResult, error) {
+	startTime := time.Now()
+	result := &SyncResult{}
+
+	// Only push local changes
+	pushResult, err := sm.push()
+	if err != nil {
+		result.Errors = append(result.Errors, fmt.Errorf("push phase failed: %w", err))
+	} else {
+		result.PushedTasks = pushResult.PushedTasks
+	}
+
+	result.Duration = time.Since(startTime)
+	return result, nil
+}
+
+// GetRemote returns the remote TaskManager
+func (sm *SyncManager) GetRemote() TaskManager {
+	return sm.remote
+}

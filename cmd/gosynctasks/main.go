@@ -5,6 +5,9 @@ import (
 	"gosynctasks/internal/cli"
 	"gosynctasks/internal/config"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
 )
@@ -141,8 +144,23 @@ Config:
 	rootCmd.AddCommand(newViewCmd())
 	rootCmd.AddCommand(newListCmd())
 	rootCmd.AddCommand(newSyncCmd())
+	rootCmd.AddCommand(newBackgroundSyncCmd()) // Hidden background sync command
 
+	// Set up graceful shutdown on Ctrl+C / SIGTERM
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		if application != nil {
+			application.Shutdown()
+		}
+		os.Exit(0)
+	}()
+
+	// Execute command
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)
 	}
+
+	// Exit immediately - background sync runs in separate process
 }

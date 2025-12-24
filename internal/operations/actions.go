@@ -7,13 +7,22 @@ import (
 	"gosynctasks/internal/config"
 	"gosynctasks/internal/utils"
 	"gosynctasks/internal/views"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 )
 
+// SyncCoordinatorProvider is an interface for getting the sync coordinator
+// This avoids circular dependencies while allowing sync triggers
+type SyncCoordinatorProvider interface {
+	GetSyncCoordinator() interface{}
+}
+
 // ExecuteAction parses arguments and routes to the appropriate action handler
-func ExecuteAction(taskManager backend.TaskManager, cfg *config.Config, taskLists []backend.TaskList, cmd *cobra.Command, args []string) error {
+func ExecuteAction(taskManager backend.TaskManager, cfg *config.Config, taskLists []backend.TaskList, cmd *cobra.Command, args []string, syncProvider SyncCoordinatorProvider) error {
 	var listName string
 	var taskSummary string
 	var searchSummary string
@@ -53,19 +62,19 @@ func ExecuteAction(taskManager backend.TaskManager, cfg *config.Config, taskList
 
 	switch action {
 	case "get":
-		return HandleGetAction(cmd, taskManager, cfg, selectedList, filter)
+		return HandleGetAction(cmd, taskManager, cfg, selectedList, filter, syncProvider)
 
 	case "add":
-		return HandleAddAction(cmd, taskManager, selectedList, taskSummary)
+		return HandleAddAction(cmd, taskManager, selectedList, taskSummary, syncProvider)
 
 	case "update":
-		return HandleUpdateAction(cmd, taskManager, cfg, selectedList, searchSummary)
+		return HandleUpdateAction(cmd, taskManager, cfg, selectedList, searchSummary, syncProvider)
 
 	case "complete":
-		return HandleCompleteAction(cmd, taskManager, cfg, selectedList, searchSummary)
+		return HandleCompleteAction(cmd, taskManager, cfg, selectedList, searchSummary, syncProvider)
 
 	case "delete":
-		return HandleDeleteAction(cmd, taskManager, cfg, selectedList, searchSummary)
+		return HandleDeleteAction(cmd, taskManager, cfg, selectedList, searchSummary, syncProvider)
 
 	default:
 		return fmt.Errorf("unknown action: %s (supported: get/g, add/a, update/u, complete/c, delete/d)", action)
@@ -92,7 +101,17 @@ func NormalizeAction(action string) string {
 }
 
 // HandleGetAction lists tasks from a task list
-func HandleGetAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *config.Config, selectedList *backend.TaskList, filter *backend.TaskFilter) error {
+func HandleGetAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *config.Config, selectedList *backend.TaskList, filter *backend.TaskFilter, syncProvider SyncCoordinatorProvider) error {
+	// Check staleness and trigger pull if needed (for auto-sync)
+	if syncProvider != nil {
+		if coord := syncProvider.GetSyncCoordinator(); coord != nil {
+			// Type assert to get the actual SyncCoordinator
+			// We use interface{} in the provider to avoid circular dependencies
+			// The actual type will be *sync.SyncCoordinator from internal/sync package
+			triggerPullIfStale(coord, selectedList.ID)
+		}
+	}
+
 	tasks, err := taskManager.GetTasks(selectedList.ID, filter)
 	if err != nil {
 		return fmt.Errorf("error retrieving tasks: %w", err)
@@ -133,7 +152,7 @@ func HandleGetAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *c
 }
 
 // HandleAddAction adds a new task to a list
-func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, selectedList *backend.TaskList, taskSummary string) error {
+func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, selectedList *backend.TaskList, taskSummary string, syncProvider SyncCoordinatorProvider) error {
 	// If no task summary provided in args, prompt for it
 	if taskSummary == "" {
 		fmt.Print("Enter task summary: ")
@@ -229,11 +248,15 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 	}
 
 	fmt.Printf("Task '%s' added successfully to list '%s'\n", actualTaskName, selectedList.Name)
+
+	// Trigger background push sync
+	triggerPushSync(syncProvider)
+
 	return nil
 }
 
 // HandleUpdateAction updates an existing task
-func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *config.Config, selectedList *backend.TaskList, searchSummary string) error {
+func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *config.Config, selectedList *backend.TaskList, searchSummary string, syncProvider SyncCoordinatorProvider) error {
 	var taskToUpdate *backend.Task
 	var err error
 
@@ -312,11 +335,15 @@ func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 	}
 
 	fmt.Printf("Task '%s' updated successfully in list '%s'\n", taskToUpdate.Summary, selectedList.Name)
+
+	// Trigger background push sync
+	triggerPushSync(syncProvider)
+
 	return nil
 }
 
 // HandleCompleteAction marks a task with a status (defaults to COMPLETED)
-func HandleCompleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *config.Config, selectedList *backend.TaskList, searchSummary string) error {
+func HandleCompleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *config.Config, selectedList *backend.TaskList, searchSummary string, syncProvider SyncCoordinatorProvider) error {
 	var taskToComplete *backend.Task
 	var err error
 
@@ -360,11 +387,15 @@ func HandleCompleteAction(cmd *cobra.Command, taskManager backend.TaskManager, c
 	}
 
 	fmt.Printf("Task '%s' marked as %s in list '%s'\n", taskToComplete.Summary, statusName, selectedList.Name)
+
+	// Trigger background push sync
+	triggerPushSync(syncProvider)
+
 	return nil
 }
 
 // HandleDeleteAction deletes a task by summary
-func HandleDeleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *config.Config, selectedList *backend.TaskList, searchSummary string) error {
+func HandleDeleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg *config.Config, selectedList *backend.TaskList, searchSummary string, syncProvider SyncCoordinatorProvider) error {
 	var taskToDelete *backend.Task
 	var err error
 
@@ -398,6 +429,10 @@ func HandleDeleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 	}
 
 	fmt.Printf("Task '%s' deleted successfully from list '%s'\n", taskToDelete.Summary, selectedList.Name)
+
+	// Trigger background push sync
+	triggerPushSync(syncProvider)
+
 	return nil
 }
 
@@ -508,4 +543,67 @@ func applyHierarchicalFormatting(taskOutput, nodePrefix, childPrefix string) str
 		result.WriteString("\n")
 	}
 	return result.String()
+}
+
+// triggerPushSync triggers a background push sync by spawning a detached process
+func triggerPushSync(syncProvider SyncCoordinatorProvider) {
+	if syncProvider == nil {
+		return
+	}
+
+	// Spawn background sync process (fire and forget)
+	// This process will handle the sync queue independently
+	// Import needed: "gosynctasks/internal/sync"
+	// But to avoid import here, we'll call the executable directly
+	spawnBackgroundSyncProcess()
+}
+
+// triggerPullIfStale checks if data is stale and triggers a pull sync if needed
+func triggerPullIfStale(coord interface{}, listID string) {
+	if coord == nil {
+		return
+	}
+
+	// Type assert to get the actual SyncCoordinator
+	// We use reflection here to avoid circular dependencies
+	// The coordinator should have IsStale() and TriggerPullSync() methods
+	type pullSyncer interface {
+		IsStale(listID string) (bool, error)
+		TriggerPullSync(listID string)
+	}
+
+	if ps, ok := coord.(pullSyncer); ok {
+		if stale, err := ps.IsStale(listID); err == nil && stale {
+			// Spawn background sync process for pull
+			spawnBackgroundSyncProcess()
+		}
+	}
+}
+
+// spawnBackgroundSyncProcess spawns a detached background process to handle sync
+// This allows the main CLI to exit immediately while sync continues
+func spawnBackgroundSyncProcess() {
+	// Get the current executable path
+	executable, err := os.Executable()
+	if err != nil {
+		return // Silent fail
+	}
+
+	// Resolve symlinks
+	executable, err = filepath.EvalSymlinks(executable)
+	if err != nil {
+		return // Silent fail
+	}
+
+	// Spawn a detached background process
+	cmd := exec.Command(executable, "_internal_background_sync")
+
+	// Detach from parent process
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	cmd.Stdin = nil
+
+	// Start the process and don't wait for it
+	_ = cmd.Start()
+	// Intentionally ignore errors - sync will happen on next command if this fails
 }

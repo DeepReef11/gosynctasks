@@ -1,32 +1,152 @@
 # gosynctasks configuration file
 # See https://github.com/DeepReef11/gosynctasks for documentation
+#
+# Configuration Priority:
+# 1. --config flag (explicit path)
+# 2. ./gosynctasks/config.yaml (project-local config)
+# 3. ~/.config/gosynctasks/config.yaml (user config)
+
+# =============================================================================
+# BACKENDS - Configure multiple storage backends
+# =============================================================================
 
 backends:
+  # SQLite Backend - Local database storage
+  # Best for: Offline-first workflow, fast operations, sync with remote
+  sqlite:
+    type: sqlite
+    enabled: false
+    db_path: ""  # Empty = XDG-compliant default: ~/.local/share/gosynctasks/tasks.db
+                 # Or specify custom path: "/path/to/tasks.db"
+
+  # Nextcloud Backend - CalDAV/CardDAV server
+  # Best for: Multi-device sync, web interface, shared calendars
   nextcloud:
     type: nextcloud
     enabled: true
     url: "nextcloud://username:password@nextcloud.example.com"
-    insecure_skip_verify: false  # WARNING: Only use for self-signed certificates in dev
-    suppress_ssl_warning: false  # Suppress SSL warning when insecure_skip_verify is true
-    allow_http: false  # Allow insecure HTTP connections (only for local testing)
-    suppress_http_warning: false  # Suppress HTTP warning when allow_http is true
 
+    # SSL/TLS Settings
+    insecure_skip_verify: false  # WARNING: Only use for self-signed certs in development
+    suppress_ssl_warning: false  # Suppress warning when insecure_skip_verify is true
+
+    # HTTP Settings (for local testing only)
+    allow_http: false            # Allow insecure HTTP (DO NOT use in production)
+    suppress_http_warning: false # Suppress HTTP warning when allow_http is true
+
+  # Git Backend - Markdown files in git repositories
+  # Best for: Developer workflow, plain text, version control
   git:
     type: git
     enabled: false
-    file: "TODO.md"
-    auto_detect: true
-    fallback_files:
+    file: "TODO.md"              # Primary file to use
+    auto_detect: true            # Auto-detect git repos with marker comment
+    fallback_files:              # Try these if primary file doesn't exist
       - "todo.md"
       - ".gosynctasks.md"
-    auto_commit: false
+    auto_commit: false           # Auto-commit changes (optional)
 
+  # File Backend - Simple file-based storage (experimental)
+  # Best for: Simple setups, no dependencies
+  file:
+    type: file
+    enabled: false
+    url: "file://~/.config/gosynctasks/tasks.json"
+
+# =============================================================================
+# BACKEND SELECTION
+# =============================================================================
+
+# Default backend for CLI operations
 default_backend: nextcloud
-auto_detect_backend: false
-backend_priority:
-  - git
-  - nextcloud
 
-canWriteConfig: true
-ui: cli
-date_format: "2006-01-02"
+# Enable automatic backend detection
+auto_detect_backend: false
+
+# Priority order for auto-detection (first match wins)
+backend_priority:
+  - git        # Check for git repo with TODO.md first
+  - sqlite     # Then check for local database
+  - nextcloud  # Finally use Nextcloud
+
+# =============================================================================
+# SYNCHRONIZATION - Bidirectional sync between local and remote
+# =============================================================================
+
+# Example Configuration #1: Nextcloud-only (no sync, direct remote access)
+# sync:
+#   enabled: false
+
+# Example Configuration #2: SQLite + Nextcloud with Auto-Sync (RECOMMENDED)
+# This gives you fast local operations with automatic background sync
+sync:
+  enabled: false              # Set to true to enable sync
+  auto_sync: false            # Set to true to enable automatic background sync
+
+  # Backend Configuration
+  local_backend: sqlite       # Local backend (must be SQLite type)
+  remote_backend: nextcloud   # Remote backend (nextcloud, git, or file)
+
+  # Sync Behavior
+  sync_interval: 5            # Minutes before local data is considered stale
+                              # When listing tasks:
+                              #   - If last sync > sync_interval: trigger pull in background
+                              #   - If last sync < sync_interval: use cached data (fast!)
+                              # Set to 0 to always use cache (manual sync only)
+
+  # Conflict Resolution
+  conflict_resolution: server_wins  # How to handle sync conflicts:
+                                    # - server_wins: Remote overrides local (safest, recommended)
+                                    # - local_wins: Local overrides remote (use with caution)
+                                    # - merge: Intelligently merge non-conflicting fields
+                                    # - keep_both: Create duplicate with " (local copy)" suffix
+
+  # Offline Mode
+  offline_mode: auto          # Offline detection mode:
+                              # - auto: Automatically detect online/offline (recommended)
+                              # - online: Assume always online (fail if offline)
+                              # - offline: Assume always offline (queue all operations)
+
+# Example Configuration #3: SQLite + Git with Auto-Sync
+# sync:
+#   enabled: true
+#   auto_sync: true
+#   local_backend: sqlite
+#   remote_backend: git
+#   sync_interval: 1           # Pull more frequently for git
+#   conflict_resolution: local_wins  # Local takes precedence for developer workflow
+#   offline_mode: auto
+
+# =============================================================================
+# UI & DISPLAY
+# =============================================================================
+
+canWriteConfig: true          # Allow saving config changes
+ui: cli                       # UI mode (currently only "cli" supported)
+date_format: "2006-01-02"     # Go time format (YYYY-MM-DD)
+
+# =============================================================================
+# USAGE EXAMPLES
+# =============================================================================
+
+# Basic Operations:
+#   gosynctasks                              # Interactive list selection
+#   gosynctasks MyList                       # Show tasks
+#   gosynctasks MyList add "Task"            # Add task
+#   gosynctasks MyList update "task" -s DONE # Update status
+#   gosynctasks MyList complete "task"       # Mark done
+#
+# With Auto-Sync Enabled:
+#   - All write operations (add/update/delete) sync in background
+#   - Read operations check staleness and pull if needed
+#   - Operations return immediately (local-first, no waiting!)
+#
+# Manual Sync:
+#   gosynctasks sync                         # Full bidirectional sync
+#   gosynctasks sync status                  # Check sync status
+#   gosynctasks sync queue                   # View pending operations
+#
+# Backend Selection:
+#   gosynctasks --backend sqlite MyList      # Use specific backend
+#   gosynctasks --list-backends              # Show all backends
+#   gosynctasks --detect-backend             # Show auto-detected backends

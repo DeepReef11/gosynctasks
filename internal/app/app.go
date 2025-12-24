@@ -6,7 +6,9 @@ import (
 	"gosynctasks/internal/cache"
 	"gosynctasks/internal/config"
 	"gosynctasks/internal/operations"
+	"gosynctasks/internal/sync"
 	"log"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -19,6 +21,7 @@ type App struct {
 	registry        *backend.BackendRegistry
 	selector        *backend.BackendSelector
 	selectedBackend string
+	syncCoordinator *sync.SyncCoordinator
 }
 
 // NewApp creates and initializes a new App instance
@@ -58,6 +61,15 @@ func NewApp(explicitBackend string) (*App, error) {
 	app.taskLists, err = cache.LoadTaskListsWithFallback(taskManager)
 	if err != nil {
 		log.Printf("Warning: Could not load task lists: %v", err)
+	}
+
+	// Initialize sync coordinator if auto-sync is enabled
+	if cfg.Sync.Enabled && cfg.Sync.AutoSync {
+		err := app.initializeSyncCoordinator()
+		if err != nil {
+			log.Printf("Warning: Could not initialize auto-sync: %v", err)
+			// Continue without auto-sync
+		}
 	}
 
 	return app, nil
@@ -155,5 +167,57 @@ func (a *App) Run(cmd *cobra.Command, args []string) error {
 		a.taskLists = lists
 	}
 
-	return operations.ExecuteAction(a.taskManager, a.config, a.taskLists, cmd, args)
+	return operations.ExecuteAction(a.taskManager, a.config, a.taskLists, cmd, args, a)
+}
+
+// initializeSyncCoordinator sets up the sync coordinator with local and remote backends
+func (a *App) initializeSyncCoordinator() error {
+	cfg := a.config
+
+	// Get local backend (must be SQLite)
+	localBackend, err := a.registry.GetBackend(cfg.Sync.LocalBackend)
+	if err != nil {
+		return fmt.Errorf("failed to get local backend '%s': %w", cfg.Sync.LocalBackend, err)
+	}
+
+	sqliteBackend, ok := localBackend.(*backend.SQLiteBackend)
+	if !ok {
+		return fmt.Errorf("local backend must be SQLite, got %T", localBackend)
+	}
+
+	// Get remote backend
+	remoteBackend, err := a.registry.GetBackend(cfg.Sync.RemoteBackend)
+	if err != nil {
+		return fmt.Errorf("failed to get remote backend '%s': %w", cfg.Sync.RemoteBackend, err)
+	}
+
+	// Create sync coordinator
+	coordinator, err := sync.NewSyncCoordinator(cfg, sqliteBackend, remoteBackend)
+	if err != nil {
+		return fmt.Errorf("failed to create sync coordinator: %w", err)
+	}
+
+	a.syncCoordinator = coordinator
+	log.Printf("Auto-sync enabled: local=%s, remote=%s, interval=%dm",
+		cfg.Sync.LocalBackend, cfg.Sync.RemoteBackend, cfg.Sync.SyncInterval)
+
+	return nil
+}
+
+// GetSyncCoordinator returns the sync coordinator (may be nil if auto-sync is disabled)
+// Returns interface{} to avoid circular dependencies
+func (a *App) GetSyncCoordinator() interface{} {
+	return a.syncCoordinator
+}
+
+// Shutdown gracefully shuts down the application, waiting for pending syncs
+func (a *App) Shutdown() {
+	a.ShutdownWithTimeout(5 * time.Second)
+}
+
+// ShutdownWithTimeout gracefully shuts down with a custom timeout
+func (a *App) ShutdownWithTimeout(timeout time.Duration) {
+	if a.syncCoordinator != nil {
+		a.syncCoordinator.Shutdown(timeout)
+	}
 }
