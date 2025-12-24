@@ -166,9 +166,10 @@ func confirmTask(task *backend.Task, taskManager backend.TaskManager, cfg *confi
 }
 
 // SelectTaskInteractively displays all tasks from a list and prompts user to select one
-func SelectTaskInteractively(taskManager backend.TaskManager, cfg *config.Config, listID string) (*backend.Task, error) {
-	// Get all tasks from the list
-	allTasks, err := taskManager.GetTasks(listID, nil)
+// If filter is nil, all tasks are shown
+func SelectTaskInteractively(taskManager backend.TaskManager, cfg *config.Config, listID string, filter *backend.TaskFilter) (*backend.Task, error) {
+	// Get tasks from the list (with optional filter)
+	allTasks, err := taskManager.GetTasks(listID, filter)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving tasks: %w", err)
 	}

@@ -262,6 +262,11 @@ type TaskFilter struct {
 	// Multiple statuses are combined with OR logic.
 	Statuses *[]string
 
+	// ExcludeStatuses filters out tasks with these status values.
+	// Should contain backend-specific status names (e.g., "COMPLETED" for Nextcloud).
+	// Tasks matching any of these statuses will be excluded.
+	ExcludeStatuses *[]string
+
 	// DueAfter filters tasks due after this time (inclusive).
 	DueAfter *time.Time
 

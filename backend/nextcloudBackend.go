@@ -257,7 +257,27 @@ func (nB *NextcloudBackend) GetTasks(listID string, taskFilter *TaskFilter) ([]T
 		return nil, err
 	}
 
-	return nB.parseVTODOs(string(respBody))
+	tasks, err := nB.parseVTODOs(string(respBody))
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply client-side ExcludeStatuses filter (CalDAV doesn't support NOT IN queries easily)
+	if taskFilter != nil && taskFilter.ExcludeStatuses != nil && len(*taskFilter.ExcludeStatuses) > 0 {
+		filtered := make([]Task, 0, len(tasks))
+		excludeMap := make(map[string]bool)
+		for _, status := range *taskFilter.ExcludeStatuses {
+			excludeMap[status] = true
+		}
+		for _, task := range tasks {
+			if !excludeMap[task.Status] {
+				filtered = append(filtered, task)
+			}
+		}
+		return filtered, nil
+	}
+
+	return tasks, nil
 }
 
 func (nB *NextcloudBackend) FindTasksBySummary(listID string, summary string) ([]Task, error) {
