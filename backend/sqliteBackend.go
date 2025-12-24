@@ -184,6 +184,16 @@ func (sb *SQLiteBackend) applyFilters(query string, args []interface{}, filter *
 		query += fmt.Sprintf(" AND status IN (%s)", strings.Join(placeholders, ","))
 	}
 
+	// Exclude statuses filter
+	if filter.ExcludeStatuses != nil && len(*filter.ExcludeStatuses) > 0 {
+		placeholders := make([]string, len(*filter.ExcludeStatuses))
+		for i, status := range *filter.ExcludeStatuses {
+			placeholders[i] = "?"
+			args = append(args, status)
+		}
+		query += fmt.Sprintf(" AND status NOT IN (%s)", strings.Join(placeholders, ","))
+	}
+
 	// Due date filters
 	if filter.DueBefore != nil {
 		query += " AND due_date <= ?"

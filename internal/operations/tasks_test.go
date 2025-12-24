@@ -708,7 +708,7 @@ func TestSelectTaskInteractively_EmptyList(t *testing.T) {
 	cfg := &config.Config{}
 
 	// Should return error for empty list
-	_, err := SelectTaskInteractively(mock, cfg, "list1")
+	_, err := SelectTaskInteractively(mock, cfg, "list1", nil)
 
 	if err == nil {
 		t.Error("Expected error for empty list")
@@ -729,7 +729,7 @@ func TestSelectTaskInteractively_BackendError(t *testing.T) {
 	cfg := &config.Config{}
 
 	// Should propagate backend error
-	_, err := SelectTaskInteractively(mock, cfg, "nonexistent")
+	_, err := SelectTaskInteractively(mock, cfg, "nonexistent", nil)
 
 	if err == nil {
 		t.Error("Expected error for backend failure")

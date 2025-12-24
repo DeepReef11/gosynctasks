@@ -262,7 +262,7 @@ func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 
 	// If no search summary provided, show interactive selection
 	if searchSummary == "" {
-		taskToUpdate, err = SelectTaskInteractively(taskManager, cfg, selectedList.ID)
+		taskToUpdate, err = SelectTaskInteractively(taskManager, cfg, selectedList.ID, nil)
 		if err != nil {
 			return err
 		}
@@ -349,7 +349,12 @@ func HandleCompleteAction(cmd *cobra.Command, taskManager backend.TaskManager, c
 
 	// If no search summary provided, show interactive selection
 	if searchSummary == "" {
-		taskToComplete, err = SelectTaskInteractively(taskManager, cfg, selectedList.ID)
+		// Exclude tasks that are already completed or cancelled
+		excludeStatuses := []string{"DONE", "COMPLETED", "CANCELLED"}
+		filter := &backend.TaskFilter{
+			ExcludeStatuses: &excludeStatuses,
+		}
+		taskToComplete, err = SelectTaskInteractively(taskManager, cfg, selectedList.ID, filter)
 		if err != nil {
 			return err
 		}
@@ -401,7 +406,7 @@ func HandleDeleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 
 	// If no search summary provided, show interactive selection
 	if searchSummary == "" {
-		taskToDelete, err = SelectTaskInteractively(taskManager, cfg, selectedList.ID)
+		taskToDelete, err = SelectTaskInteractively(taskManager, cfg, selectedList.ID, nil)
 		if err != nil {
 			return err
 		}
