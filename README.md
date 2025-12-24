@@ -63,6 +63,33 @@ On first run, gosynctasks will help you create a configuration file at `~/.confi
 }
 ```
 
+#### Path Expansion
+
+File paths in configuration support tilde (`~`) and environment variable expansion:
+
+```json
+{
+  "backends": {
+    "sqlite": {
+      "type": "sqlite",
+      "db_path": "~/mydata/tasks.db"  // Expands to /home/user/mydata/tasks.db
+    },
+    "git": {
+      "type": "git",
+      "file": "~/.tasks/TODO.md"       // Expands to /home/user/.tasks/TODO.md
+    }
+  }
+}
+```
+
+**Supported expansions:**
+- `~` → User home directory (e.g., `/home/username`)
+- `~/path` → Path relative to home (e.g., `~/.config` → `/home/username/.config`)
+- `$HOME/path` → Environment variable expansion
+- `$VAR/path` → Any environment variable
+
+Absolute paths and relative paths work as expected without expansion.
+
 #### Legacy Configuration (Auto-Migrated)
 
 Old single-backend configurations are automatically migrated:
