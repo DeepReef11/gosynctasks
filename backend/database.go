@@ -3,6 +3,7 @@ package backend
 import (
 	"database/sql"
 	"fmt"
+	"gosynctasks/internal/utils"
 	"os"
 	"path/filepath"
 	"time"
@@ -54,7 +55,12 @@ func InitDatabase(customPath string) (*Database, error) {
 // Priority: customPath > $XDG_DATA_HOME/gosynctasks/tasks.db > ~/.local/share/gosynctasks/tasks.db
 func getDatabasePath(customPath string) (string, error) {
 	if customPath != "" {
-		return customPath, nil
+		// Expand ~ and environment variables in custom path
+		expandedPath, err := utils.ExpandPath(customPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to expand path %q: %w", customPath, err)
+		}
+		return expandedPath, nil
 	}
 
 	// Try XDG_DATA_HOME

@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"gosynctasks/internal/utils"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -111,7 +112,23 @@ func (gb *GitBackend) findTodoFile() (string, error) {
 
 	// Try each file
 	for _, filename := range filesToTry {
-		fullPath := filepath.Join(gb.repoPath, filename)
+		var fullPath string
+
+		// Expand ~ and environment variables in filename
+		expandedFilename, err := utils.ExpandPath(filename)
+		if err != nil {
+			// If expansion fails, use original filename
+			expandedFilename = filename
+		}
+
+		// If path is absolute (after expansion), use it as-is
+		// Otherwise, join with repo path
+		if filepath.IsAbs(expandedFilename) {
+			fullPath = expandedFilename
+		} else {
+			fullPath = filepath.Join(gb.repoPath, expandedFilename)
+		}
+
 		if info, err := os.Stat(fullPath); err == nil && !info.IsDir() {
 			// File exists, check for marker
 			content, err := os.ReadFile(fullPath)
