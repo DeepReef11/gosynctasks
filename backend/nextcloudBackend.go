@@ -262,7 +262,7 @@ func (nB *NextcloudBackend) GetTasks(listID string, taskFilter *TaskFilter) ([]T
 		return nil, err
 	}
 
-	// Apply client-side ExcludeStatuses filter
+	// Apply client-side ExcludeStatuses filter (CalDAV doesn't support NOT IN queries easily)
 	if taskFilter != nil && taskFilter.ExcludeStatuses != nil && len(*taskFilter.ExcludeStatuses) > 0 {
 		filtered := make([]Task, 0, len(tasks))
 		excludeMap := make(map[string]bool)
