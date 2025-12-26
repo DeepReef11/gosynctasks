@@ -128,7 +128,7 @@ func TestFindTaskBySummary_NoMatches(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	_, err := FindTaskBySummary(mock, cfg, "list1", "nonexistent")
+	_, err := FindTaskBySummary(mock, cfg, "list1", "nonexistent", nil)
 
 	if err == nil {
 		t.Error("FindTaskBySummary() should return error when no matches found")
@@ -144,7 +144,7 @@ func TestFindTaskBySummary_BackendError(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	_, err := FindTaskBySummary(mock, cfg, "list1", "search")
+	_, err := FindTaskBySummary(mock, cfg, "list1", "search", nil)
 
 	if err == nil {
 		t.Error("FindTaskBySummary() should return error when backend fails")
@@ -166,7 +166,7 @@ func TestFindTaskBySummary_SingleExactMatch(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	result, err := FindTaskBySummary(mock, cfg, "list1", "Buy groceries")
+	result, err := FindTaskBySummary(mock, cfg, "list1", "Buy groceries", nil)
 
 	if err != nil {
 		t.Fatalf("FindTaskBySummary() failed: %v", err)
@@ -429,7 +429,7 @@ func TestSelectTask_ExactMatching(t *testing.T) {
 			}
 
 			cfg := &config.Config{}
-			result, err := FindTaskBySummary(mock, cfg, "list1", tt.searchTerm)
+			result, err := FindTaskBySummary(mock, cfg, "list1", tt.searchTerm, nil)
 
 			if tt.expectError {
 				if err == nil {

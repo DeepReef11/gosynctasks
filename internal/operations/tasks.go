@@ -12,11 +12,28 @@ import (
 )
 
 // FindTaskBySummary searches for a task by summary and handles UX for exact/partial/multiple matches
-func FindTaskBySummary(taskManager backend.TaskManager, cfg *config.Config, listID string, searchSummary string) (*backend.Task, error) {
+// If filter is provided, it will be applied to the search results to exclude certain tasks
+func FindTaskBySummary(taskManager backend.TaskManager, cfg *config.Config, listID string, searchSummary string, filter *backend.TaskFilter) (*backend.Task, error) {
 	// Use backend's search method
 	matches, err := taskManager.FindTasksBySummary(listID, searchSummary)
 	if err != nil {
 		return nil, fmt.Errorf("error searching for tasks: %w", err)
+	}
+
+	// Apply filter to exclude certain tasks (e.g., completed tasks)
+	if filter != nil && filter.ExcludeStatuses != nil && len(*filter.ExcludeStatuses) > 0 {
+		excludeMap := make(map[string]bool)
+		for _, status := range *filter.ExcludeStatuses {
+			excludeMap[status] = true
+		}
+
+		var filtered []backend.Task
+		for _, task := range matches {
+			if !excludeMap[task.Status] {
+				filtered = append(filtered, task)
+			}
+		}
+		matches = filtered
 	}
 
 	if len(matches) == 0 {

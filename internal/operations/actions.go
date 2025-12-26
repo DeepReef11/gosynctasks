@@ -268,7 +268,8 @@ func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 		}
 	} else {
 		// Find the task by summary (handles exact/partial/multiple matches)
-		taskToUpdate, err = FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary)
+		// No filter needed - allow updating any task including completed ones
+		taskToUpdate, err = FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary, nil)
 		if err != nil {
 			return err
 		}
@@ -360,7 +361,12 @@ func HandleCompleteAction(cmd *cobra.Command, taskManager backend.TaskManager, c
 		}
 	} else {
 		// Find the task by summary (handles exact/partial/multiple matches)
-		taskToComplete, err = FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary)
+		// Exclude tasks that are already completed or cancelled
+		excludeStatuses := []string{"DONE", "COMPLETED", "CANCELLED"}
+		filter := &backend.TaskFilter{
+			ExcludeStatuses: &excludeStatuses,
+		}
+		taskToComplete, err = FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary, filter)
 		if err != nil {
 			return err
 		}
@@ -412,7 +418,8 @@ func HandleDeleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 		}
 	} else {
 		// Find the task by summary (handles exact/partial/multiple matches)
-		taskToDelete, err = FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary)
+		// No filter needed - allow deleting any task including completed ones
+		taskToDelete, err = FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary, nil)
 		if err != nil {
 			return err
 		}

@@ -82,7 +82,8 @@ func ResolveParentTask(taskManager backend.TaskManager, cfg *config.Config, list
 	}
 
 	// Simple reference - find the task by summary
-	task, err := FindTaskBySummary(taskManager, cfg, listID, parentRef)
+	// No filter needed - allow finding any task including completed ones as parent
+	task, err := FindTaskBySummary(taskManager, cfg, listID, parentRef, nil)
 	if err != nil {
 		// If user chose to create new parent (entered 0), create it as root task
 		if strings.Contains(err.Error(), "operation cancelled") {
