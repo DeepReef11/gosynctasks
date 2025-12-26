@@ -38,12 +38,22 @@ func NewApp(explicitBackend string) (*App, error) {
 	// Create backend selector
 	selector := backend.NewBackendSelector(registry)
 
+	// Prepare sync configuration
+	syncEnabled := cfg.Sync != nil && cfg.Sync.Enabled
+	syncLocalBackend := ""
+	if cfg.Sync != nil {
+		syncLocalBackend = cfg.Sync.LocalBackend
+	}
+
 	// Select backend based on priority
+	// When sync is enabled, the local backend is automatically selected
 	selectedBackend, taskManager, err := selector.Select(
 		explicitBackend,
 		cfg.AutoDetectBackend,
 		cfg.DefaultBackend,
 		cfg.BackendPriority,
+		syncEnabled,
+		syncLocalBackend,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to select backend: %w", err)

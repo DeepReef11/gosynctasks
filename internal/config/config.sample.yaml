@@ -58,16 +58,19 @@ backends:
 # =============================================================================
 
 # Default backend for CLI operations
+# NOTE: When sync is enabled, the local_backend is automatically used for operations
+#       and the backend_priority is only used when sync is disabled
 default_backend: nextcloud
 
 # Enable automatic backend detection
 auto_detect_backend: false
 
 # Priority order for auto-detection (first match wins)
+# NOTE: When sync is enabled, you don't need to include the local backend here
+#       The sync configuration will automatically use the local_backend
 backend_priority:
   - git        # Check for git repo with TODO.md first
-  - sqlite     # Then check for local database
-  - nextcloud  # Finally use Nextcloud
+  - nextcloud  # Use Nextcloud when sync is disabled
 
 # =============================================================================
 # SYNCHRONIZATION - Bidirectional sync between local and remote
@@ -76,14 +79,20 @@ backend_priority:
 # Example Configuration #1: Nextcloud-only (no sync, direct remote access)
 # sync:
 #   enabled: false
+# backend_priority:
+#   - nextcloud
 
 # Example Configuration #2: SQLite + Nextcloud with Auto-Sync (RECOMMENDED)
 # This gives you fast local operations with automatic background sync
+# When sync is enabled, all CLI operations automatically use the local_backend (sqlite)
+# and sync to the remote_backend (nextcloud) in the background
 sync:
   enabled: false              # Set to true to enable sync
   auto_sync: false            # Set to true to enable automatic background sync
 
   # Backend Configuration
+  # When sync.enabled = true, the CLI automatically uses local_backend for operations
+  # You don't need to include local_backend in backend_priority
   local_backend: sqlite       # Local backend (must be SQLite type)
   remote_backend: nextcloud   # Remote backend (nextcloud, git, or file)
 

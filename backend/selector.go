@@ -148,10 +148,11 @@ func NewBackendSelector(registry *BackendRegistry) *BackendSelector {
 // Select chooses a backend based on the selection criteria.
 // Selection priority:
 // 1. Explicit backend name (if provided)
-// 2. Auto-detection (if enabled)
-// 3. Default backend
-// 4. First enabled backend
-func (s *BackendSelector) Select(explicitBackend string, autoDetect bool, defaultBackend string, priority []string) (string, TaskManager, error) {
+// 2. Sync local backend (if sync is enabled and no explicit backend)
+// 3. Auto-detection (if enabled)
+// 4. Default backend
+// 5. First enabled backend
+func (s *BackendSelector) Select(explicitBackend string, autoDetect bool, defaultBackend string, priority []string, syncEnabled bool, syncLocalBackend string) (string, TaskManager, error) {
 	// Priority 1: Explicit backend name
 	if explicitBackend != "" {
 		backend, err := s.registry.GetBackend(explicitBackend)
@@ -161,7 +162,18 @@ func (s *BackendSelector) Select(explicitBackend string, autoDetect bool, defaul
 		return explicitBackend, backend, nil
 	}
 
-	// Priority 2: Auto-detection
+	// Priority 2: Sync local backend (when sync is enabled)
+	// This ensures that when sync is active, operations use the local backend
+	// and sync happens in the background to the remote backend
+	if syncEnabled && syncLocalBackend != "" {
+		backend, err := s.registry.GetBackend(syncLocalBackend)
+		if err == nil {
+			return syncLocalBackend, backend, nil
+		}
+		// If sync local backend fails, fall through to next priority
+	}
+
+	// Priority 3: Auto-detection
 	if autoDetect {
 		name, backend, err := s.autoDetect(priority)
 		if err == nil && backend != nil {
@@ -170,7 +182,7 @@ func (s *BackendSelector) Select(explicitBackend string, autoDetect bool, defaul
 		// If auto-detection fails, fall through to next priority
 	}
 
-	// Priority 3: Default backend
+	// Priority 4: Default backend
 	if defaultBackend != "" {
 		backend, err := s.registry.GetBackend(defaultBackend)
 		if err == nil {
@@ -179,7 +191,7 @@ func (s *BackendSelector) Select(explicitBackend string, autoDetect bool, defaul
 		// If default backend fails, fall through to next priority
 	}
 
-	// Priority 4: First enabled backend
+	// Priority 5: First enabled backend
 	enabled := s.registry.GetEnabledBackends()
 	if len(enabled) > 0 {
 		name := enabled[0]

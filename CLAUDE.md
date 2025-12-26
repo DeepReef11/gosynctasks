@@ -61,6 +61,7 @@ gosynctasks sync queue                  # View pending operations
 - Required methods: `GetTaskLists()`, `GetTasks()`, `FindTasksBySummary()`, `AddTask()`, `UpdateTask()`, `SortTasks()`, `GetPriorityColor()`
 - Backend selection via URL scheme in config (`nextcloud://`, `sqlite://`, `file://`)
 - Factory: `backend.ConnectorConfig` creates TaskManager from URL
+- **Selection priority**: Explicit flag → Sync local backend (if enabled) → Auto-detect → Default → First enabled
 
 **Implementations:**
 - **NextcloudBackend**: CalDAV protocol (PROPFIND/REPORT/PUT), iCalendar VTODO parsing
@@ -220,18 +221,24 @@ CLI → SQLiteBackend (CRUD, queueing) → SyncManager (pull/push) ↔ Remote Ba
 ```json
 {
   "backends": {
-    "local": {"type": "sqlite", "enabled": true},
+    "sqlite": {"type": "sqlite", "enabled": true},
     "nextcloud": {"type": "nextcloud", "enabled": true, "url": "nextcloud://user:pass@host"}
   },
   "sync": {
     "enabled": true,
-    "local_backend": "local",
+    "local_backend": "sqlite",
     "remote_backend": "nextcloud",
     "conflict_resolution": "server_wins"
   },
-  "default_backend": "local"
+  "backend_priority": ["nextcloud"]
 }
 ```
+
+**Backend Selection Logic:**
+- When `sync.enabled = true`: CLI automatically uses `sync.local_backend` (sqlite) for all operations
+- When `sync.enabled = false`: CLI uses `backend_priority` or `default_backend`
+- Explicit `--backend` flag always overrides sync selection
+- You don't need to include the local backend in `backend_priority` when sync is enabled
 
 ### Testing
 - **Unit**: `backend/schema_test.go`, `sqliteBackend_test.go`, `syncManager_test.go`

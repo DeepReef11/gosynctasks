@@ -117,14 +117,16 @@ func TestBackendRegistryListBackends(t *testing.T) {
 // TestBackendSelector tests the backend selector
 func TestBackendSelector(t *testing.T) {
 	tests := []struct {
-		name           string
-		registry       *BackendRegistry
-		explicit       string
-		autoDetect     bool
-		defaultBackend string
-		priority       []string
-		wantName       string
-		wantErr        bool
+		name             string
+		registry         *BackendRegistry
+		explicit         string
+		autoDetect       bool
+		defaultBackend   string
+		priority         []string
+		syncEnabled      bool
+		syncLocalBackend string
+		wantName         string
+		wantErr          bool
 	}{
 		{
 			name: "explicit backend selection",
@@ -203,6 +205,60 @@ func TestBackendSelector(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "sync enabled - uses local backend",
+			registry: &BackendRegistry{
+				backends: map[string]TaskManager{
+					"sqlite":    &MockBackend{name: "sqlite"},
+					"nextcloud": &MockBackend{name: "nextcloud"},
+				},
+				configs: map[string]BackendConfig{
+					"sqlite":    {Type: "sqlite", Enabled: true},
+					"nextcloud": {Type: "nextcloud", Enabled: true},
+				},
+			},
+			defaultBackend:   "nextcloud",
+			syncEnabled:      true,
+			syncLocalBackend: "sqlite",
+			wantName:         "sqlite", // Should select sqlite when sync is enabled
+			wantErr:          false,
+		},
+		{
+			name: "sync disabled - uses default backend",
+			registry: &BackendRegistry{
+				backends: map[string]TaskManager{
+					"sqlite":    &MockBackend{name: "sqlite"},
+					"nextcloud": &MockBackend{name: "nextcloud"},
+				},
+				configs: map[string]BackendConfig{
+					"sqlite":    {Type: "sqlite", Enabled: true},
+					"nextcloud": {Type: "nextcloud", Enabled: true},
+				},
+			},
+			defaultBackend:   "nextcloud",
+			syncEnabled:      false,
+			syncLocalBackend: "sqlite",
+			wantName:         "nextcloud", // Should select nextcloud when sync is disabled
+			wantErr:          false,
+		},
+		{
+			name: "explicit backend overrides sync",
+			registry: &BackendRegistry{
+				backends: map[string]TaskManager{
+					"sqlite":    &MockBackend{name: "sqlite"},
+					"nextcloud": &MockBackend{name: "nextcloud"},
+				},
+				configs: map[string]BackendConfig{
+					"sqlite":    {Type: "sqlite", Enabled: true},
+					"nextcloud": {Type: "nextcloud", Enabled: true},
+				},
+			},
+			explicit:         "nextcloud",
+			syncEnabled:      true,
+			syncLocalBackend: "sqlite",
+			wantName:         "nextcloud", // Explicit backend should override sync
+			wantErr:          false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -213,6 +269,8 @@ func TestBackendSelector(t *testing.T) {
 				tt.autoDetect,
 				tt.defaultBackend,
 				tt.priority,
+				tt.syncEnabled,
+				tt.syncLocalBackend,
 			)
 
 			if (err != nil) != tt.wantErr {
