@@ -98,7 +98,7 @@ gosynctasks sync queue                  # View pending operations
 
 **Features:**
 - Custom field selection, ordering, formatting
-- Built-in views: `basic`, `all`
+- Built-in views: `default`, `all`
 - Filters: status, priority, tags, dates
 - Sorting: by any field (asc/desc)
 - Hierarchical task display support

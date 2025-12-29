@@ -288,7 +288,7 @@ func formatTaskTreeNumbered(nodes []*TaskNode, taskManager backend.TaskManager, 
 		reset := "\033[0m"
 
 		// Display task with number and hierarchy
-		taskOutput := node.Task.FormatWithView("basic", taskManager, dateFormat)
+		taskOutput := node.Task.FormatWithView("default", taskManager, dateFormat)
 		lines := strings.Split(taskOutput, "\n")
 
 		// First line with number and tree prefix

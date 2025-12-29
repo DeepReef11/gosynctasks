@@ -17,7 +17,7 @@ Parent task visual indicators enhance the task display by adding clear visual ma
   - Root parents (top-level tasks with children)
   - Intermediate parents (tasks that are both children AND have their own children)
   - Deeply nested hierarchies (grandchildren, great-grandchildren, etc.)
-- **View Integration**: Works with both legacy views (`basic`, `all`) and custom view system
+- **View Integration**: Works with both legacy views (`default`, `all`) and custom view system
 
 ## Before and After Examples
 
@@ -169,7 +169,7 @@ func addParentIndicator(taskOutput string, childCount int) string {
 
 1. **Legacy Views** (`internal/operations/subtasks.go`):
    - `FormatTaskTree()` calls `addParentIndicator()` for any task with children
-   - Works with `basic` and `all` views
+   - Works with `default` and `all` views
 
 2. **Custom Views** (`internal/operations/actions.go`):
    - `formatNodeWithCustomView()` calls `addParentIndicator()` for hierarchical rendering

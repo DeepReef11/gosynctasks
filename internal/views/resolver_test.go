@@ -10,17 +10,17 @@ func TestResolveView_BuiltIn(t *testing.T) {
 	ClearViewCache()
 
 	// Test resolving built-in view
-	view, err := ResolveView("basic")
+	view, err := ResolveView("default")
 	if err != nil {
-		t.Fatalf("Failed to resolve built-in view 'basic': %v", err)
+		t.Fatalf("Failed to resolve built-in view 'default': %v", err)
 	}
 
-	if view.Name != "basic" {
-		t.Errorf("Expected view name 'basic', got '%s'", view.Name)
+	if view.Name != "default" {
+		t.Errorf("Expected view name 'default', got '%s'", view.Name)
 	}
 
 	if len(view.Fields) == 0 {
-		t.Error("Expected basic view to have fields")
+		t.Error("Expected default view to have fields")
 	}
 }
 
@@ -36,11 +36,11 @@ func TestResolveView_AllBuiltIn(t *testing.T) {
 		t.Errorf("Expected view name 'all', got '%s'", view.Name)
 	}
 
-	// 'all' view should have more fields than 'basic'
-	basicView, _ := ResolveView("basic")
-	if len(view.Fields) <= len(basicView.Fields) {
-		t.Errorf("Expected 'all' view to have more fields than 'basic', got %d vs %d",
-			len(view.Fields), len(basicView.Fields))
+	// 'all' view should have more fields than 'default'
+	defaultView, _ := ResolveView("default")
+	if len(view.Fields) <= len(defaultView.Fields) {
+		t.Errorf("Expected 'all' view to have more fields than 'default', got %d vs %d",
+			len(view.Fields), len(defaultView.Fields))
 	}
 }
 
@@ -61,13 +61,13 @@ func TestResolveView_Caching(t *testing.T) {
 	ClearViewCache()
 
 	// First resolve
-	view1, err := ResolveView("basic")
+	view1, err := ResolveView("default")
 	if err != nil {
 		t.Fatalf("Failed to resolve view: %v", err)
 	}
 
 	// Second resolve (should come from cache)
-	view2, err := ResolveView("basic")
+	view2, err := ResolveView("default")
 	if err != nil {
 		t.Fatalf("Failed to resolve view from cache: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestResolveView_Caching(t *testing.T) {
 
 func TestClearViewCache(t *testing.T) {
 	// Load a view to populate cache
-	view1, err := ResolveView("basic")
+	view1, err := ResolveView("default")
 	if err != nil {
 		t.Fatalf("Failed to resolve view: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestClearViewCache(t *testing.T) {
 	ClearViewCache()
 
 	// Resolve again
-	view2, err := ResolveView("basic")
+	view2, err := ResolveView("default")
 	if err != nil {
 		t.Fatalf("Failed to resolve view after cache clear: %v", err)
 	}
@@ -104,9 +104,9 @@ func TestInvalidateViewCache(t *testing.T) {
 	ClearViewCache()
 
 	// Load two views
-	basic1, err := ResolveView("basic")
+	default1, err := ResolveView("default")
 	if err != nil {
-		t.Fatalf("Failed to resolve basic: %v", err)
+		t.Fatalf("Failed to resolve default: %v", err)
 	}
 
 	all1, err := ResolveView("all")
@@ -114,15 +114,15 @@ func TestInvalidateViewCache(t *testing.T) {
 		t.Fatalf("Failed to resolve all: %v", err)
 	}
 
-	// Invalidate only basic
-	InvalidateViewCache("basic")
+	// Invalidate only default
+	InvalidateViewCache("default")
 
 	// Resolve both again
-	basic2, _ := ResolveView("basic")
+	default2, _ := ResolveView("default")
 	all2, _ := ResolveView("all")
 
-	// basic should be different (invalidated), all should be same (cached)
-	if basic1 == basic2 {
+	// default should be different (invalidated), all should be same (cached)
+	if default1 == default2 {
 		t.Error("Expected different pointer for invalidated view")
 	}
 
@@ -141,7 +141,7 @@ func TestGetBuiltInViews(t *testing.T) {
 	}
 
 	// Check for all expected built-in views
-	expectedViews := []string{"basic", "all", "minimal", "full", "kanban", "timeline", "compact"}
+	expectedViews := []string{"default", "all", "minimal", "full", "kanban", "timeline", "compact"}
 	for _, expected := range expectedViews {
 		found := false
 		for _, name := range views {
@@ -161,7 +161,7 @@ func TestIsBuiltInView(t *testing.T) {
 		name     string
 		expected bool
 	}{
-		{"basic", true},
+		{"default", true},
 		{"all", true},
 		{"minimal", true},
 		{"full", true},
@@ -184,14 +184,14 @@ func TestIsBuiltInView(t *testing.T) {
 }
 
 func TestGetBuiltInView(t *testing.T) {
-	// Test basic view structure
-	view, err := getBuiltInView("basic")
+	// Test default view structure
+	view, err := getBuiltInView("default")
 	if err != nil {
-		t.Fatalf("Failed to get built-in 'basic' view: %v", err)
+		t.Fatalf("Failed to get built-in 'default' view: %v", err)
 	}
 
-	if view.Name != "basic" {
-		t.Errorf("Expected name 'basic', got '%s'", view.Name)
+	if view.Name != "default" {
+		t.Errorf("Expected name 'default', got '%s'", view.Name)
 	}
 
 	if view.Description == "" {

@@ -176,6 +176,11 @@ func (sc *SyncCoordinator) doPullSync(listID string, pullFlag *atomic.Bool) {
 // IsStale checks if the data for a given list is stale based on sync_interval
 // Returns true if data should be refreshed
 func (sc *SyncCoordinator) IsStale(listID string) (bool, error) {
+	// Safety check: ensure config and sync section exist
+	if sc.config == nil || sc.config.Sync == nil {
+		return false, fmt.Errorf("sync coordinator has invalid configuration")
+	}
+
 	// If sync interval is 0, never stale (always use cached data)
 	if sc.config.Sync.SyncInterval == 0 {
 		return false, nil

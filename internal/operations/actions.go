@@ -9,6 +9,7 @@ import (
 	"gosynctasks/internal/views"
 	"os"
 	"os/exec"
+	"reflect"
 	"strings"
 	"syscall"
 
@@ -560,7 +561,9 @@ func triggerPushSync(syncProvider SyncCoordinatorProvider) {
 
 	// Get the sync coordinator to verify it's initialized
 	coord := syncProvider.GetSyncCoordinator()
-	if coord == nil {
+	// Safety check: use reflection to verify the interface contains a non-nil value
+	// In Go, an interface can be non-nil but contain a nil pointer
+	if coord == nil || reflect.ValueOf(coord).IsNil() {
 		return
 	}
 
@@ -598,7 +601,9 @@ func spawnBackgroundSync() {
 
 // triggerPullIfStale checks if data is stale and triggers a pull sync if needed
 func triggerPullIfStale(coord interface{}, listID string) {
-	if coord == nil {
+	// Safety check: use reflection to verify the interface contains a non-nil value
+	// In Go, an interface can be non-nil but contain a nil pointer
+	if coord == nil || reflect.ValueOf(coord).IsNil() {
 		return
 	}
 

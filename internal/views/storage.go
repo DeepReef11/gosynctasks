@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+	"slices"
 )
 
 // GetViewsDir returns the directory where view configurations are stored
@@ -41,7 +42,7 @@ func ListViews() ([]string, error) {
 	viewsMap := make(map[string]bool)
 
 	// Get built-in views
-	builtInViews := []string{"basic", "all"}
+	builtInViews := []string{"default", "all"}
 	for _, name := range builtInViews {
 		viewsMap[name] = true
 	}
@@ -122,12 +123,10 @@ func SaveView(view *View) error {
 // Built-in views cannot be deleted
 func DeleteView(name string) error {
 	// Prevent deletion of built-in views
-	builtInViews := []string{"basic", "all"}
-	for _, builtIn := range builtInViews {
-		if name == builtIn {
+	builtInViews := []string{"default", "all"}
+	if slices.Contains(builtInViews, name) {
 			return fmt.Errorf("cannot delete built-in view '%s'", name)
 		}
-	}
 
 	viewsDir, err := GetViewsDir()
 	if err != nil {
@@ -151,7 +150,7 @@ func DeleteView(name string) error {
 // ViewExists checks if a view exists (user or built-in)
 func ViewExists(name string) bool {
 	// Check built-in views
-	builtInViews := []string{"basic", "all"}
+	builtInViews := []string{"default", "all"}
 	for _, builtIn := range builtInViews {
 		if name == builtIn {
 			return true

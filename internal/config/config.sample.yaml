@@ -69,8 +69,8 @@ auto_detect_backend: false
 # NOTE: When sync is enabled, you don't need to include the local backend here
 #       The sync configuration will automatically use the local_backend
 backend_priority:
-  - git        # Check for git repo with TODO.md first
   - nextcloud  # Use Nextcloud when sync is disabled
+  - git        # Check for git repo with TODO.md first
 
 # =============================================================================
 # SYNCHRONIZATION - Bidirectional sync between local and remote

@@ -93,7 +93,7 @@ func getBuiltInView(name string) (*View, error) {
 
 // GetBuiltInViews returns a list of built-in view names
 func GetBuiltInViews() []string {
-	return []string{"basic", "all", "minimal", "full", "kanban", "timeline", "compact"}
+	return []string{"default", "all", "minimal", "full", "kanban", "timeline", "compact"}
 }
 
 // IsBuiltInView checks if a view name is a built-in view

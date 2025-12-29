@@ -45,28 +45,28 @@ func TestCopyBuiltInViewsToUserConfig(t *testing.T) {
 		t.Error("Expected views not to be copied again, but they were")
 	}
 
-	// Verify basic view has filters
-	basicView, err := ResolveView("basic")
+	// Verify default view has filters
+	defaultView, err := ResolveView("default")
 	if err != nil {
-		t.Fatalf("Failed to load basic view: %v", err)
+		t.Fatalf("Failed to load default view: %v", err)
 	}
 
-	if basicView.Filters == nil {
-		t.Error("Basic view should have filters")
-	} else if len(basicView.Filters.ExcludeStatuses) == 0 {
-		t.Error("Basic view filters should exclude some statuses")
+	if defaultView.Filters == nil {
+		t.Error("Default view should have filters")
+	} else if len(defaultView.Filters.ExcludeStatuses) == 0 {
+		t.Error("Default view filters should exclude some statuses")
 	} else {
 		expectedStatuses := []string{"DONE", "COMPLETED", "CANCELLED"}
 		for _, status := range expectedStatuses {
 			found := false
-			for _, excluded := range basicView.Filters.ExcludeStatuses {
+			for _, excluded := range defaultView.Filters.ExcludeStatuses {
 				if excluded == status {
 					found = true
 					break
 				}
 			}
 			if !found {
-				t.Errorf("Expected basic view to exclude status %s", status)
+				t.Errorf("Expected default view to exclude status %s", status)
 			}
 		}
 	}

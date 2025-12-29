@@ -75,7 +75,7 @@ func TestParentIndicator_NestedHierarchy(t *testing.T) {
 
 	// Format the tree
 	mockBackend := &backend.NextcloudBackend{}
-	output := FormatTaskTree(tree, "basic", mockBackend, "2006-01-02")
+	output := FormatTaskTree(tree, "default", mockBackend, "2006-01-02")
 
 	// Verify Project has parent indicator with count (2)
 	if !strings.Contains(output, "▶") {

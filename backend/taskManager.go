@@ -378,13 +378,13 @@ type Task struct {
 // String returns a basic formatted string representation of the task.
 // For more control over formatting, use FormatWithView.
 func (t Task) String() string {
-	return t.FormatWithView("basic", nil, "2006-01-02")
+	return t.FormatWithView("default", nil, "2006-01-02")
 }
 
 // FormatWithView formats the task for display with customizable view options.
 //
 // Parameters:
-//   - view: "basic" (summary + status) or "all" (includes metadata like dates and priority)
+//   - view: "default" (summary + status) or "all" (includes metadata like dates and priority)
 //   - backend: TaskManager for priority coloring (can be nil)
 //   - dateFormat: Go time format string for date display
 //
@@ -401,7 +401,7 @@ func (t Task) FormatWithView(view string, backend TaskManager, dateFormat string
 // This is useful for displaying hierarchical task structures where subtasks should be indented.
 //
 // Parameters:
-//   - view: "basic" (summary + status) or "all" (includes metadata like dates and priority)
+//   - view: "default" (summary + status) or "all" (includes metadata like dates and priority)
 //   - backend: TaskManager for priority coloring (can be nil)
 //   - dateFormat: Go time format string for date display
 //   - indentLevel: number of indentation levels (0 = no indent, 1 = one level, etc.)

@@ -74,7 +74,7 @@ func TestFormatWithView_StartDate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.task.FormatWithView("basic", nil, "2006-01-02")
+			result := tt.task.FormatWithView("default", nil, "2006-01-02")
 
 			// Check if start date appears in output when expected
 			if tt.task.StartDate != nil {
@@ -160,7 +160,7 @@ func TestFormatWithView_StartDateBoundaries(t *testing.T) {
 				StartDate: timePtr(now.Add(time.Duration(tt.hoursOffset * float64(time.Hour)))),
 			}
 
-			result := task.FormatWithView("basic", nil, "2006-01-02")
+			result := task.FormatWithView("default", nil, "2006-01-02")
 
 			if !strings.Contains(result, tt.expectedColor) {
 				t.Errorf("Test '%s': Expected color %q for %s, got:\n%s",
