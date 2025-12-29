@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
 	// "gosynctasks/backend"
 	"gosynctasks/backend"
@@ -36,6 +37,50 @@ const (
 	CONFIG_DIR_PERM  = 0755
 	CONFIG_FILE_PERM = 0644
 )
+
+// expandPath expands ~ and $HOME in paths while respecting escaped versions.
+// Escaping rules:
+//   - \~ becomes literal ~
+//   - \$HOME or \$ becomes literal $HOME or $
+//   - ~ at start of path expands to user home directory
+//   - $HOME anywhere in path expands to user home directory
+func expandPath(path string) string {
+	if path == "" {
+		return path
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		// If we can't get home dir, return path unchanged
+		return path
+	}
+
+	// Use a placeholder to protect escaped sequences during expansion
+	const escapedTildePlaceholder = "\x00ESCAPED_TILDE\x00"
+	const escapedDollarPlaceholder = "\x00ESCAPED_DOLLAR\x00"
+
+	// Step 1: Replace escaped sequences with placeholders
+	path = strings.ReplaceAll(path, `\~`, escapedTildePlaceholder)
+	path = strings.ReplaceAll(path, `\$`, escapedDollarPlaceholder)
+
+	// Step 2: Expand ~ at the start of the path
+	if strings.HasPrefix(path, "~/") || path == "~" {
+		if path == "~" {
+			path = homeDir
+		} else {
+			path = filepath.Join(homeDir, path[2:])
+		}
+	}
+
+	// Step 3: Expand $HOME anywhere in the path
+	path = strings.ReplaceAll(path, "$HOME", homeDir)
+
+	// Step 4: Restore escaped sequences (unescape them)
+	path = strings.ReplaceAll(path, escapedTildePlaceholder, "~")
+	path = strings.ReplaceAll(path, escapedDollarPlaceholder, "$")
+
+	return path
+}
 
 // Config represents the application configuration.
 type Config struct {
@@ -164,6 +209,40 @@ func (c *Config) GetDateFormat() string {
 	return c.DateFormat
 }
 
+// expandAllPaths expands ~ and $HOME in all path fields throughout the config
+func (c *Config) expandAllPaths() {
+	// Expand paths in each backend config
+	for name, backendCfg := range c.Backends {
+		// Expand DBPath (sqlite)
+		if backendCfg.DBPath != "" {
+			backendCfg.DBPath = expandPath(backendCfg.DBPath)
+		}
+
+		// Expand File (git)
+		if backendCfg.File != "" {
+			backendCfg.File = expandPath(backendCfg.File)
+		}
+
+		// Expand FallbackFiles (git)
+		if len(backendCfg.FallbackFiles) > 0 {
+			for i, file := range backendCfg.FallbackFiles {
+				backendCfg.FallbackFiles[i] = expandPath(file)
+			}
+		}
+
+		// Expand URL if it looks like a file path (file:// scheme)
+		if backendCfg.URL != "" && strings.HasPrefix(backendCfg.URL, "file://") {
+			// Extract path part after file://
+			pathPart := strings.TrimPrefix(backendCfg.URL, "file://")
+			expandedPath := expandPath(pathPart)
+			backendCfg.URL = "file://" + expandedPath
+		}
+
+		// Update the backend config in the map
+		c.Backends[name] = backendCfg
+	}
+}
+
 // SetCustomConfigPath sets a custom config path to use instead of the default user config directory.
 // If path is empty or ".", it uses "./gosynctasks/config.yaml" (current directory).
 // If path is a directory (or looks like one), it looks for "config.yaml" inside it.
@@ -290,6 +369,9 @@ func parseConfig(configData []byte, configPath string) (*Config, error) {
 	if err != nil {
 		log.Fatalf("Invalid YAML in config file %s: %v", configPath, err)
 	}
+
+	// Expand ~ and $HOME in all path fields
+	configObj.expandAllPaths()
 
 	if err = configObj.Validate(); err != nil {
 		log.Fatalf("Missing field(s) in YAML config file %s: %v", configPath, err)

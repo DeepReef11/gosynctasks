@@ -185,15 +185,14 @@ func TestConfigValidation(t *testing.T) {
 			errMsg:  "URL is required",
 		},
 		{
-			name: "sqlite backend missing db_path",
+			name: "sqlite backend missing db_path is valid (uses XDG default)",
 			config: Config{
 				Backends: map[string]backend.BackendConfig{
 					"sqlite": {Type: "sqlite", Enabled: true},
 				},
 				UI: "cli",
 			},
-			wantErr: true,
-			errMsg:  "db_path is required",
+			wantErr: false, // db_path is optional for sqlite
 		},
 		{
 			name: "priority references unknown backend",
