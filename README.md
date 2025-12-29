@@ -406,30 +406,122 @@ gosynctasks completion powershell | Out-String | Invoke-Expression
 
 ## Development
 
-### Building
+### Quick Commands (Makefile)
 
 ```bash
+# Show all available commands
+make help
+
 # Build
+make build                       # Single binary
+make build-all                   # All platforms
+
+# Testing
+make test                        # Unit tests
+make test-integration            # Mock backend integration tests
+make test-integration-nextcloud  # Real Nextcloud sync tests
+make test-all                    # All tests
+make test-coverage               # Generate coverage report
+
+# Code Quality
+make lint                        # Run linter
+make fmt                         # Format code
+make vet                         # Run go vet
+make security                    # Security scan
+
+# Docker Test Server
+make docker-up                   # Start Nextcloud server
+make docker-down                 # Stop server
+make docker-logs                 # View logs
+make docker-status               # Check status
+
+# CI/CD
+make ci                          # Run full CI suite locally
+make clean                       # Clean build artifacts
+make clean-all                   # Clean everything including Docker
+```
+
+### Building from Source
+
+```bash
+# Clone repository
+git clone https://github.com/DeepReef11/gosynctasks.git
+cd gosynctasks
+
+# Build binary
+make build
+# or
 go build -o gosynctasks ./cmd/gosynctasks
 
-# Run directly
-go run ./cmd/gosynctasks
+# Install to $GOPATH/bin
+make install
+# or
+go install ./cmd/gosynctasks
 
-# Run tests
-go test ./...
-
-# Run specific tests
-go test ./backend
-go test ./internal/config
+# Build for all platforms
+make build-all
 ```
 
 ### Testing
 
-See [TESTING.md](TESTING.md) for detailed testing procedures including:
+gosynctasks has comprehensive test coverage with three test types:
+
+#### 1. Unit Tests
+```bash
+# Run all unit tests
+make test
+# or
+go test ./...
+
+# With coverage
+make test-coverage
+# or
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
+
+# Specific package
+go test ./backend -v
+go test ./internal/config -v
+```
+
+#### 2. Mock Backend Integration Tests
+```bash
+# Fast integration tests (no external dependencies)
+make test-integration
+# or
+go test -v -timeout 10m \
+  ./backend/integration_test.go \
+  ./backend/mockBackend.go \
+  ./backend/syncManager.go \
+  ./backend/taskManager.go
+```
+
+#### 3. Nextcloud Sync Integration Tests
+```bash
+# Real CalDAV server tests
+make test-integration-nextcloud
+# or manually:
+make docker-up                    # Start Nextcloud
+./scripts/wait-for-nextcloud.sh  # Wait for ready
+go test -v -timeout 15m -tags=integration ./backend/sync_integration_test.go
+make docker-down                  # Cleanup
+```
+
+**What's tested:**
+- ✅ Push sync (local → Nextcloud)
+- ✅ Pull sync (Nextcloud → local)
+- ✅ Bidirectional sync
+- ✅ Conflict resolution (ServerWins, LocalWins)
+- ✅ Task deletion sync
+- ✅ Real CalDAV protocol
+- ✅ iCalendar format validation
+
+See [TESTING.md](TESTING.md) for comprehensive testing guide including:
 - Manual feature testing workflows
 - Git backend testing
 - Multi-backend testing
 - Docker test environment setup
+- CI/CD pipeline details
 
 ### Project Structure
 
@@ -626,53 +718,145 @@ gosynctasks --backend personal Shopping add "Milk"
 
 ## Contributing
 
-Contributions are welcome! Please see [CLAUDE.md](CLAUDE.md) for development guidelines and architecture documentation.
+Contributions are welcome! Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md) for detailed guidelines.
 
-### Running Tests
+### Development Workflow
+
+1. **Fork and clone** the repository
+2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
+3. **Make your changes** with clear commit messages
+4. **Run tests locally**: `make ci`
+5. **Push and create a PR**
+
+### CI/CD Pipeline
+
+Every push and pull request triggers automated checks:
+
+| Job | Description | Time |
+|-----|-------------|------|
+| **Lint** | Code quality (golangci-lint) | ~2 min |
+| **Test** | Unit tests with coverage | ~2 min |
+| **Integration** | Mock + Nextcloud sync tests | ~8 min |
+| **Security** | Vulnerability scan (govulncheck) | ~1 min |
+| **Build** | Multi-platform binaries | ~4 min |
+
+**Branch Protection:**
+- ✅ All CI checks must pass
+- ✅ Code review required
+- ✅ Branch must be up to date
+
+### Running CI Locally
 
 ```bash
-# All tests
-go test ./...
+# Full CI suite
+make ci
 
-# With coverage
-go test -cover ./...
-
-# Specific package
-go test ./backend -v
-go test ./internal/config -v
-
-# Integration tests
-go test ./backend -run Integration
-go test ./cmd/gosynctasks -run CLI
+# Individual checks
+make lint                        # Code quality
+make test                        # Unit tests
+make test-integration            # Integration tests
+make test-integration-nextcloud  # Nextcloud tests
+make security                    # Security scan
+make build                       # Build check
 ```
 
-## License
+### Testing Requirements
 
-[Add your license here]
+Before submitting a PR:
+
+```bash
+# Run all tests
+make test-all
+
+# Check for race conditions
+go test -race ./...
+
+# Ensure coverage doesn't drop
+make test-coverage
+
+# Format code
+make fmt
+
+# Run linter
+make lint
+```
+
+### Code Style
+
+- Follow [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
+- Use meaningful variable names
+- Add comments for exported functions
+- Write tests for new features
+- Update documentation
+
+### Commit Convention
+
+Use [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+feat: add new backend support
+fix: resolve sync conflict bug
+docs: update README with examples
+test: add integration tests for sync
+refactor: simplify backend selection
+chore: update dependencies
+```
+
+### Creating a Release
+
+Releases are automated via GitHub Actions:
+
+```bash
+# Create and push a version tag
+git tag -a v1.2.3 -m "Release v1.2.3"
+git push origin v1.2.3
+
+# GitHub Actions will:
+# - Run all CI checks
+# - Build multi-platform binaries
+# - Create GitHub release
+# - Attach binaries as artifacts
+```
+
+### Getting Help
+
+- 📖 Read [CLAUDE.md](CLAUDE.md) for architecture details
+- 🧪 See [TESTING.md](TESTING.md) for testing guide
+- 🔄 Check [SYNC_GUIDE.md](SYNC_GUIDE.md) for sync documentation
+- 💬 Open an issue for questions
+- 🐛 Report bugs with reproduction steps
 
 ## Roadmap
 
 ### Completed ✅
-- Multi-backend support
-- Git/Markdown backend
-- Backend auto-detection
-- Config migration
-- Comprehensive testing
+- Multi-backend support (Nextcloud, Git, SQLite)
+- Git/Markdown backend with auto-detection
+- Backend auto-detection and priority selection
+- Automatic config migration
+- **Comprehensive CI/CD pipeline** with automated releases
+- **Nextcloud sync integration tests** with real CalDAV server
 - SQLite sync layer with offline mode
-- Conflict resolution (4 strategies)
-- Bidirectional synchronization
+- Conflict resolution (4 strategies: server_wins, local_wins, merge, keep_both)
+- Bidirectional synchronization with etag handling
 - **Auto-sync with background daemon** - instant operations
+- Path expansion (`$HOME`, `~`) in config files
+- Custom views with plugin formatters
+- Hierarchical tasks (subtasks)
+- Interactive list and task selection
 
 ### In Progress 🚧
 - File backend implementation
+- Enhanced documentation
 
 ### Planned 📋
 - GitHub/GitLab Issues backends
-- Trello/Notion integration
-- Cross-backend sync
+- Jira integration
+- Trello/Notion backends
+- Cross-backend task migration
 - Mobile companion app
-- Web UI
+- Web UI dashboard
 - Sync hooks and plugins
+- Real-time sync with webhooks
 
 ## Support
 
