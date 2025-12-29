@@ -1,0 +1,231 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          args: --timeout=5m
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Run unit tests
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.out
+          flags: unittests
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Start Nextcloud test server
+        run: |
+          # Check if test server script exists
+          if [ -f ./scripts/start-test-server.sh ]; then
+            chmod +x ./scripts/start-test-server.sh
+            ./scripts/start-test-server.sh
+
+            # Wait for Nextcloud to be ready (max 90 seconds)
+            echo "Waiting for Nextcloud container to start..."
+            sleep 10
+
+            echo "Waiting for Nextcloud to be fully ready..."
+            RETRIES=0
+            MAX_RETRIES=40
+            until curl -f -s http://localhost:8080/status.php > /dev/null 2>&1; do
+              RETRIES=$((RETRIES + 1))
+              if [ $RETRIES -ge $MAX_RETRIES ]; then
+                echo "ERROR: Nextcloud did not become ready in time"
+                docker-compose logs
+                exit 1
+              fi
+              echo "Attempt $RETRIES/$MAX_RETRIES: Waiting for Nextcloud..."
+              sleep 2
+            done
+
+            echo "✓ Nextcloud is ready!"
+
+            # Verify CalDAV endpoint is accessible
+            echo "Verifying CalDAV endpoint..."
+            curl -u admin:admin123 -X PROPFIND http://localhost:8080/remote.php/dav/calendars/admin/ \
+              -H "Depth: 1" || echo "Warning: CalDAV verification failed"
+          else
+            echo "ERROR: Test server script not found"
+            exit 1
+          fi
+
+      - name: Run mock backend integration tests
+        run: |
+          echo "Running mock backend integration tests..."
+          go test -v -timeout 10m ./backend/integration_test.go ./backend/mockBackend.go ./backend/syncManager.go ./backend/taskManager.go
+        continue-on-error: false
+
+      - name: Run Nextcloud integration tests
+        run: |
+          echo "Running Nextcloud sync integration tests..."
+          go test -v -timeout 15m -tags=integration ./backend/sync_integration_test.go
+        env:
+          NEXTCLOUD_TEST_URL: "nextcloud://admin:admin123@localhost:8080/"
+        continue-on-error: false
+
+      - name: Show Nextcloud logs on failure
+        if: failure()
+        run: |
+          echo "=== Docker containers ==="
+          docker ps -a
+          echo ""
+          echo "=== Nextcloud logs ==="
+          docker-compose logs --tail=100
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "Cleaning up Docker resources..."
+          docker-compose down -v 2>/dev/null || true
+          docker ps -q | xargs -r docker stop 2>/dev/null || true
+          docker system prune -f || true
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Run govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  build:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 1
+        run: |
+          # Determine binary name with platform suffix
+          BINARY_NAME="gosynctasks-${{ matrix.goos }}-${{ matrix.goarch }}"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            BINARY_NAME="${BINARY_NAME}.exe"
+          fi
+
+          # Build with version info
+          VERSION="${GITHUB_REF_NAME:-dev}"
+          COMMIT="${GITHUB_SHA::8}"
+          BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          # For CGO cross-compilation, we need appropriate toolchains
+          # For now, disable CGO for cross-platform builds except native
+          if [ "${{ matrix.goos }}" != "linux" ] || [ "${{ matrix.goarch }}" != "amd64" ]; then
+            export CGO_ENABLED=0
+          fi
+
+          go build \
+            -ldflags "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildDate=${BUILD_DATE}" \
+            -o "${BINARY_NAME}" \
+            ./cmd/gosynctasks
+
+          # Verify binary was created
+          ls -lh "${BINARY_NAME}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gosynctasks-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: gosynctasks-*
+          retention-days: 7
+
+  # Optional: Create release when tags are pushed
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [lint, test, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          find artifacts -type f -name 'gosynctasks-*' -exec cp {} release/ \;
+          ls -lh release/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/gosynctasks-*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

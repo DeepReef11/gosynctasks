@@ -280,6 +280,14 @@ cmd/gosynctasks/
 
 ## Integration Testing
 
+### Overview
+
+gosynctasks has three types of integration tests:
+
+1. **Mock Backend Tests** - Fast, no external dependencies
+2. **Nextcloud Sync Integration Tests** - Real CalDAV server tests
+3. **Manual Integration Tests** - CLI testing with real backends
+
 ### Setup for Integration Tests
 
 **Prerequisites:**
@@ -290,6 +298,85 @@ cmd/gosynctasks/
 # Build the binary
 go build -o gosynctasks ./cmd/gosynctasks
 ```
+
+### Running Integration Tests with Makefile
+
+The project includes a Makefile with convenient test commands:
+
+```bash
+# Show all available commands
+make help
+
+# Run unit tests only
+make test
+
+# Run mock backend integration tests
+make test-integration
+
+# Run real Nextcloud sync integration tests
+make test-integration-nextcloud
+
+# Run all tests (unit + mock + nextcloud)
+make test-all
+
+# Run linter
+make lint
+
+# Run security scan
+make security
+
+# Full CI suite (lint + test + build)
+make ci
+```
+
+### Nextcloud Sync Integration Tests
+
+**Location**: `backend/sync_integration_test.go`
+
+These tests use the real Nextcloud Docker server and test actual CalDAV synchronization:
+
+**Tests Covered:**
+1. **Push Sync** - Local changes → Nextcloud
+2. **Pull Sync** - Nextcloud → Local changes
+3. **Bidirectional Sync** - Both local and remote changes
+4. **Conflict Resolution** - ServerWins and LocalWins strategies
+5. **Delete Sync** - Task deletion propagation
+
+**Run with Makefile:**
+```bash
+# Start Nextcloud and run tests automatically
+make test-integration-nextcloud
+```
+
+**Run manually:**
+```bash
+# Start Nextcloud server
+./scripts/start-test-server.sh
+
+# Wait for server to be ready
+./scripts/wait-for-nextcloud.sh
+
+# Run tests with integration tag
+NEXTCLOUD_TEST_URL="nextcloud://admin:admin123@localhost:8080/" \
+  go test -v -timeout 15m -tags=integration ./backend/sync_integration_test.go
+
+# Cleanup
+docker-compose down -v
+```
+
+**Environment Variables:**
+- `NEXTCLOUD_TEST_URL` - Custom Nextcloud URL (default: localhost:8080)
+- `SKIP_INTEGRATION=1` - Skip integration tests entirely
+
+**What's Tested:**
+- ✅ Real CalDAV PROPFIND/PUT/DELETE requests
+- ✅ Actual network communication
+- ✅ iCalendar VTODO format handling
+- ✅ SQLite ↔ Nextcloud synchronization
+- ✅ Conflict detection and resolution
+- ✅ Task metadata preservation
+- ✅ Etag handling
+- ✅ Sync queue processing
 
 #### Shell Setup with Autocompletion
 

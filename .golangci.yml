@@ -1,0 +1,102 @@
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    # Enabled by default
+    - errcheck      # Check for unchecked errors
+    - gosimple      # Simplify code
+    - govet         # Standard Go vet
+    - ineffassign   # Detect ineffectual assignments
+    - staticcheck   # Advanced static analysis
+    - unused        # Find unused code
+
+    # Additional recommended linters
+    - gofmt         # Check formatting
+    - goimports     # Check import formatting
+    - gocritic      # Comprehensive Go source code linter
+    - misspell      # Spelling mistakes
+    - revive        # Fast, configurable, extensible linter
+    - unconvert     # Unnecessary type conversions
+    - unparam       # Unused function parameters
+    - gosec         # Security problems
+    - exportloopref # Loop variable escaping issues
+
+  disable:
+    - typecheck     # Can have issues with embed directives
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: false
+
+  govet:
+    enable-all: true
+    disable:
+      - shadow      # Too noisy for this project
+
+  gofmt:
+    simplify: true
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+    disabled-checks:
+      - unnamedResult
+      - hugeParam
+
+  revive:
+    confidence: 0.8
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: increment-decrement
+      - name: var-naming
+      - name: package-comments
+        disabled: true  # Not all packages need comments
+      - name: range
+      - name: receiver-naming
+      - name: indent-error-flow
+      - name: superfluous-else
+      - name: unreachable-code
+
+  gosec:
+    excludes:
+      - G104  # Audit errors not checked (too noisy)
+      - G307  # Deferring unsafe method (false positives)
+
+  misspell:
+    locale: US
+
+issues:
+  exclude-rules:
+    # Exclude some linters from running on tests
+    - path: _test\.go
+      linters:
+        - gosec
+        - errcheck
+        - gocritic
+
+    # Exclude embed directive issues
+    - path: internal/views/builtin_views
+      linters:
+        - typecheck
+
+    # Allow init functions in main
+    - path: cmd/
+      text: "should not use init"
+
+  max-same-issues: 0
+  max-issues-per-linter: 0
+
+  # Don't fail on TODO/FIXME comments
+  exclude-use-default: false
