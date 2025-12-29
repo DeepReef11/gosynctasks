@@ -278,18 +278,47 @@ Strategy for resolving conflicts. Options:
 ```
 
 #### `auto_sync` (boolean, default: `false`)
-Automatically sync on every operation (not yet implemented).
+**NEW!** Automatically sync on every write operation using background daemon.
+
+When enabled:
+- ✅ **Instant operations** - CLI returns immediately after writing to SQLite
+- ✅ **Background daemon** - Spawns detached `gosynctasks sync --quiet` process
+- ✅ **Queue-based** - Operations stored in `sync_queue` table
+- ✅ **Offline-friendly** - Queue builds up when offline, syncs when online
+- ✅ **Reliable** - Failed syncs retry on next operation
 
 ```json
-"auto_sync": false
+"auto_sync": true
 ```
 
-#### `sync_interval` (integer, default: `300`)
-Seconds between auto-syncs (when auto_sync is enabled).
+**How it works:**
+1. You run: `gosynctasks MyList add "Task"`
+2. Task written to SQLite database instantly
+3. Operation added to `sync_queue` table
+4. Background daemon process spawned (detached from parent)
+5. CLI returns immediately (< 100ms)
+6. Daemon runs `gosynctasks sync --quiet` independently
+7. Queue processed and synced to remote
+8. Daemon exits when done
+
+**Benefits:**
+- No waiting for remote sync
+- Works offline (queue persists)
+- No blocking or timeouts
+- Truly background operation
+
+#### `sync_interval` (integer, default: `5`)
+**Minutes** before local data is considered stale (for pull operations).
+
+Used to determine when to trigger background pull sync on read operations:
+- If last sync > `sync_interval` minutes: trigger background pull
+- If last sync < `sync_interval` minutes: use cached data (fast!)
 
 ```json
-"sync_interval": 300
+"sync_interval": 5  // 5 minutes
 ```
+
+**Note:** This setting affects **read** operations (listing tasks). Write operations always trigger background push sync when `auto_sync: true`.
 
 ### Backend Settings
 
@@ -345,6 +374,109 @@ Pulled tasks: 5
 Pushed tasks: 2
 Duration: 1.2s
 ```
+
+### Auto-Sync (Recommended)
+
+**NEW!** Enable automatic background synchronization for instant operations:
+
+**Setup:**
+```json
+{
+  "sync": {
+    "enabled": true,
+    "auto_sync": true,
+    "local_backend": "sqlite",
+    "remote_backend": "nextcloud"
+  }
+}
+```
+
+**Usage - Just work normally!**
+```bash
+# Operations return instantly - sync happens in background
+$ gosynctasks MyList add "Buy milk"
+Task 'Buy milk' added successfully to list 'MyList'
+# ← Returns in < 100ms, sync happens after in background daemon
+
+$ gosynctasks MyList complete "Buy milk"
+Task 'Buy milk' marked as DONE in list 'MyList'
+# ← Instant return, background sync
+
+$ gosynctasks MyList update "Task" -s DONE
+Task 'Task' updated successfully in list 'MyList'
+# ← No waiting!
+```
+
+**Verify sync is working:**
+```bash
+# Check the queue (should be empty after a few seconds)
+$ gosynctasks sync queue
+No pending operations
+
+# Check sync status
+$ gosynctasks sync status
+Last sync: 10 seconds ago
+```
+
+**Monitor background sync:**
+```bash
+# Check for background sync processes
+$ ps aux | grep "gosynctasks sync"
+# You might see: gosynctasks sync --quiet (daemon process)
+
+# View queue if operations are pending
+$ gosynctasks sync queue
+Pending Operations (2):
+  create: task-123 (list: MyList)
+    Created: 2025-01-15 10:30:00
+```
+
+**Offline mode:**
+When offline, operations queue up automatically:
+```bash
+# Disconnect from network
+$ gosynctasks MyList add "Offline task 1"
+Task 'Offline task 1' added successfully
+# ← Still instant! Queued for later sync
+
+$ gosynctasks MyList add "Offline task 2"
+Task 'Offline task 2' added successfully
+# ← Queue building up
+
+# Check queue
+$ gosynctasks sync queue
+Pending Operations (2):
+  create: task-xxx (list: MyList)
+  create: task-yyy (list: MyList)
+
+# Reconnect to network - next operation triggers sync
+$ gosynctasks MyList get
+# Background daemon syncs the queue automatically
+```
+
+### Manual Sync
+
+Manually trigger synchronization:
+
+```bash
+gosynctasks sync
+```
+
+Output:
+```
+Syncing...
+
+=== Sync Complete ===
+Pulled tasks: 5
+Pushed tasks: 2
+Duration: 1.2s
+```
+
+**Use manual sync for:**
+- Initial setup
+- Forcing sync without adding tasks
+- Troubleshooting
+- When auto-sync is disabled
 
 ### Full Sync
 

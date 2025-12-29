@@ -16,6 +16,7 @@ func newSyncCmd() *cobra.Command {
 	var fullSync bool
 	var dryRun bool
 	var listName string
+	var quiet bool
 
 	syncCmd := &cobra.Command{
 		Use:   "sync",
@@ -54,8 +55,10 @@ Examples:
 			// Check if offline
 			isOffline, offlineReason := isBackendOffline(remoteBackend)
 			if isOffline {
-				fmt.Printf("⚠ Offline mode: %s\n", offlineReason)
-				fmt.Println("Working with local cache. Changes will be synced when online.")
+				if !quiet {
+					fmt.Printf("⚠ Offline mode: %s\n", offlineReason)
+					fmt.Println("Working with local cache. Changes will be synced when online.")
+				}
 				return nil
 			}
 
@@ -68,13 +71,17 @@ Examples:
 			sm := backend.NewSyncManager(localBackend, remoteBackend, strategy)
 
 			if dryRun {
-				fmt.Println("Dry run mode - no changes will be made")
+				if !quiet {
+					fmt.Println("Dry run mode - no changes will be made")
+				}
 				// TODO: Implement dry run preview
 				return nil
 			}
 
 			// Perform sync
-			fmt.Println("Syncing...")
+			if !quiet {
+				fmt.Println("Syncing...")
+			}
 			var result *backend.SyncResult
 			if fullSync {
 				result, err = sm.FullSync()
@@ -83,11 +90,16 @@ Examples:
 			}
 
 			if err != nil {
-				return fmt.Errorf("sync failed: %w", err)
+				if !quiet {
+					return fmt.Errorf("sync failed: %w", err)
+				}
+				return nil // Silent fail in background
 			}
 
 			// Display results
-			printSyncResult(result)
+			if !quiet {
+				printSyncResult(result)
+			}
 			return nil
 		},
 	}
@@ -95,6 +107,7 @@ Examples:
 	syncCmd.Flags().BoolVar(&fullSync, "full", false, "Force full re-sync (ignore CTags)")
 	syncCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview changes without applying")
 	syncCmd.Flags().StringVarP(&listName, "list", "l", "", "Sync specific list only")
+	syncCmd.Flags().BoolVar(&quiet, "quiet", false, "Suppress output (for background sync)")
 
 	// Add subcommands
 	syncCmd.AddCommand(newSyncStatusCmd())

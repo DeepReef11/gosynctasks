@@ -72,6 +72,9 @@ type ViewFilters struct {
 	// Status filters tasks by status (e.g., ["TODO", "PROCESSING"])
 	Status []string `yaml:"status,omitempty"`
 
+	// ExcludeStatuses filters out tasks with these statuses (e.g., ["DONE", "CANCELLED"])
+	ExcludeStatuses []string `yaml:"exclude_statuses,omitempty"`
+
 	// Priority filters tasks by priority range
 	PriorityMin int `yaml:"priority_min,omitempty" validate:"min=0,max=9"`
 	PriorityMax int `yaml:"priority_max,omitempty" validate:"min=0,max=9"`

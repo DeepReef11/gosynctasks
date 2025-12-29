@@ -174,3 +174,54 @@ func ViewExists(name string) bool {
 
 	return false
 }
+
+// CopyBuiltInViewsToUserConfig copies all built-in views to the user's config directory
+// This is typically called on first run to allow users to customize views
+// Returns true if views were copied, false if they already existed
+func CopyBuiltInViewsToUserConfig() (bool, error) {
+	viewsDir, err := GetViewsDir()
+	if err != nil {
+		return false, fmt.Errorf("failed to get views directory: %w", err)
+	}
+
+	// Check if views directory exists and has any .yaml files
+	if info, err := os.Stat(viewsDir); err == nil && info.IsDir() {
+		entries, err := os.ReadDir(viewsDir)
+		if err == nil && len(entries) > 0 {
+			// Check if there are any .yaml or .yml files
+			for _, entry := range entries {
+				if !entry.IsDir() {
+					name := entry.Name()
+					if strings.HasSuffix(name, ".yaml") || strings.HasSuffix(name, ".yml") {
+						// Views already exist, skip copying
+						return false, nil
+					}
+				}
+			}
+		}
+	}
+
+	// Ensure views directory exists
+	if err := EnsureViewsDir(); err != nil {
+		return false, fmt.Errorf("failed to create views directory: %w", err)
+	}
+
+	// Copy each built-in view
+	builtInViews := GetBuiltInViews()
+	for _, viewName := range builtInViews {
+		// Read built-in view from embedded FS
+		filePath := fmt.Sprintf("builtin_views/%s.yaml", viewName)
+		data, err := builtinViewFS.ReadFile(filePath)
+		if err != nil {
+			return false, fmt.Errorf("failed to read built-in view '%s': %w", viewName, err)
+		}
+
+		// Write to user's views directory
+		destPath := filepath.Join(viewsDir, viewName+".yaml")
+		if err := os.WriteFile(destPath, data, 0644); err != nil {
+			return false, fmt.Errorf("failed to write view '%s' to %s: %w", viewName, destPath, err)
+		}
+	}
+
+	return true, nil
+}

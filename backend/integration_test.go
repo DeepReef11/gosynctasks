@@ -222,7 +222,7 @@ func TestConflictResolutionScenarios(t *testing.T) {
 	}{
 		{ServerWins, "Remote Modification", "", 1},
 		{LocalWins, "Local Modification", "", 1},
-		{Merge, "Remote Modification", "", 1}, // Merge uses remote summary but may merge other fields
+		{Merge, "Remote Modification", "", 1},    // Merge uses remote summary but may merge other fields
 		{KeepBoth, "Remote Modification", "", 2}, // Keep both creates a copy
 	}
 

@@ -7,6 +7,7 @@ import (
 	"gosynctasks/backend"
 	// "gosynctasks/connectors"
 	"gosynctasks/internal/utils"
+	"gosynctasks/internal/views"
 	"log"
 	"os"
 	"path/filepath"
@@ -130,9 +131,8 @@ func (c Config) Validate() error {
 				backendConfig.File = "TODO.md"
 			}
 		case "sqlite":
-			if backendConfig.DBPath == "" {
-				return fmt.Errorf("backend %q: db_path is required for sqlite backend", name)
-			}
+			// db_path is optional - empty string means use XDG default
+			// No validation needed
 		}
 	}
 
@@ -271,6 +271,15 @@ func createConfigFromSample(configPath string) []byte {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Copy built-in views to user config on first run
+	copied, err := views.CopyBuiltInViewsToUserConfig()
+	if err != nil {
+		log.Printf("Warning: Failed to copy built-in views: %v", err)
+	} else if copied {
+		fmt.Println("Built-in views copied to user config directory")
+	}
+
 	return configData
 }
 

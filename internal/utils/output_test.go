@@ -70,8 +70,8 @@ func TestOutputJSON(t *testing.T) {
 			},
 		},
 		{
-			name: "array",
-			data: []int{1, 2, 3, 4, 5},
+			name:    "array",
+			data:    []int{1, 2, 3, 4, 5},
 			wantErr: false,
 			validate: func(output string) bool {
 				var result []int
@@ -135,8 +135,8 @@ func TestOutputYAML(t *testing.T) {
 			},
 		},
 		{
-			name: "array",
-			data: []string{"item1", "item2", "item3"},
+			name:    "array",
+			data:    []string{"item1", "item2", "item3"},
 			wantErr: false,
 			validate: func(output string) bool {
 				var result []string
@@ -173,8 +173,8 @@ func TestMarshalJSON(t *testing.T) {
 		check   func([]byte) bool
 	}{
 		{
-			name: "simple object",
-			data: map[string]int{"count": 5},
+			name:    "simple object",
+			data:    map[string]int{"count": 5},
 			wantErr: false,
 			check: func(b []byte) bool {
 				// Should be indented (contains newlines and spaces)
@@ -182,8 +182,8 @@ func TestMarshalJSON(t *testing.T) {
 			},
 		},
 		{
-			name: "nil value",
-			data: nil,
+			name:    "nil value",
+			data:    nil,
 			wantErr: false,
 			check: func(b []byte) bool {
 				return string(b) == "null"
@@ -226,16 +226,16 @@ func TestMarshalYAML(t *testing.T) {
 		check   func([]byte) bool
 	}{
 		{
-			name: "simple object",
-			data: map[string]int{"count": 5},
+			name:    "simple object",
+			data:    map[string]int{"count": 5},
 			wantErr: false,
 			check: func(b []byte) bool {
 				return strings.Contains(string(b), "count:")
 			},
 		},
 		{
-			name: "array",
-			data: []string{"a", "b", "c"},
+			name:    "array",
+			data:    []string{"a", "b", "c"},
 			wantErr: false,
 			check: func(b []byte) bool {
 				var result []string

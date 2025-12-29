@@ -238,7 +238,7 @@ func (sc *SyncCoordinator) isOnline() bool {
 func (sc *SyncCoordinator) Shutdown(timeout time.Duration) {
 	sc.shutdown.Store(true)
 
-	// Wait for pending syncs with timeout (silently)
+	// Wait for pending syncs with timeout
 	done := make(chan struct{})
 	go func() {
 		sc.wg.Wait()
@@ -247,9 +247,9 @@ func (sc *SyncCoordinator) Shutdown(timeout time.Duration) {
 
 	select {
 	case <-done:
-		// Syncs completed successfully - silent
+		// Syncs completed successfully
 	case <-time.After(timeout):
-		// Timeout - syncs will be queued for next time - silent
+		sc.logger.Printf("Warning: Pending syncs did not complete within %v", timeout)
 	}
 }
 

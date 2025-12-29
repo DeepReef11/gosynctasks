@@ -74,11 +74,15 @@ func NewApp(explicitBackend string) (*App, error) {
 	}
 
 	// Initialize sync coordinator if auto-sync is enabled
-	if cfg.Sync.Enabled && cfg.Sync.AutoSync {
+	if cfg.Sync != nil && cfg.Sync.Enabled && cfg.Sync.AutoSync {
 		err := app.initializeSyncCoordinator()
 		if err != nil {
 			log.Printf("Warning: Could not initialize auto-sync: %v", err)
+			log.Printf("Auto-sync will be disabled. Check that both backends are configured and enabled.")
 			// Continue without auto-sync
+		} else {
+			log.Printf("Auto-sync initialized successfully (local: %s, remote: %s)",
+				cfg.Sync.LocalBackend, cfg.Sync.RemoteBackend)
 		}
 	}
 

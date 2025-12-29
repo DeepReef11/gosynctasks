@@ -89,6 +89,9 @@ backend_priority:
 sync:
   enabled: false              # Set to true to enable sync
   auto_sync: false            # Set to true to enable automatic background sync
+                              # When true: write operations (add/update/complete/delete)
+                              # return immediately after writing to sqlite, then sync to
+                              # remote in a background goroutine (daemon-like behavior)
 
   # Backend Configuration
   # When sync.enabled = true, the CLI automatically uses local_backend for operations

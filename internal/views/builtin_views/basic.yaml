@@ -1,8 +1,9 @@
 # Basic view showing status, summary, and dates
 # This is the default built-in view for gosynctasks
+# Excludes completed tasks by default
 
 name: basic
-description: Basic view showing status, summary, and dates
+description: Basic view showing active tasks (excludes completed)
 
 fields:
   - name: status
@@ -30,6 +31,13 @@ field_order:
   - start_date
   - due_date
   - description
+
+# Exclude completed and cancelled tasks
+filters:
+  exclude_statuses:
+    - DONE
+    - COMPLETED
+    - CANCELLED
 
 display:
   show_header: true

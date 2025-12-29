@@ -9,8 +9,8 @@ import (
 	"gosynctasks/internal/views"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 )
@@ -452,11 +452,6 @@ func HandleDeleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 // Returns the rendered output or an error if the view cannot be loaded
 // This version supports hierarchical display with tree structure
 func RenderWithCustomView(tasks []backend.Task, viewName string, taskManager backend.TaskManager, dateFormat string) (string, error) {
-	// Don't use custom rendering for built-in legacy views
-	if viewName == "basic" || viewName == "all" {
-		return "", fmt.Errorf("using legacy view")
-	}
-
 	// Try to resolve the view
 	view, err := views.ResolveView(viewName)
 	if err != nil {
@@ -557,17 +552,48 @@ func applyHierarchicalFormatting(taskOutput, nodePrefix, childPrefix string) str
 	return result.String()
 }
 
-// triggerPushSync triggers a background push sync by spawning a detached process
+// triggerPushSync spawns a detached background process to sync
 func triggerPushSync(syncProvider SyncCoordinatorProvider) {
 	if syncProvider == nil {
 		return
 	}
 
-	// Spawn background sync process (fire and forget)
-	// This process will handle the sync queue independently
-	// Import needed: "gosynctasks/internal/sync"
-	// But to avoid import here, we'll call the executable directly
-	spawnBackgroundSyncProcess()
+	// Get the sync coordinator to verify it's initialized
+	coord := syncProvider.GetSyncCoordinator()
+	if coord == nil {
+		return
+	}
+
+	// Spawn detached background process to run sync
+	// This process will outlive the parent CLI
+	spawnBackgroundSync()
+}
+
+// spawnBackgroundSync spawns a completely detached background process to sync
+func spawnBackgroundSync() {
+	// Get current executable path
+	executable, err := os.Executable()
+	if err != nil {
+		return // Silent fail - will sync on next operation
+	}
+
+	// Spawn detached process: gosynctasks sync --quiet
+	cmd := exec.Command(executable, "sync", "--quiet")
+
+	// Completely detach from parent process
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true, // New process group
+		Pgid:    0,
+	}
+
+	// Redirect all I/O to /dev/null
+	cmd.Stdin = nil
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+
+	// Start and immediately detach
+	_ = cmd.Start()
+	// Don't wait - process runs independently
 }
 
 // triggerPullIfStale checks if data is stale and triggers a pull sync if needed
@@ -586,36 +612,8 @@ func triggerPullIfStale(coord interface{}, listID string) {
 
 	if ps, ok := coord.(pullSyncer); ok {
 		if stale, err := ps.IsStale(listID); err == nil && stale {
-			// Spawn background sync process for pull
-			spawnBackgroundSyncProcess()
+			// Trigger background pull sync (launches goroutine)
+			ps.TriggerPullSync(listID)
 		}
 	}
-}
-
-// spawnBackgroundSyncProcess spawns a detached background process to handle sync
-// This allows the main CLI to exit immediately while sync continues
-func spawnBackgroundSyncProcess() {
-	// Get the current executable path
-	executable, err := os.Executable()
-	if err != nil {
-		return // Silent fail
-	}
-
-	// Resolve symlinks
-	executable, err = filepath.EvalSymlinks(executable)
-	if err != nil {
-		return // Silent fail
-	}
-
-	// Spawn a detached background process
-	cmd := exec.Command(executable, "_internal_background_sync")
-
-	// Detach from parent process
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	cmd.Stdin = nil
-
-	// Start the process and don't wait for it
-	_ = cmd.Start()
-	// Intentionally ignore errors - sync will happen on next command if this fails
 }

@@ -150,6 +150,7 @@ Local SQLite database for offline synchronization with remote backends.
 **Features:**
 - ✅ Offline mode - work without network connectivity
 - ✅ Bidirectional sync with Nextcloud
+- ✅ **Auto-sync with background daemon** - instant operations, sync happens after
 - ✅ Conflict resolution (4 strategies)
 - ✅ Operation queuing and retry logic
 - ✅ Efficient sync with CTags/ETags
@@ -159,10 +160,10 @@ Local SQLite database for offline synchronization with remote backends.
 ```json
 {
   "backends": {
-    "local": {
+    "sqlite": {
       "type": "sqlite",
       "enabled": true,
-      "db_path": ""
+      "db_path": ""  // Empty = use XDG default (~/.local/share/gosynctasks/tasks.db)
     },
     "nextcloud": {
       "type": "nextcloud",
@@ -172,15 +173,17 @@ Local SQLite database for offline synchronization with remote backends.
   },
   "sync": {
     "enabled": true,
-    "local_backend": "local",
+    "local_backend": "sqlite",
     "remote_backend": "nextcloud",
     "conflict_resolution": "server_wins",
-    "auto_sync": false,
-    "sync_interval": 300
+    "auto_sync": true,       // Enable background daemon sync
+    "sync_interval": 5       // Minutes before data considered stale
   },
-  "default_backend": "local"
+  "backend_priority": ["nextcloud"]  // Local backend auto-selected when sync enabled
 }
 ```
+
+**Note:** When `sync.enabled = true`, the CLI automatically uses `sqlite` for all operations and the `backend_priority` only applies when sync is disabled.
 
 ### File Backend
 
@@ -276,8 +279,17 @@ gosynctasks sync queue retry
 - `local_backend`: Name of SQLite backend
 - `remote_backend`: Name of remote backend (Nextcloud)
 - `conflict_resolution`: Strategy for conflicts (server_wins, local_wins, merge, keep_both)
-- `auto_sync`: Auto-sync on every operation (not yet implemented)
-- `sync_interval`: Seconds between auto-syncs
+- `auto_sync`: **NEW!** Enable background daemon sync - operations return instantly
+- `sync_interval`: Minutes before data considered stale (for pull operations)
+
+### Auto-Sync Behavior
+
+When `auto_sync: true`:
+- ✅ **Instant operations** - CLI returns immediately after writing to SQLite
+- ✅ **Background daemon** - Detached process runs `gosynctasks sync --quiet`
+- ✅ **Queue-based** - Operations persisted in `sync_queue` table
+- ✅ **Reliable** - Failed syncs retry on next operation
+- ✅ **Offline-friendly** - Queue builds up, syncs when online
 
 **For detailed sync documentation, see [SYNC_GUIDE.md](SYNC_GUIDE.md)**
 
@@ -644,10 +656,10 @@ go test ./cmd/gosynctasks -run CLI
 - SQLite sync layer with offline mode
 - Conflict resolution (4 strategies)
 - Bidirectional synchronization
+- **Auto-sync with background daemon** - instant operations
 
 ### In Progress 🚧
 - File backend implementation
-- Auto-sync functionality
 
 ### Planned 📋
 - GitHub/GitLab Issues backends

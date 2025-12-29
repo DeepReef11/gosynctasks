@@ -26,7 +26,16 @@ func ApplyFilters(tasks []backend.Task, filters *ViewFilters) []backend.Task {
 
 // matchesFilters checks if a task matches all filter criteria
 func matchesFilters(task backend.Task, filters *ViewFilters) bool {
-	// Status filter
+	// Exclude statuses filter (check this first)
+	if len(filters.ExcludeStatuses) > 0 {
+		for _, excludeStatus := range filters.ExcludeStatuses {
+			if strings.EqualFold(task.Status, excludeStatus) {
+				return false
+			}
+		}
+	}
+
+	// Status filter (include only these statuses)
 	if len(filters.Status) > 0 {
 		matched := false
 		for _, status := range filters.Status {

@@ -141,10 +141,10 @@ func TestParentIndicator_NestedHierarchy(t *testing.T) {
 // TestAddParentIndicator tests the addParentIndicator function directly
 func TestAddParentIndicator(t *testing.T) {
 	tests := []struct {
-		name        string
-		input       string
-		childCount  int
-		expected    string
+		name       string
+		input      string
+		childCount int
+		expected   string
 	}{
 		{
 			name:       "simple task",

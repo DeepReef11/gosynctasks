@@ -716,7 +716,7 @@ type SyncStats struct {
 func sortTasksByHierarchy(tasks []Task) []Task {
 	// Build parent-child relationships
 	childrenMap := make(map[string][]int) // parentUID -> child indexes
-	rootIndexes := []int{}                 // tasks with no parent
+	rootIndexes := []int{}                // tasks with no parent
 
 	for i, task := range tasks {
 		if task.ParentUID == "" {

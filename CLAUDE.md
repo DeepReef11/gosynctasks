@@ -240,6 +240,23 @@ CLI → SQLiteBackend (CRUD, queueing) → SyncManager (pull/push) ↔ Remote Ba
 - Explicit `--backend` flag always overrides sync selection
 - You don't need to include the local backend in `backend_priority` when sync is enabled
 
+**Auto-Sync Behavior:**
+- When `sync.auto_sync = true`: Write operations (add/update/complete/delete) trigger background sync
+- **Operations return immediately** after writing to sqlite (truly instant)
+- **Detached daemon process** spawned to run `gosynctasks sync --quiet` in background
+- Daemon process runs independently and completes after parent exits
+- Operations are queued in sqlite `sync_queue` table and persist between runs
+- Background sync processes the queue automatically
+- User experiences instant operations with no waiting
+- Background sync is automatic - no manual `sync` command needed for normal operations
+
+**Troubleshooting Auto-Sync:**
+- Check startup logs for `Auto-sync initialized successfully` message
+- Ensure both `local_backend` and `remote_backend` are configured and enabled
+- SQLite `db_path` can be empty (uses XDG default: `~/.local/share/gosynctasks/tasks.db`)
+- If sync fails silently, check stderr for `[AutoSync]` log messages
+- Background sync errors are logged to stderr but don't interrupt CLI operations
+
 ### Testing
 - **Unit**: `backend/schema_test.go`, `sqliteBackend_test.go`, `syncManager_test.go`
 - **Integration**: `backend/integration_test.go` (7 scenarios including offline mode, conflicts, hierarchical sync)

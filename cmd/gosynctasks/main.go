@@ -161,5 +161,6 @@ Config:
 		log.Fatal(err)
 	}
 
-	// Exit immediately - background sync runs in separate process
+	// Exit immediately - background sync runs in detached process
+	// Operations are queued in sqlite and synced by background daemon
 }

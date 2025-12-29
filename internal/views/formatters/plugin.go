@@ -119,7 +119,7 @@ func (f *PluginFormatter) executePlugin(input []byte) (string, error) {
 
 	// Set environment variables if specified
 	if len(f.env) > 0 {
-		cmd.Env = append(cmd.Environ())
+		cmd.Env = cmd.Environ()
 		for key, value := range f.env {
 			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
 		}
