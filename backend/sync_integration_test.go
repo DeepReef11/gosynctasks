@@ -50,8 +50,7 @@ func skipIfNoNextcloud(t *testing.T) TaskManager {
 		SuppressSSLWarning:  true,
 	}
 
-	connector := ConnectorConfig{BackendConfig: config}
-	backend, err := connector.TaskManager()
+	backend, err := config.TaskManager()
 	if err != nil {
 		t.Skipf("Nextcloud server not available: %v", err)
 	}
@@ -69,7 +68,7 @@ func skipIfNoNextcloud(t *testing.T) TaskManager {
 func cleanupNextcloudTasks(t *testing.T, backend TaskManager, listID string) {
 	t.Helper()
 
-	tasks, err := backend.GetTasks(listID)
+	tasks, err := backend.GetTasks(listID, nil)
 	if err != nil {
 		t.Logf("Warning: Failed to get tasks for cleanup: %v", err)
 		return
@@ -145,7 +144,7 @@ func TestSyncPushToNextcloud(t *testing.T) {
 	}
 
 	// Mark as locally modified
-	err = local.MarkLocallyModified(testListID, localTask.UID)
+	err = local.MarkLocallyModified(localTask.UID)
 	if err != nil {
 		t.Fatalf("Failed to mark task as modified: %v", err)
 	}
@@ -164,7 +163,7 @@ func TestSyncPushToNextcloud(t *testing.T) {
 	}
 
 	// Verify task exists on remote
-	remoteTasks, err := remote.GetTasks(testListID)
+	remoteTasks, err := remote.GetTasks(testListID, nil)
 	if err != nil {
 		t.Fatalf("Failed to get remote tasks: %v", err)
 	}
@@ -260,7 +259,7 @@ func TestSyncPullFromNextcloud(t *testing.T) {
 	}
 
 	// Verify task exists in local
-	localTasks, err := local.GetTasks(testListID)
+	localTasks, err := local.GetTasks(testListID, nil)
 	if err != nil {
 		t.Fatalf("Failed to get local tasks: %v", err)
 	}
@@ -339,7 +338,7 @@ func TestSyncBidirectional(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to add local task: %v", err)
 	}
-	err = local.MarkLocallyModified(testListID, localTask.UID)
+	err = local.MarkLocallyModified(localTask.UID)
 	if err != nil {
 		t.Fatalf("Failed to mark local task as modified: %v", err)
 	}
@@ -368,7 +367,7 @@ func TestSyncBidirectional(t *testing.T) {
 		result.PushedTasks, result.PulledTasks, result.ConflictsResolved)
 
 	// Verify both tasks exist locally
-	localTasks, err := local.GetTasks(testListID)
+	localTasks, err := local.GetTasks(testListID, nil)
 	if err != nil {
 		t.Fatalf("Failed to get local tasks: %v", err)
 	}
@@ -396,7 +395,7 @@ func TestSyncBidirectional(t *testing.T) {
 	}
 
 	// Verify both tasks exist remotely
-	remoteTasks, err := remote.GetTasks(testListID)
+	remoteTasks, err := remote.GetTasks(testListID, nil)
 	if err != nil {
 		t.Fatalf("Failed to get remote tasks: %v", err)
 	}
@@ -492,11 +491,12 @@ func TestSyncConflictResolution(t *testing.T) {
 				Created:     now,
 				Modified:    now.Add(1 * time.Minute),
 			}
-			err = local.UpdateTask(testListID, taskUID, localTask)
+			localTask.UID = taskUID
+			err = local.UpdateTask(testListID, localTask)
 			if err != nil {
 				t.Fatalf("Failed to update local task: %v", err)
 			}
-			err = local.MarkLocallyModified(testListID, taskUID)
+			err = local.MarkLocallyModified(taskUID)
 			if err != nil {
 				t.Fatalf("Failed to mark as modified: %v", err)
 			}
@@ -506,7 +506,8 @@ func TestSyncConflictResolution(t *testing.T) {
 			remoteTask.Description = "Remote version updated"
 			remoteTask.Priority = 3
 			remoteTask.Modified = now.Add(2 * time.Minute)
-			err = remote.UpdateTask(testListID, taskUID, remoteTask)
+			remoteTask.UID = taskUID
+			err = remote.UpdateTask(testListID, remoteTask)
 			if err != nil {
 				t.Fatalf("Failed to update remote task: %v", err)
 			}
@@ -520,7 +521,7 @@ func TestSyncConflictResolution(t *testing.T) {
 			t.Logf("Conflict resolution result: conflicts=%d", result.ConflictsResolved)
 
 			// Verify resolution based on strategy
-			finalTasks, err := local.GetTasks(testListID)
+			finalTasks, err := local.GetTasks(testListID, nil)
 			if err != nil {
 				t.Fatalf("Failed to get final tasks: %v", err)
 			}
@@ -609,7 +610,7 @@ func TestSyncDeleteTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to add task: %v", err)
 	}
-	err = local.MarkLocallyModified(testListID, task.UID)
+	err = local.MarkLocallyModified(task.UID)
 	if err != nil {
 		t.Fatalf("Failed to mark as modified: %v", err)
 	}
@@ -635,7 +636,7 @@ func TestSyncDeleteTask(t *testing.T) {
 	t.Logf("Delete sync result: pushed=%d, pulled=%d", result.PushedTasks, result.PulledTasks)
 
 	// Verify task is deleted remotely
-	remoteTasks, err := remote.GetTasks(testListID)
+	remoteTasks, err := remote.GetTasks(testListID, nil)
 	if err != nil {
 		t.Fatalf("Failed to get remote tasks: %v", err)
 	}
