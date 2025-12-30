@@ -243,6 +243,9 @@ func TestSyncPullFromNextcloud(t *testing.T) {
 		t.Fatalf("Failed to add remote task: %v", err)
 	}
 
+	// Wait for Nextcloud to propagate CTag changes
+	time.Sleep(500 * time.Millisecond)
+
 	// Create sync manager
 	sm := NewSyncManager(local, remote, ServerWins)
 
@@ -357,6 +360,9 @@ func TestSyncBidirectional(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to add remote task: %v", err)
 	}
+
+	// Wait for Nextcloud to propagate CTag changes
+	time.Sleep(500 * time.Millisecond)
 
 	// Perform bidirectional sync
 	result, err := sm.Sync()
@@ -476,6 +482,9 @@ func TestSyncConflictResolution(t *testing.T) {
 				t.Fatalf("Failed to add remote task: %v", err)
 			}
 
+			// Wait for Nextcloud to propagate CTag changes
+			time.Sleep(500 * time.Millisecond)
+
 			// Pull it to local
 			_, err = sm.Sync()
 			if err != nil {
@@ -512,6 +521,11 @@ func TestSyncConflictResolution(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to update remote task: %v", err)
 			}
+
+			// Wait for Nextcloud to propagate CTag changes
+			// This prevents a race condition where the sync happens before
+			// the CTag is updated, causing the list to be skipped
+			time.Sleep(1 * time.Second)
 
 			// Sync again - should resolve conflict
 			result, err := sm.Sync()
