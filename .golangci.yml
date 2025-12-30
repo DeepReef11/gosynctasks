@@ -4,7 +4,6 @@ run:
   timeout: 5m
   tests: false  # Don't lint test files
   modules-download-mode: readonly
-  go: '1.23'  # Set to match golangci-lint build version for local compatibility
 
 linters:
   enable:
