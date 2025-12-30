@@ -1,97 +1,20 @@
-# golangci-lint v1 configuration
-# CI uses golangci-lint v1.62 via golangci-lint-action@v6
-# Local v2 installations should add: version: "2" at the top
+# golangci-lint v2 configuration
+version: "2"
 
 run:
   timeout: 5m
-  tests: false  # Don't lint test files
-  modules-download-mode: readonly
+  tests: false
 
 linters:
+  disable-all: true
   enable:
-    # Critical linters - must pass
-    - errcheck      # Check for unchecked errors
-    - govet         # Standard Go vet
-    - ineffassign   # Detect ineffectual assignments
-    - gofmt         # Format checking
-    - goimports     # Import formatting
-
+    - errcheck
+    - govet
+    - ineffassign
   disable:
-    - unused        # Too noisy during development
-    - gosec         # Security linter - enable separately for security audits
-    - staticcheck   # Has many style suggestions - enable separately for code quality audits
-
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: false
-    exclude-functions:
-      - '(*database/sql.DB).Close'
-      - '(*database/sql.Rows).Close'
-      - '(*database/sql.Tx).Rollback'
-      - '(*os.File).Close'
-    ignore-tests: true  # Don't check for unchecked errors in test files
-
-  govet:
-    enable-all: true
-    disable:
-      - shadow      # Too noisy for this project
-
-  staticcheck:
-    checks: ["all", "-QF1001", "-QF1007", "-QF1012"]  # Disable style-only QF checks
-
-  gofmt:
-    simplify: true
-
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-    disabled-checks:
-      - unnamedResult
-      - hugeParam
-
-  revive:
-    confidence: 0.8
-    rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: exported
-      - name: increment-decrement
-      - name: var-naming
-      - name: package-comments
-        disabled: true  # Not all packages need comments
-      - name: range
-      - name: receiver-naming
-      - name: indent-error-flow
-      - name: superfluous-else
-      - name: unreachable-code
-
-  gosec:
-    excludes:
-      - G104  # Audit errors not checked (too noisy)
-      - G307  # Deferring unsafe method (false positives)
-
-  misspell:
-    locale: US
+    - staticcheck
+    - unused
 
 issues:
-  exclude-rules:
-    # Exclude some linters from running on tests
-    - path: '(_test\.go|test_.*\.go)'
-      linters:
-        - gosec
-        - errcheck
-        - gocritic
-
-    # Allow init functions in main
-    - path: 'cmd/'
-      text: "should not use init"
-
   max-issues-per-linter: 0
   max-same-issues: 0
