@@ -7,11 +7,8 @@ import (
 	"gosynctasks/internal/config"
 	"gosynctasks/internal/utils"
 	"gosynctasks/internal/views"
-	"os"
-	"os/exec"
 	"reflect"
 	"strings"
-	"syscall"
 
 	"github.com/spf13/cobra"
 )
@@ -572,32 +569,9 @@ func triggerPushSync(syncProvider SyncCoordinatorProvider) {
 	spawnBackgroundSync()
 }
 
-// spawnBackgroundSync spawns a completely detached background process to sync
-func spawnBackgroundSync() {
-	// Get current executable path
-	executable, err := os.Executable()
-	if err != nil {
-		return // Silent fail - will sync on next operation
-	}
-
-	// Spawn detached process: gosynctasks sync --quiet
-	cmd := exec.Command(executable, "sync", "--quiet")
-
-	// Completely detach from parent process
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true, // New process group
-		Pgid:    0,
-	}
-
-	// Redirect all I/O to /dev/null
-	cmd.Stdin = nil
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-
-	// Start and immediately detach
-	_ = cmd.Start()
-	// Don't wait - process runs independently
-}
+// spawnBackgroundSync is implemented in platform-specific files:
+// - actions_unix.go for Unix/Linux/macOS
+// - actions_windows.go for Windows
 
 // triggerPullIfStale checks if data is stale and triggers a pull sync if needed
 func triggerPullIfStale(coord interface{}, listID string) {
