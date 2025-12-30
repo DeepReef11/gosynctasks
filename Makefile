@@ -51,7 +51,7 @@ test-integration-nextcloud: docker-up ## Run Nextcloud sync integration tests
 	@./scripts/wait-for-nextcloud.sh || (echo "ERROR: Nextcloud not ready" && exit 1)
 	@echo "Running Nextcloud sync integration tests..."
 	NEXTCLOUD_TEST_URL="nextcloud://admin:admin123@localhost:8080/" \
-		go test -v -timeout 15m -tags=integration ./backend/sync_integration_test.go
+		go test -v -timeout 15m -tags=integration ./backend -run "TestSync"
 	@echo "✓ Nextcloud integration tests complete"
 
 test-all: test-unit test-integration test-integration-nextcloud ## Run all tests
