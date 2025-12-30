@@ -552,6 +552,6 @@ func performAutoSync(cfg *config.Config) {
 		}
 
 		sm := backend.NewSyncManager(localBackend, remoteBackend, strategy)
-		sm.Sync()
+		_, _ = sm.Sync()
 	}()
 }

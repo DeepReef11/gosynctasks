@@ -396,7 +396,7 @@ func editViewInEditor(view *views.View) (*views.View, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp file: %w", err)
 	}
-	defer os.Remove(tmpfile.Name())
+	defer func() { _ = os.Remove(tmpfile.Name()) }()
 
 	// Marshal initial view to YAML
 	data, err := utils.MarshalYAML(view)

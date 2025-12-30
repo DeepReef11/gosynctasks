@@ -22,7 +22,7 @@ linters:
     - unconvert     # Unnecessary type conversions
     - unparam       # Unused function parameters
     - gosec         # Security problems
-    - exportloopref # Loop variable escaping issues
+    - copyloopvar   # Loop variable escaping issues (replaces exportloopref)
 
   disable:
     - typecheck     # Can have issues with embed directives

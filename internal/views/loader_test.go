@@ -241,7 +241,7 @@ fields:
 	if _, err := tmpfile.Write([]byte(invalidYAML)); err != nil {
 		t.Fatalf("Failed to write temp file: %v", err)
 	}
-	tmpfile.Close()
+	_ = tmpfile.Close()
 
 	_, err = LoadView(tmpfile.Name())
 	if err == nil {

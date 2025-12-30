@@ -555,7 +555,7 @@ func (sm *SyncManager) insertTaskLocally(listID string, task Task) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Insert task
 	_, err = tx.Exec(`
@@ -614,7 +614,7 @@ func (sm *SyncManager) updateTaskLocally(listID string, task Task) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Update task
 	_, err = tx.Exec(`
