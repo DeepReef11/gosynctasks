@@ -100,7 +100,7 @@ func (sb *SQLiteBackend) GetTaskLists() ([]TaskList, error) {
 	if err != nil {
 		return nil, &SQLiteError{Op: "GetTaskLists", Err: err}
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var lists []TaskList
 	for rows.Next() {
@@ -158,7 +158,7 @@ func (sb *SQLiteBackend) GetTasks(listID string, taskFilter *TaskFilter) ([]Task
 	if err != nil {
 		return nil, &SQLiteError{Op: "GetTasks", ListID: listID, Err: err}
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	tasks, err := sb.scanTasks(rows)
 	if err != nil {
@@ -310,7 +310,7 @@ func (sb *SQLiteBackend) FindTasksBySummary(listID string, summary string) ([]Ta
 	if err != nil {
 		return nil, &SQLiteError{Op: "FindTasksBySummary", ListID: listID, Err: err}
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	tasks, err := sb.scanTasks(rows)
 	if err != nil {
@@ -337,7 +337,7 @@ func (sb *SQLiteBackend) AddTask(listID string, task Task) error {
 	if err != nil {
 		return &SQLiteError{Op: "AddTask", ListID: listID, TaskUID: task.UID, Err: err}
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Set timestamps
 	now := time.Now()
@@ -409,7 +409,7 @@ func (sb *SQLiteBackend) UpdateTask(listID string, task Task) error {
 	if err != nil {
 		return &SQLiteError{Op: "UpdateTask", ListID: listID, TaskUID: task.UID, Err: err}
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Update modified timestamp
 	now := time.Now()
@@ -485,7 +485,7 @@ func (sb *SQLiteBackend) DeleteTask(listID string, taskUID string) error {
 	if err != nil {
 		return &SQLiteError{Op: "DeleteTask", ListID: listID, TaskUID: taskUID, Err: err}
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Check if task exists
 	var exists bool
@@ -558,7 +558,7 @@ func (sb *SQLiteBackend) DeleteTaskList(listID string) error {
 	if err != nil {
 		return &SQLiteError{Op: "DeleteTaskList", ListID: listID, Err: err}
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Delete all tasks in the list (cascade will delete sync_metadata)
 	_, err = tx.Exec("DELETE FROM tasks WHERE list_id = ?", listID)
@@ -775,7 +775,7 @@ func (sb *SQLiteBackend) GetLocallyModifiedTasks() ([]Task, error) {
 	if err != nil {
 		return nil, &SQLiteError{Op: "GetLocallyModifiedTasks", Err: err}
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	tasks, err := sb.scanTasks(rows)
 	if err != nil {
@@ -813,7 +813,7 @@ func (sb *SQLiteBackend) GetPendingSyncOperations() ([]SyncOperation, error) {
 	if err != nil {
 		return nil, &SQLiteError{Op: "GetPendingSyncOperations", Err: err}
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var operations []SyncOperation
 	for rows.Next() {
@@ -880,7 +880,7 @@ func (sb *SQLiteBackend) ClearSyncFlagsAndQueue(taskUID string) error {
 	if err != nil {
 		return &SQLiteError{Op: "ClearSyncFlagsAndQueue", TaskUID: taskUID, Err: err}
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Get current task modified timestamp to update remote_modified_at
 	var modifiedAt sql.NullInt64

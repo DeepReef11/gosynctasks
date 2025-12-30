@@ -79,7 +79,7 @@ func (p *MarkdownParser) Parse(content string) (map[string][]Task, error) {
 				case "uid":
 					task.UID = value
 				case "priority":
-					fmt.Sscanf(value, "%d", &task.Priority)
+					_, _ = fmt.Sscanf(value, "%d", &task.Priority)
 				case "due":
 					if t, err := time.Parse("2006-01-02", value); err == nil {
 						task.DueDate = &t

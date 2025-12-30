@@ -19,7 +19,7 @@ func TestInitDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Verify database was created
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
@@ -41,7 +41,7 @@ func TestAllTablesCreated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	expectedTables := []string{
 		"tasks",
@@ -74,7 +74,7 @@ func TestTasksTableSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Test inserting a task with all fields
 	now := time.Now().Unix()
@@ -113,7 +113,7 @@ func TestSyncMetadataTableSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// First create a task (foreign key dependency)
 	now := time.Now().Unix()
@@ -157,7 +157,7 @@ func TestListSyncMetadataTableSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	now := time.Now().Unix()
 	_, err = db.Exec(`
@@ -190,7 +190,7 @@ func TestSyncQueueTableSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	now := time.Now().Unix()
 	_, err = db.Exec(`
@@ -222,7 +222,7 @@ func TestForeignKeyConstraints(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Verify foreign keys are enabled
 	var fkEnabled int
@@ -272,7 +272,7 @@ func TestCascadeDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	now := time.Now().Unix()
 
@@ -319,7 +319,7 @@ func TestIndexesCreated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	expectedIndexes := []string{
 		"idx_tasks_list_id",
@@ -358,7 +358,7 @@ func TestSchemaVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Get schema version
 	version, err := db.GetSchemaVersion()
@@ -390,7 +390,7 @@ func TestDatabaseStats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	now := time.Now().Unix()
 
@@ -514,7 +514,7 @@ func TestSyncQueueOperationConstraint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	now := time.Now().Unix()
 
@@ -549,7 +549,7 @@ func TestParentTaskReference(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	now := time.Now().Unix()
 
@@ -606,7 +606,7 @@ func TestVacuum(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to initialize database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Run vacuum
 	err = db.Vacuum()

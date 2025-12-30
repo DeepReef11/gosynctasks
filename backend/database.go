@@ -43,7 +43,7 @@ func InitDatabase(customPath string) (*Database, error) {
 
 	// Initialize schema
 	if err := database.initializeSchema(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
 	}
 

@@ -221,7 +221,7 @@ func (gb *GitBackend) commitChanges() error {
 func (gb *GitBackend) generateUID() string {
 	timestamp := time.Now().Unix()
 	randomBytes := make([]byte, 4)
-	rand.Read(randomBytes)
+	_, _ = rand.Read(randomBytes)
 	randomHex := hex.EncodeToString(randomBytes)
 	return fmt.Sprintf("task-%d-%s", timestamp, randomHex)
 }

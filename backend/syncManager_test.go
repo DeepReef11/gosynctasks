@@ -503,7 +503,7 @@ func TestFullSync(t *testing.T) {
 	})
 
 	// Initial sync
-	sm.Sync()
+	_, _ = sm.Sync()
 
 	// Add more tasks
 	remote.AddTask(listID, Task{
@@ -559,7 +559,7 @@ func TestRetryLogic(t *testing.T) {
 	remote.addTaskErr = fmt.Errorf("temporary error")
 
 	// Sync (should fail and increment retry)
-	sm.Sync()
+	_, _ = sm.Sync()
 
 	// Check retry count
 	ops, _ := local.GetPendingSyncOperations()

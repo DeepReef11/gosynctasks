@@ -15,7 +15,7 @@ func init() {
 	validate = validator.New()
 
 	// Register custom validation for alphanum_underscore
-	validate.RegisterValidation("alphanum_underscore", func(fl validator.FieldLevel) bool {
+	_ = validate.RegisterValidation("alphanum_underscore", func(fl validator.FieldLevel) bool {
 		str := fl.Field().String()
 		for _, r := range str {
 			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-') {

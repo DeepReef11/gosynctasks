@@ -244,7 +244,7 @@ func (nB *NextcloudBackend) GetTasks(listID string, taskFilter *TaskFilter) ([]T
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check response status
 	if err := nB.checkHTTPResponse(resp, "GetTasks"); err != nil {
@@ -331,7 +331,7 @@ func (nB *NextcloudBackend) GetTaskLists() ([]TaskList, error) {
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check response status
 	if err := nB.checkHTTPResponse(resp, "GetTaskLists"); err != nil {
@@ -372,7 +372,7 @@ func (nB *NextcloudBackend) GetDeletedTaskLists() ([]TaskList, error) {
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check response status
 	if err := nB.checkHTTPResponse(resp, "GetDeletedTaskLists"); err != nil {
@@ -411,7 +411,7 @@ func (nB *NextcloudBackend) AddTask(listID string, task Task) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check response status
 	if err := nB.checkHTTPResponse(resp, "AddTask"); err != nil {
@@ -445,7 +445,7 @@ func (nB *NextcloudBackend) UpdateTask(listID string, task Task) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check response status
 	if err := nB.checkHTTPResponse(resp, "UpdateTask"); err != nil {
@@ -465,7 +465,7 @@ func (nB *NextcloudBackend) DeleteTask(listID string, taskUID string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check response status - handle 404 specifically for task not found
 	if resp.StatusCode == 404 {
@@ -529,7 +529,7 @@ func (nB *NextcloudBackend) CreateTaskList(name, description, color string) (str
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check response status - handle 405 specifically for list already exists
 	if resp.StatusCode == 405 {
@@ -553,7 +553,7 @@ func (nB *NextcloudBackend) DeleteTaskList(listID string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check response status - handle 404 specifically for list not found
 	if resp.StatusCode == 404 {
@@ -592,7 +592,7 @@ func (nB *NextcloudBackend) RenameTaskList(listID, newName string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check response status - handle 404 specifically for list not found
 	if resp.StatusCode == 404 {
@@ -637,7 +637,7 @@ func (nB *NextcloudBackend) RestoreTaskList(listID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to restore list: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check response status - 201 Created or 204 No Content are success statuses
 	if resp.StatusCode == 404 {
@@ -664,7 +664,7 @@ func (nB *NextcloudBackend) PermanentlyDeleteTaskList(listID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to permanently delete list: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check response status - handle 404 specifically for list not found
 	if resp.StatusCode == 404 {

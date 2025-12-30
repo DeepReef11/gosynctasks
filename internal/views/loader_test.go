@@ -229,7 +229,7 @@ func TestLoadView_InvalidYAML(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpfile.Name())
+	defer func() { _ = os.Remove(tmpfile.Name()) }()
 
 	invalidYAML := `
 name: invalid
