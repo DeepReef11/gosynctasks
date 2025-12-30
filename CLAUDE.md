@@ -218,20 +218,24 @@ CLI → SQLiteBackend (CRUD, queueing) → SyncManager (pull/push) ↔ Remote Ba
 - Methods: `InitDatabase()`, `GetStats()`, `Vacuum()`
 
 ### Configuration Example
-```json
-{
-  "backends": {
-    "sqlite": {"type": "sqlite", "enabled": true},
-    "nextcloud": {"type": "nextcloud", "enabled": true, "url": "nextcloud://user:pass@host"}
-  },
-  "sync": {
-    "enabled": true,
-    "local_backend": "sqlite",
-    "remote_backend": "nextcloud",
-    "conflict_resolution": "server_wins"
-  },
-  "backend_priority": ["nextcloud"]
-}
+```yaml
+backends:
+  sqlite:
+    type: sqlite
+    enabled: true
+  nextcloud:
+    type: nextcloud
+    enabled: true
+    url: nextcloud://user:pass@host
+
+sync:
+  enabled: true
+  local_backend: sqlite
+  remote_backend: nextcloud
+  conflict_resolution: server_wins
+
+backend_priority:
+  - nextcloud
 ```
 
 **Backend Selection Logic:**

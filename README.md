@@ -3,7 +3,7 @@
 [![CI](https://github.com/DeepReef11/gosynctasks/actions/workflows/ci.yml/badge.svg)](https://github.com/DeepReef11/gosynctasks/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/DeepReef11/gosynctasks/branch/main/graph/badge.svg)](https://codecov.io/gh/DeepReef11/gosynctasks)
 [![Go Report Card](https://goreportcard.com/badge/github.com/DeepReef11/gosynctasks)](https://goreportcard.com/report/github.com/DeepReef11/gosynctasks)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: BSD-2](https://img.shields.io/badge/License-BSD--2--Clause-darkred)](https://opensource.org/license/bsd-2-clause)
 
 A flexible, multi-backend task synchronization tool written in Go. Manage your tasks across different storage backends including Nextcloud CalDAV, Git repositories with Markdown files, and local file storage.
 
@@ -40,48 +40,31 @@ go install ./cmd/gosynctasks
 
 ### Configuration
 
-On first run, gosynctasks will help you create a configuration file at `~/.config/gosynctasks/config.json`.
+On first run, gosynctasks will create a configuration file at `~/.config/gosynctasks/config.yaml`.
 
 #### Multi-Backend Configuration
 
-```json
-{
-  "backends": {
-    "nextcloud": {
-      "type": "nextcloud",
-      "enabled": true,
-      "url": "nextcloud://username:password@your-server.com",
-      "insecure_skip_verify": false
-    },
-    "git": {
-      "type": "git",
-      "enabled": true,
-      "file": "TODO.md",
-      "auto_detect": true,
-      "auto_commit": false
-    }
-  },
-  "default_backend": "nextcloud",
-  "auto_detect_backend": true,
-  "backend_priority": ["git", "nextcloud"],
-  "ui": "cli"
-}
+```yaml
+backends:
+  nextcloud:
+    type: nextcloud
+    enabled: true
+    url: nextcloud://username:password@your-server.com
+    insecure_skip_verify: false
+  git:
+    type: git
+    enabled: true
+    file: TODO.md
+    auto_detect: true
+    auto_commit: false
+
+default_backend: nextcloud
+auto_detect_backend: true
+backend_priority:
+  - git
+  - nextcloud
+ui: cli
 ```
-
-#### Legacy Configuration (Auto-Migrated)
-
-Old single-backend configurations are automatically migrated:
-
-```json
-{
-  "connector": {
-    "url": "nextcloud://username:password@your-server.com"
-  },
-  "ui": "cli"
-}
-```
-
-The migration creates a backup at `config.json.backup` and converts to the new multi-backend format.
 
 ## Backends
 
@@ -162,30 +145,27 @@ Local SQLite database for offline synchronization with remote backends.
 - ✅ Supports 1000+ tasks with <30s sync time
 
 **Configuration:**
-```json
-{
-  "backends": {
-    "sqlite": {
-      "type": "sqlite",
-      "enabled": true,
-      "db_path": ""  // Empty = use XDG default (~/.local/share/gosynctasks/tasks.db)
-    },
-    "nextcloud": {
-      "type": "nextcloud",
-      "enabled": true,
-      "url": "nextcloud://user:pass@server.com"
-    }
-  },
-  "sync": {
-    "enabled": true,
-    "local_backend": "sqlite",
-    "remote_backend": "nextcloud",
-    "conflict_resolution": "server_wins",
-    "auto_sync": true,       // Enable background daemon sync
-    "sync_interval": 5       // Minutes before data considered stale
-  },
-  "backend_priority": ["nextcloud"]  // Local backend auto-selected when sync enabled
-}
+```yaml
+backends:
+  sqlite:
+    type: sqlite
+    enabled: true
+    db_path: ""  # Empty = use XDG default (~/.local/share/gosynctasks/tasks.db)
+  nextcloud:
+    type: nextcloud
+    enabled: true
+    url: nextcloud://user:pass@server.com
+
+sync:
+  enabled: true
+  local_backend: sqlite
+  remote_backend: nextcloud
+  conflict_resolution: server_wins
+  auto_sync: true        # Enable background daemon sync
+  sync_interval: 5       # Minutes before data considered stale
+
+backend_priority:
+  - nextcloud  # Local backend auto-selected when sync enabled
 ```
 
 **Note:** When `sync.enabled = true`, the CLI automatically uses `sqlite` for all operations and the `backend_priority` only applies when sync is disabled.
@@ -196,105 +176,30 @@ Local file-based storage (work in progress).
 
 ## Synchronization
 
-gosynctasks includes a powerful offline synchronization system for working with remote backends (Nextcloud) while maintaining a local SQLite cache.
+Offline sync system with bidirectional synchronization between local SQLite and remote backends (Nextcloud).
 
-### Quick Start with Sync
+### Key Features
+
+- **Offline Mode:** Work without network, changes queued automatically
+- **Auto-Sync:** Background daemon syncs after operations (instant CLI return)
+- **Conflict Resolution:** 4 strategies (server_wins, local_wins, merge, keep_both)
+- **Efficient:** CTag-based change detection, handles 1000+ tasks
+
+### Quick Start
 
 ```bash
-# Configure sync in config.json (see SQLite Backend above)
+# Configure sync (see SQLite Backend configuration above)
 
-# Perform initial sync
+# Initial sync
 gosynctasks sync
 
-# Check sync status
-gosynctasks sync status
-
-# Work offline - changes are queued
+# Work normally - changes sync automatically with auto_sync: true
 gosynctasks Work add "Task created offline"
-gosynctasks Work update "Some task" -s DONE
 
-# When back online, sync changes
-gosynctasks sync
-```
-
-### Sync Features
-
-**Offline Mode:**
-- Work seamlessly without network connectivity
-- Changes automatically queued for sync
-- Visual indicators when offline
-
-**Bidirectional Sync:**
-- Pull: Download changes from remote → local
-- Push: Upload local changes → remote
-- CTag-based change detection (efficient)
-
-**Conflict Resolution:**
-Choose how to handle conflicts when the same task is modified both locally and remotely:
-
-- `server_wins` (default): Remote changes override local (safest)
-- `local_wins`: Local changes override remote
-- `merge`: Intelligent merge of non-conflicting fields
-- `keep_both`: Keep both versions (creates copy)
-
-**Error Handling:**
-- Automatic retry with exponential backoff
-- Failed operations tracked in queue
-- Manual retry and clear options
-
-### Sync Commands
-
-```bash
-# Synchronize with remote
-gosynctasks sync
-
-# Force full re-sync (ignore CTags)
-gosynctasks sync --full
-
-# Check sync status
+# Manual sync if needed
 gosynctasks sync status
-
-# View pending operations
 gosynctasks sync queue
-
-# Clear failed operations
-gosynctasks sync queue clear --failed
-
-# Retry failed operations
-gosynctasks sync queue retry
 ```
-
-### Sync Configuration
-
-```json
-{
-  "sync": {
-    "enabled": true,
-    "local_backend": "local",
-    "remote_backend": "nextcloud",
-    "conflict_resolution": "server_wins",
-    "auto_sync": false,
-    "sync_interval": 300
-  }
-}
-```
-
-**Options:**
-- `enabled`: Enable/disable sync
-- `local_backend`: Name of SQLite backend
-- `remote_backend`: Name of remote backend (Nextcloud)
-- `conflict_resolution`: Strategy for conflicts (server_wins, local_wins, merge, keep_both)
-- `auto_sync`: **NEW!** Enable background daemon sync - operations return instantly
-- `sync_interval`: Minutes before data considered stale (for pull operations)
-
-### Auto-Sync Behavior
-
-When `auto_sync: true`:
-- ✅ **Instant operations** - CLI returns immediately after writing to SQLite
-- ✅ **Background daemon** - Detached process runs `gosynctasks sync --quiet`
-- ✅ **Queue-based** - Operations persisted in `sync_queue` table
-- ✅ **Reliable** - Failed syncs retry on next operation
-- ✅ **Offline-friendly** - Queue builds up, syncs when online
 
 **For detailed sync documentation, see [SYNC_GUIDE.md](SYNC_GUIDE.md)**
 
@@ -548,172 +453,46 @@ gosynctasks/
 
 ## Migration Guide
 
-### From Single Backend to Multi-Backend
-
-Your existing configuration will be automatically migrated when you first run the new version:
-
-**Before (old format):**
-```json
-{
-  "connector": {
-    "url": "nextcloud://user:pass@server.com"
-  },
-  "ui": "cli"
-}
-```
-
-**After (new format):**
-```json
-{
-  "backends": {
-    "nextcloud": {
-      "type": "nextcloud",
-      "enabled": true,
-      "url": "nextcloud://user:pass@server.com",
-      "insecure_skip_verify": false
-    }
-  },
-  "default_backend": "nextcloud",
-  "auto_detect_backend": false,
-  "backend_priority": ["nextcloud"],
-  "ui": "cli"
-}
-```
-
-The old config is backed up to `config.json.backup`. You can now add additional backends:
-
-```json
-{
-  "backends": {
-    "nextcloud": {
-      "type": "nextcloud",
-      "enabled": true,
-      "url": "nextcloud://user:pass@server.com"
-    },
-    "git": {
-      "type": "git",
-      "enabled": true,
-      "file": "TODO.md",
-      "auto_detect": true
-    }
-  },
-  "default_backend": "nextcloud",
-  "auto_detect_backend": true,
-  "backend_priority": ["git", "nextcloud"],
-  "ui": "cli"
-}
-```
-
-### Adding Git Backend to Existing Config
-
-1. Add git backend to your config:
-```json
-{
-  "backends": {
-    "git": {
-      "type": "git",
-      "enabled": true,
-      "file": "TODO.md",
-      "auto_detect": true,
-      "auto_commit": false
-    }
-  }
-}
-```
-
-2. Enable auto-detection:
-```json
-{
-  "auto_detect_backend": true,
-  "backend_priority": ["git", "nextcloud"]
-}
-```
-
-3. Create `TODO.md` in your git repository:
-```markdown
-<!-- gosynctasks:enabled -->
-
-## Tasks
-- [ ] Your first task
-```
-
-4. Now when you run `gosynctasks` from within your git repository, it will automatically use the git backend!
+Old JSON configurations are automatically migrated to YAML format on first run. A backup is created.
 
 ## Configuration Examples
 
-### Example 1: Git-First with Nextcloud Fallback
+See [docs/config-examples/README.md](docs/config-examples/README.md) for detailed examples.
 
-```json
-{
-  "backends": {
-    "git": {
-      "type": "git",
-      "enabled": true,
-      "file": "TODO.md",
-      "auto_detect": true,
-      "auto_commit": false
-    },
-    "nextcloud": {
-      "type": "nextcloud",
-      "enabled": true,
-      "url": "nextcloud://user:pass@server.com"
-    }
-  },
-  "default_backend": "nextcloud",
-  "auto_detect_backend": true,
-  "backend_priority": ["git", "nextcloud"],
-  "ui": "cli"
-}
+### Quick Examples
+
+**Git + Nextcloud (auto-detect):**
+```yaml
+backends:
+  git:
+    type: git
+    file: TODO.md
+    auto_detect: true
+  nextcloud:
+    type: nextcloud
+    url: nextcloud://user:pass@server.com
+
+default_backend: nextcloud
+auto_detect_backend: true
+backend_priority: [git, nextcloud]
 ```
 
-**Behavior:** When in a git repo with TODO.md, uses git backend. Otherwise uses Nextcloud.
+**Nextcloud with Offline Sync:**
+```yaml
+backends:
+  sqlite:
+    type: sqlite
+    enabled: true
+  nextcloud:
+    type: nextcloud
+    enabled: true
+    url: nextcloud://user:pass@server.com
 
-### Example 2: Multiple Git Backends
-
-```json
-{
-  "backends": {
-    "work": {
-      "type": "git",
-      "enabled": true,
-      "file": "/home/user/work/TODO.md",
-      "auto_detect": false
-    },
-    "personal": {
-      "type": "git",
-      "enabled": true,
-      "file": "/home/user/personal/TODO.md",
-      "auto_detect": false
-    }
-  },
-  "default_backend": "work",
-  "auto_detect_backend": false,
-  "ui": "cli"
-}
-```
-
-**Usage:**
-```bash
-gosynctasks --backend work MyTasks get
-gosynctasks --backend personal Shopping add "Milk"
-```
-
-### Example 3: Nextcloud Only
-
-```json
-{
-  "backends": {
-    "nextcloud": {
-      "type": "nextcloud",
-      "enabled": true,
-      "url": "nextcloud://user:pass@server.com:443/nextcloud",
-      "insecure_skip_verify": false
-    }
-  },
-  "default_backend": "nextcloud",
-  "auto_detect_backend": false,
-  "ui": "cli"
-}
+sync:
+  enabled: true
+  local_backend: sqlite
+  remote_backend: nextcloud
+  auto_sync: true
 ```
 
 ## Contributing
@@ -781,14 +560,6 @@ make fmt
 make lint
 ```
 
-### Code Style
-
-- Follow [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
-- Use meaningful variable names
-- Add comments for exported functions
-- Write tests for new features
-- Update documentation
-
 ### Commit Convention
 
 Use [Conventional Commits](https://www.conventionalcommits.org/):
@@ -802,33 +573,9 @@ refactor: simplify backend selection
 chore: update dependencies
 ```
 
-### Creating a Release
-
-Releases are automated via GitHub Actions:
-
-```bash
-# Create and push a version tag
-git tag -a v1.2.3 -m "Release v1.2.3"
-git push origin v1.2.3
-
-# GitHub Actions will:
-# - Run all CI checks
-# - Build multi-platform binaries
-# - Create GitHub release
-# - Attach binaries as artifacts
-```
-
-### Getting Help
-
-- 📖 Read [CLAUDE.md](CLAUDE.md) for architecture details
-- 🧪 See [TESTING.md](TESTING.md) for testing guide
-- 🔄 Check [SYNC_GUIDE.md](SYNC_GUIDE.md) for sync documentation
-- 💬 Open an issue for questions
-- 🐛 Report bugs with reproduction steps
-
 ## Roadmap
 
-### Completed ✅
+### Completed
 - Multi-backend support (Nextcloud, Git, SQLite)
 - Git/Markdown backend with auto-detection
 - Backend auto-detection and priority selection
@@ -849,20 +596,12 @@ git push origin v1.2.3
 - Enhanced documentation
 
 ### Planned 📋
-- GitHub/GitLab Issues backends
-- Jira integration
-- Trello/Notion backends
 - Cross-backend task migration
-- Mobile companion app
-- Web UI dashboard
-- Sync hooks and plugins
-- Real-time sync with webhooks
 
 ## Support
 
 For issues, questions, or contributions:
 - Open an issue on GitHub
-- See [CLAUDE.md](CLAUDE.md) for development guidelines
 - Check [TESTING.md](TESTING.md) for testing procedures
 - Read [SYNC_GUIDE.md](SYNC_GUIDE.md) for detailed synchronization documentation
 

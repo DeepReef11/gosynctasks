@@ -178,33 +178,29 @@ CREATE TABLE sync_queue (
 
 ### Initial Setup
 
-1. **Configure your remote backend** in `config.json`:
+1. **Configure your remote backend** in `config.yaml`:
 
-```json
-{
-  "backends": {
-    "nextcloud": {
-      "type": "nextcloud",
-      "enabled": true,
-      "url": "nextcloud://username:password@nextcloud.example.com",
-      "insecure_skip_verify": false
-    },
-    "local": {
-      "type": "sqlite",
-      "enabled": true,
-      "db_path": ""
-    }
-  },
-  "sync": {
-    "enabled": true,
-    "local_backend": "local",
-    "remote_backend": "nextcloud",
-    "conflict_resolution": "server_wins",
-    "auto_sync": false,
-    "sync_interval": 300
-  },
-  "default_backend": "local"
-}
+```yaml
+backends:
+  nextcloud:
+    type: nextcloud
+    enabled: true
+    url: nextcloud://username:password@nextcloud.example.com
+    insecure_skip_verify: false
+  local:
+    type: sqlite
+    enabled: true
+    db_path: ""
+
+sync:
+  enabled: true
+  local_backend: local
+  remote_backend: nextcloud
+  conflict_resolution: server_wins
+  auto_sync: false
+  sync_interval: 300
+
+default_backend: local
 ```
 
 2. **Perform initial sync** to download existing tasks:
@@ -241,119 +237,60 @@ Last sync: 1 minute ago
 
 ### Sync Settings
 
-Configure sync behavior in `config.json` under the `sync` section:
+Configure sync behavior in `config.yaml` under the `sync` section:
 
-#### `enabled` (boolean, default: `false`)
-Enable or disable sync functionality.
+**Available Options:**
 
-```json
-"sync": {
-  "enabled": true
-}
+- `enabled` (boolean): Enable sync functionality
+- `local_backend` (string): SQLite backend name for local storage
+- `remote_backend` (string): Remote backend name (e.g., Nextcloud)
+- `conflict_resolution` (string): server_wins (default), local_wins, merge, or keep_both
+- `auto_sync` (boolean): Enable background daemon sync for instant operations
+- `sync_interval` (integer): Minutes before data considered stale (default: 5)
+
+**Example Configuration:**
+
+```yaml
+sync:
+  enabled: true
+  local_backend: local
+  remote_backend: nextcloud
+  conflict_resolution: server_wins
+  auto_sync: true
+  sync_interval: 5
 ```
 
-#### `local_backend` (string, required)
-Name of the backend to use for local storage (must be SQLite).
+**Auto-Sync Behavior:**
 
-```json
-"local_backend": "local"
-```
-
-#### `remote_backend` (string, required)
-Name of the backend to use for remote storage (e.g., Nextcloud).
-
-```json
-"remote_backend": "nextcloud"
-```
-
-#### `conflict_resolution` (string, default: `"server_wins"`)
-Strategy for resolving conflicts. Options:
-- `server_wins`: Remote changes override local changes (safest)
-- `local_wins`: Local changes override remote changes
-- `merge`: Intelligent merge of non-conflicting fields
-- `keep_both`: Keep both versions (creates a copy with " (local copy)" suffix)
-
-```json
-"conflict_resolution": "server_wins"
-```
-
-#### `auto_sync` (boolean, default: `false`)
-**NEW!** Automatically sync on every write operation using background daemon.
-
-When enabled:
-- ✅ **Instant operations** - CLI returns immediately after writing to SQLite
-- ✅ **Background daemon** - Spawns detached `gosynctasks sync --quiet` process
-- ✅ **Queue-based** - Operations stored in `sync_queue` table
-- ✅ **Offline-friendly** - Queue builds up when offline, syncs when online
-- ✅ **Reliable** - Failed syncs retry on next operation
-
-```json
-"auto_sync": true
-```
-
-**How it works:**
-1. You run: `gosynctasks MyList add "Task"`
-2. Task written to SQLite database instantly
-3. Operation added to `sync_queue` table
-4. Background daemon process spawned (detached from parent)
-5. CLI returns immediately (< 100ms)
-6. Daemon runs `gosynctasks sync --quiet` independently
-7. Queue processed and synced to remote
-8. Daemon exits when done
-
-**Benefits:**
-- No waiting for remote sync
-- Works offline (queue persists)
-- No blocking or timeouts
-- Truly background operation
-
-#### `sync_interval` (integer, default: `5`)
-**Minutes** before local data is considered stale (for pull operations).
-
-Used to determine when to trigger background pull sync on read operations:
-- If last sync > `sync_interval` minutes: trigger background pull
-- If last sync < `sync_interval` minutes: use cached data (fast!)
-
-```json
-"sync_interval": 5  // 5 minutes
-```
-
-**Note:** This setting affects **read** operations (listing tasks). Write operations always trigger background push sync when `auto_sync: true`.
+When `auto_sync: true`:
+1. CLI operations return instantly (< 100ms)
+2. Changes queued in `sync_queue` table
+3. Background daemon spawned automatically
+4. Queue synced to remote independently
+5. Works offline - queue persists
 
 ### Backend Settings
 
-#### SQLite Backend
-
-```json
-"local": {
-  "type": "sqlite",
-  "enabled": true,
-  "db_path": ""  // Empty string uses XDG-compliant default location
-}
+**SQLite Backend:**
+```yaml
+backends:
+  local:
+    type: sqlite
+    enabled: true
+    db_path: ""  # Empty = XDG default (~/.local/share/gosynctasks/tasks.db)
 ```
 
-**Database location** (in priority order):
-1. `db_path` if specified in config
-2. `$XDG_DATA_HOME/gosynctasks/tasks.db`
-3. `~/.local/share/gosynctasks/tasks.db`
-
-#### Nextcloud Backend
-
-```json
-"nextcloud": {
-  "type": "nextcloud",
-  "enabled": true,
-  "url": "nextcloud://username:password@nextcloud.example.com",
-  "insecure_skip_verify": false
-}
+**Nextcloud Backend:**
+```yaml
+backends:
+  nextcloud:
+    type: nextcloud
+    enabled: true
+    url: nextcloud://username:password@server.com
+    insecure_skip_verify: false
 ```
 
-**URL format**: `nextcloud://[username]:[password]@[host][:port][/path]`
-
-**Security notes**:
-- Use strong passwords
-- Avoid `insecure_skip_verify: true` unless testing with self-signed certs
-- Consider app passwords instead of main account password
+URL format: `nextcloud://[user]:[pass]@[host][:port][/path]`
 
 ## Usage
 
@@ -377,18 +314,15 @@ Duration: 1.2s
 
 ### Auto-Sync (Recommended)
 
-**NEW!** Enable automatic background synchronization for instant operations:
+Enable automatic background synchronization for instant operations:
 
 **Setup:**
-```json
-{
-  "sync": {
-    "enabled": true,
-    "auto_sync": true,
-    "local_backend": "sqlite",
-    "remote_backend": "nextcloud"
-  }
-}
+```yaml
+sync:
+  enabled: true
+  auto_sync: true
+  local_backend: sqlite
+  remote_backend: nextcloud
 ```
 
 **Usage - Just work normally!**
@@ -652,77 +586,39 @@ Result: "Finish report by Thursday" (remote wins)
 ```
 
 Configuration:
-```json
-"conflict_resolution": "server_wins"
+```yaml
+sync:
+  conflict_resolution: server_wins
 ```
 
 #### Local Wins (Use with Caution)
 
-Local changes always override remote changes.
-
-**When to use**:
-- Single user
-- You trust your local changes more than remote
-- Recovering from incorrect remote changes
-
-**Example**:
-```
-Local:  Priority = 1 (highest)
-Remote: Priority = 9 (lowest)
-Result: Priority = 1 (local wins)
-```
-
-**⚠️ Warning**: Can overwrite other users' changes on shared lists.
+Local changes override remote. Can overwrite other users' changes on shared lists.
 
 Configuration:
-```json
-"conflict_resolution": "local_wins"
+```yaml
+sync:
+  conflict_resolution: local_wins
 ```
 
-#### Merge (Intelligent - Experimental)
+#### Merge (Experimental)
 
-Merges non-conflicting fields intelligently.
-
-**Merge rules**:
-- **Summary**: Remote wins (title changes are significant)
-- **Description**: Keep local if remote is empty
-- **Priority**: Use higher priority (lower number)
-- **Categories**: Union of both sets
-- **Dates**: Use most recent
-
-**Example**:
-```
-Local:  {summary: "Task A", priority: 1, categories: ["work"]}
-Remote: {summary: "Task B", priority: 5, categories: ["urgent"]}
-Result: {summary: "Task B", priority: 1, categories: ["work", "urgent"]}
-```
+Intelligent merge of non-conflicting fields (summary: remote, priority: higher, categories: union).
 
 Configuration:
-```json
-"conflict_resolution": "merge"
+```yaml
+sync:
+  conflict_resolution: merge
 ```
 
-#### Keep Both (Creates Duplicates)
+#### Keep Both
 
-Keeps both versions - remote replaces local, local becomes a copy.
-
-**When to use**:
-- Both changes are important
-- Manual review needed
-- Don't want to lose either version
-
-**Example**:
-```
-Local:  Task summary = "Implement feature X"
-Remote: Task summary = "Implement feature Y"
-Result:
-  - Task 1: "Implement feature Y" (remote)
-  - Task 2: "Implement feature X (local copy)" (local)
-```
+Keeps both versions - remote replaces local, local becomes copy with suffix.
 
 Configuration:
-```json
-"conflict_resolution": "keep_both"
+```yaml
+sync:
+  conflict_resolution: keep_both
 ```
 
 ### Viewing Conflicts
@@ -779,22 +675,16 @@ gosynctasks sync
 
 #### 3. Duplicate Tasks
 
-**Symptoms**:
-- Same task appears multiple times
-- Tasks with " (local copy)" suffix
+**Symptoms**: Same task appears multiple times or with " (local copy)" suffix
 
-**Causes**:
-- Using `keep_both` conflict resolution
-- UID conflicts (rare)
-
-**Solutions**:
+**Solution**:
 ```bash
 # Delete duplicates
 gosynctasks List delete "Task (local copy)"
 
-# Switch to different conflict strategy
-# Edit config.json:
-"conflict_resolution": "server_wins"
+# Switch conflict strategy in config.yaml:
+# sync:
+#   conflict_resolution: server_wins
 ```
 
 #### 4. Sync Too Slow
@@ -900,8 +790,9 @@ SELECT * FROM list_sync_metadata;
 
 Unless you have a specific reason, stick with `server_wins`:
 
-```json
-"conflict_resolution": "server_wins"
+```yaml
+sync:
+  conflict_resolution: server_wins
 ```
 
 ### 3. Monitor Sync Status
@@ -969,39 +860,12 @@ gosynctasks sync
 
 Override default database path:
 
-```json
-"local": {
-  "type": "sqlite",
-  "enabled": true,
-  "db_path": "/custom/path/to/tasks.db"
-}
-```
-
-### Multiple Remotes (Future)
-
-Currently not supported, but planned:
-
-```json
-"sync": {
-  "enabled": true,
-  "local_backend": "local",
-  "remote_backends": ["nextcloud", "caldav2"],  // Multiple remotes
-  "conflict_resolution": "server_wins"
-}
-```
-
-### Sync Hooks (Future)
-
-Planned feature for running custom scripts:
-
-```json
-"sync": {
-  "hooks": {
-    "pre_sync": "/path/to/pre-sync.sh",
-    "post_sync": "/path/to/post-sync.sh",
-    "on_conflict": "/path/to/conflict-handler.sh"
-  }
-}
+```yaml
+backends:
+  local:
+    type: sqlite
+    enabled: true
+    db_path: /custom/path/to/tasks.db
 ```
 
 ### Performance Tuning
