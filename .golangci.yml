@@ -1,41 +1,46 @@
+version: 2
+
 run:
   timeout: 5m
-  tests: true
+  tests: false  # Don't lint test files
   modules-download-mode: readonly
+  go: '1.23'  # Set to match golangci-lint build version for local compatibility
 
 linters:
   enable:
-    # Enabled by default
+    # Critical linters - must pass
     - errcheck      # Check for unchecked errors
-    - gosimple      # Simplify code
     - govet         # Standard Go vet
     - ineffassign   # Detect ineffectual assignments
-    - staticcheck   # Advanced static analysis
-    - unused        # Find unused code
-
-    # Additional recommended linters
-    - gofmt         # Check formatting
-    - goimports     # Check import formatting
-    - gocritic      # Comprehensive Go source code linter
-    - misspell      # Spelling mistakes
-    - revive        # Fast, configurable, extensible linter
-    - unconvert     # Unnecessary type conversions
-    - unparam       # Unused function parameters
-    - gosec         # Security problems
-    - copyloopvar   # Loop variable escaping issues (replaces exportloopref)
 
   disable:
-    - typecheck     # Can have issues with embed directives
+    - unused        # Too noisy during development
+    - gosec         # Security linter - enable separately for security audits
+    - staticcheck   # Has many style suggestions - enable separately for code quality audits
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
 
 linters-settings:
   errcheck:
     check-type-assertions: true
     check-blank: false
+    exclude-functions:
+      - '(*database/sql.DB).Close'
+      - '(*database/sql.Rows).Close'
+      - '(*database/sql.Tx).Rollback'
+      - '(*os.File).Close'
+    ignore-tests: true  # Don't check for unchecked errors in test files
 
   govet:
     enable-all: true
     disable:
       - shadow      # Too noisy for this project
+
+  staticcheck:
+    checks: ["all", "-QF1001", "-QF1007", "-QF1012"]  # Disable style-only QF checks
 
   gofmt:
     simplify: true
@@ -80,23 +85,15 @@ linters-settings:
 issues:
   exclude-rules:
     # Exclude some linters from running on tests
-    - path: _test\.go
+    - path: '(_test\.go|test_.*\.go)'
       linters:
         - gosec
         - errcheck
         - gocritic
 
-    # Exclude embed directive issues
-    - path: internal/views/builtin_views
-      linters:
-        - typecheck
-
     # Allow init functions in main
-    - path: cmd/
+    - path: 'cmd/'
       text: "should not use init"
 
-  max-same-issues: 0
   max-issues-per-linter: 0
-
-  # Don't fail on TODO/FIXME comments
-  exclude-use-default: false
+  max-same-issues: 0

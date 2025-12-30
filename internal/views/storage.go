@@ -6,8 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v3"
 	"slices"
+
+	"gopkg.in/yaml.v3"
 )
 
 // GetViewsDir returns the directory where view configurations are stored
@@ -125,8 +126,8 @@ func DeleteView(name string) error {
 	// Prevent deletion of built-in views
 	builtInViews := []string{"default", "all"}
 	if slices.Contains(builtInViews, name) {
-			return fmt.Errorf("cannot delete built-in view '%s'", name)
-		}
+		return fmt.Errorf("cannot delete built-in view '%s'", name)
+	}
 
 	viewsDir, err := GetViewsDir()
 	if err != nil {

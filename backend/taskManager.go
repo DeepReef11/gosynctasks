@@ -421,8 +421,7 @@ func (t Task) formatWithIndent(view string, backend TaskManager, dateFormat stri
 	}
 
 	// Status indicator (using canonical status names)
-	statusColor := ""
-	statusSymbol := "○"
+	var statusColor, statusSymbol string
 	switch displayStatus {
 	case "DONE":
 		statusColor = "\033[32m" // Green
