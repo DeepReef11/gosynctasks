@@ -3,8 +3,12 @@ name: CI
 on:
   push:
     branches: [main]
+    paths:
+      - '**.go'
   pull_request:
     branches: [main]
+    paths:
+      - '**.go'
 
 jobs:
   lint:
@@ -14,7 +18,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: 'go.mod'
+          go-version-file: 'go.mod' 
           cache: true
 
       - name: Run golangci-lint

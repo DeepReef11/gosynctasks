@@ -2,11 +2,11 @@
 version: "2"
 
 run:
-  timeout: 5m
+  # timeout: 5m
   tests: false
 
 linters:
-  disable-all: true
+  # disable-all: true
   enable:
     - errcheck
     - govet
