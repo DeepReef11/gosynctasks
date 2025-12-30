@@ -1,4 +1,6 @@
-version: 2
+# golangci-lint v1 configuration
+# CI uses golangci-lint v1.62 via golangci-lint-action@v6
+# Local v2 installations should add: version: "2" at the top
 
 run:
   timeout: 5m
@@ -11,16 +13,13 @@ linters:
     - errcheck      # Check for unchecked errors
     - govet         # Standard Go vet
     - ineffassign   # Detect ineffectual assignments
+    - gofmt         # Format checking
+    - goimports     # Import formatting
 
   disable:
     - unused        # Too noisy during development
     - gosec         # Security linter - enable separately for security audits
     - staticcheck   # Has many style suggestions - enable separately for code quality audits
-
-formatters:
-  enable:
-    - gofmt
-    - goimports
 
 linters-settings:
   errcheck:
