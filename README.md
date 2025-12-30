@@ -117,14 +117,6 @@ The Git backend allows you to manage tasks directly in markdown files within git
 
 Full CalDAV support for Nextcloud Tasks with complete CRUD operations.
 
-**Features:**
-- ✅ List all task lists
-- ✅ Get, create, update, delete tasks
-- ✅ Status filtering
-- ✅ Priority-based coloring
-- ✅ Hierarchical tasks (subtasks)
-- ✅ Due dates and metadata
-
 **URL Format:**
 ```
 nextcloud://username:password@server.com
@@ -188,6 +180,8 @@ Offline sync system with bidirectional synchronization between local SQLite and 
 ### Quick Start
 
 ```bash
+# Launch gosynctasks once to create the config file sample
+gosynctasks 
 # Configure sync (see SQLite Backend configuration above)
 
 # Initial sync
@@ -490,9 +484,9 @@ backends:
 
 sync:
   enabled: true
+  auto_sync: true
   local_backend: sqlite
   remote_backend: nextcloud
-  auto_sync: true
 ```
 
 ## Contributing
@@ -597,6 +591,7 @@ chore: update dependencies
 
 ### Planned 📋
 - Cross-backend task migration
+- Store credentials securely instead of plain text
 
 ## Support
 
