@@ -77,7 +77,7 @@ jobs:
               RETRIES=$((RETRIES + 1))
               if [ $RETRIES -ge $MAX_RETRIES ]; then
                 echo "ERROR: Nextcloud did not become ready in time"
-                docker-compose logs
+                docker compose logs
                 exit 1
               fi
               echo "Attempt $RETRIES/$MAX_RETRIES: Waiting for Nextcloud..."
@@ -116,13 +116,13 @@ jobs:
           docker ps -a
           echo ""
           echo "=== Nextcloud logs ==="
-          docker-compose logs --tail=100
+          docker compose logs --tail=100
 
       - name: Cleanup
         if: always()
         run: |
           echo "Cleaning up Docker resources..."
-          docker-compose down -v 2>/dev/null || true
+          docker compose down -v 2>/dev/null || true
           docker ps -q | xargs -r docker stop 2>/dev/null || true
           docker system prune -f || true
 
