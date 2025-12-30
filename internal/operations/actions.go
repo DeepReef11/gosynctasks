@@ -564,9 +564,15 @@ func triggerPushSync(syncProvider SyncCoordinatorProvider) {
 		return
 	}
 
+	// Get config path to pass to spawned process
+	configPath, err := config.GetConfigPath()
+	if err != nil {
+		return // Silent fail
+	}
+
 	// Spawn detached background process to run sync
 	// This process will outlive the parent CLI
-	spawnBackgroundSync()
+	spawnBackgroundSync(configPath)
 }
 
 // spawnBackgroundSync is implemented in platform-specific files:
