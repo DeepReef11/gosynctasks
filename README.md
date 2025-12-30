@@ -5,7 +5,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/DeepReef11/gosynctasks)](https://goreportcard.com/report/github.com/DeepReef11/gosynctasks)
 [![License: BSD-2](https://img.shields.io/badge/License-BSD--2--Clause-darkred)](https://opensource.org/license/bsd-2-clause)
 
-A flexible, multi-backend task synchronization tool written in Go. Manage your tasks across different storage backends including Nextcloud CalDAV, Git repositories with Markdown files, and local file storage.
+A fast, flexible, multi-backend task synchronization tool written in Go. Manage your tasks across different storage backends including Nextcloud CalDAV, Git repositories with Markdown files, and local database.
 
 ## Features
 
@@ -40,9 +40,11 @@ go install ./cmd/gosynctasks
 
 ### Configuration
 
-On first run, gosynctasks will create a configuration file at `~/.config/gosynctasks/config.yaml`.
+On first run, `gosynctasks` will create a configuration file at `~/.config/gosynctasks/config.yaml`.
 
 #### Multi-Backend Configuration
+
+Here is a basic configuration using local sync, Nextcloud as a remote and automatically detect git repo TODO.md file:
 
 ```yaml
 backends:
@@ -57,6 +59,18 @@ backends:
     file: TODO.md
     auto_detect: true
     auto_commit: false
+  sqlite:
+    type: sqlite
+    enabled: true
+    db_path: ""  # Empty = use XDG default (~/.local/share/gosynctasks/tasks.db)
+
+sync:
+  enabled: true
+  local_backend: sqlite
+  remote_backend: nextcloud
+  conflict_resolution: server_wins
+  auto_sync: true        # Enable background daemon sync
+  sync_interval: 5       # Minutes before data considered stale
 
 default_backend: nextcloud
 auto_detect_backend: true
@@ -134,7 +148,6 @@ Local SQLite database for offline synchronization with remote backends.
 - ✅ Conflict resolution (4 strategies)
 - ✅ Operation queuing and retry logic
 - ✅ Efficient sync with CTags/ETags
-- ✅ Supports 1000+ tasks with <30s sync time
 
 **Configuration:**
 ```yaml
@@ -166,17 +179,6 @@ backend_priority:
 
 Local file-based storage (work in progress).
 
-## Synchronization
-
-Offline sync system with bidirectional synchronization between local SQLite and remote backends (Nextcloud).
-
-### Key Features
-
-- **Offline Mode:** Work without network, changes queued automatically
-- **Auto-Sync:** Background daemon syncs after operations (instant CLI return)
-- **Conflict Resolution:** 4 strategies (server_wins, local_wins, merge, keep_both)
-- **Efficient:** CTag-based change detection, handles 1000+ tasks
-
 ### Quick Start
 
 ```bash
@@ -187,10 +189,12 @@ gosynctasks
 # Initial sync
 gosynctasks sync
 
+gosynctasks list create "Work"
 # Work normally - changes sync automatically with auto_sync: true
-gosynctasks Work add "Task created offline"
+gosynctasks Work add "Task created"
 
 # Manual sync if needed
+gosynctasks sync
 gosynctasks sync status
 gosynctasks sync queue
 ```
@@ -303,151 +307,6 @@ gosynctasks completion fish | source
 gosynctasks completion powershell | Out-String | Invoke-Expression
 ```
 
-## Development
-
-### Quick Commands (Makefile)
-
-```bash
-# Show all available commands
-make help
-
-# Build
-make build                       # Single binary
-make build-all                   # All platforms
-
-# Testing
-make test                        # Unit tests
-make test-integration            # Mock backend integration tests
-make test-integration-nextcloud  # Real Nextcloud sync tests
-make test-all                    # All tests
-make test-coverage               # Generate coverage report
-
-# Code Quality
-make lint                        # Run linter
-make fmt                         # Format code
-make vet                         # Run go vet
-make security                    # Security scan
-
-# Docker Test Server
-make docker-up                   # Start Nextcloud server
-make docker-down                 # Stop server
-make docker-logs                 # View logs
-make docker-status               # Check status
-
-# CI/CD
-make ci                          # Run full CI suite locally
-make clean                       # Clean build artifacts
-make clean-all                   # Clean everything including Docker
-```
-
-### Building from Source
-
-```bash
-# Clone repository
-git clone https://github.com/DeepReef11/gosynctasks.git
-cd gosynctasks
-
-# Build binary
-make build
-# or
-go build -o gosynctasks ./cmd/gosynctasks
-
-# Install to $GOPATH/bin
-make install
-# or
-go install ./cmd/gosynctasks
-
-# Build for all platforms
-make build-all
-```
-
-### Testing
-
-gosynctasks has comprehensive test coverage with three test types:
-
-#### 1. Unit Tests
-```bash
-# Run all unit tests
-make test
-# or
-go test ./...
-
-# With coverage
-make test-coverage
-# or
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out
-
-# Specific package
-go test ./backend -v
-go test ./internal/config -v
-```
-
-#### 2. Mock Backend Integration Tests
-```bash
-# Fast integration tests (no external dependencies)
-make test-integration
-# or
-go test -v -timeout 10m \
-  ./backend/integration_test.go \
-  ./backend/mockBackend.go \
-  ./backend/syncManager.go \
-  ./backend/taskManager.go
-```
-
-#### 3. Nextcloud Sync Integration Tests
-```bash
-# Real CalDAV server tests
-make test-integration-nextcloud
-# or manually:
-make docker-up                    # Start Nextcloud
-./scripts/wait-for-nextcloud.sh  # Wait for ready
-go test -v -timeout 15m -tags=integration ./backend/sync_integration_test.go
-make docker-down                  # Cleanup
-```
-
-**What's tested:**
-- ✅ Push sync (local → Nextcloud)
-- ✅ Pull sync (Nextcloud → local)
-- ✅ Bidirectional sync
-- ✅ Conflict resolution (ServerWins, LocalWins)
-- ✅ Task deletion sync
-- ✅ Real CalDAV protocol
-- ✅ iCalendar format validation
-
-See [TESTING.md](TESTING.md) for comprehensive testing guide including:
-- Manual feature testing workflows
-- Git backend testing
-- Multi-backend testing
-- Docker test environment setup
-- CI/CD pipeline details
-
-### Project Structure
-
-```
-gosynctasks/
-├── cmd/gosynctasks/        # CLI application
-│   └── main.go             # Entry point and command definitions
-├── backend/                # Backend implementations
-│   ├── taskManager.go      # TaskManager interface
-│   ├── selector.go         # Backend selection logic
-│   ├── nextcloudBackend.go # Nextcloud CalDAV backend
-│   ├── gitBackend.go       # Git/Markdown backend
-│   ├── markdownParser.go   # Markdown parsing
-│   └── markdownWriter.go   # Markdown writing
-├── internal/
-│   ├── config/             # Configuration management
-│   ├── operations/         # Task operations
-│   └── views/              # Custom views system
-├── scripts/                # Utility scripts
-│   └── start-test-server.sh # Docker test environment
-└── gosynctasks/
-    └── config/             # Test configurations
-```
-
-## Migration Guide
-
-Old JSON configurations are automatically migrated to YAML format on first run. A backup is created.
 
 ## Configuration Examples
 
@@ -468,10 +327,13 @@ backends:
 
 default_backend: nextcloud
 auto_detect_backend: true
-backend_priority: [git, nextcloud]
+backend_priority: 
+  - git
+  - nextcloud
+
 ```
 
-**Nextcloud with Offline Sync:**
+**Nextcloud with Sync:**
 ```yaml
 backends:
   sqlite:
@@ -492,80 +354,6 @@ sync:
 ## Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md) for detailed guidelines.
-
-### Development Workflow
-
-1. **Fork and clone** the repository
-2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
-3. **Make your changes** with clear commit messages
-4. **Run tests locally**: `make ci`
-5. **Push and create a PR**
-
-### CI/CD Pipeline
-
-Every push and pull request triggers automated checks:
-
-| Job | Description | Time |
-|-----|-------------|------|
-| **Lint** | Code quality (golangci-lint) | ~2 min |
-| **Test** | Unit tests with coverage | ~2 min |
-| **Integration** | Mock + Nextcloud sync tests | ~8 min |
-| **Security** | Vulnerability scan (govulncheck) | ~1 min |
-| **Build** | Multi-platform binaries | ~4 min |
-
-**Branch Protection:**
-- ✅ All CI checks must pass
-- ✅ Code review required
-- ✅ Branch must be up to date
-
-### Running CI Locally
-
-```bash
-# Full CI suite
-make ci
-
-# Individual checks
-make lint                        # Code quality
-make test                        # Unit tests
-make test-integration            # Integration tests
-make test-integration-nextcloud  # Nextcloud tests
-make security                    # Security scan
-make build                       # Build check
-```
-
-### Testing Requirements
-
-Before submitting a PR:
-
-```bash
-# Run all tests
-make test-all
-
-# Check for race conditions
-go test -race ./...
-
-# Ensure coverage doesn't drop
-make test-coverage
-
-# Format code
-make fmt
-
-# Run linter
-make lint
-```
-
-### Commit Convention
-
-Use [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-feat: add new backend support
-fix: resolve sync conflict bug
-docs: update README with examples
-test: add integration tests for sync
-refactor: simplify backend selection
-chore: update dependencies
-```
 
 ## Roadmap
 
@@ -592,6 +380,7 @@ chore: update dependencies
 ### Planned 📋
 - Cross-backend task migration
 - Store credentials securely instead of plain text
+- Documentation website
 
 ## Support
 

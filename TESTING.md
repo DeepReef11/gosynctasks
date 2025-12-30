@@ -33,7 +33,7 @@ docker compose down
 docker compose down -v
 ```
 
-Server runs at: http://localhost:8080
+Server runs at: `http://localhost:8080` 
 Credentials: `admin` / `admin123`
 
 ### Test Configuration
@@ -63,8 +63,8 @@ go build -o gosynctasks ./cmd/gosynctasks
 ./gosynctasks --config ./gosynctasks/config MyList add "Test task"
 
 # Or create alias
-alias gst="./gosynctasks --config ./gosynctasks/config"
-gst MyList get
+alias gosynctest="./gosynctasks --config ./gosynctasks/config"
+gosynctest MyList get
 ```
 
 ## Unit Tests
@@ -101,15 +101,6 @@ go tool cover -html=coverage.out
 # Show coverage by function
 go tool cover -func=coverage.out
 ```
-
-### Coverage by Package
-
-| Package | Coverage | Status |
-|---------|----------|--------|
-| `backend` | 65.2% | ✅ Good |
-| `internal/config` | 53.7% | ⚠️ Fair |
-| `internal/views` | 50.4% | ⚠️ Fair |
-| `internal/operations` | 4.0% | ❌ Low |
 
 ## Integration Tests
 
@@ -177,56 +168,56 @@ docker compose down -v
 
 ```bash
 # Use test config
-alias gst="./gosynctasks --config ./gosynctasks/config"
+alias gosynctest="./gosynctasks --config ./gosynctasks/config"
 
 # Create test list
-gst list create Test
+gosynctest list create Test
 
 # Add tasks
-gst Test add "Task 1" -p 1
-gst Test add "Task 2" -d "Description" -p 5
+gosynctest Test add "Task 1" -p 1
+gosynctest Test add "Task 2" -d "Description" -p 5
 
 # List tasks
-gst Test
-gst Test -v all
+gosynctest Test
+gosynctest Test -v all
 
 # Update task
-gst Test update "Task 1" -s DONE
+gosynctest Test update "Task 1" -s DONE
 
 # Complete task
-gst Test complete "Task 2"
+gosynctest Test complete "Task 2"
 
 # Delete task
-gst Test delete "Task 1"
+gosynctest Test delete "Task 1"
 ```
 
 ### Test Subtasks
 
 ```bash
 # Add parent
-gst Test add "Feature X" -p 1
+gosynctest Test add "Feature X" -p 1
 
 # Add subtask
-gst Test add "Write code" -P "Feature X"
+gosynctest Test add "Write code" -P "Feature X"
 
 # Path-based creation (auto-creates hierarchy)
-gst Test add "Epic/Story/Task"
+gosynctest Test add "Epic/Story/Task"
 
 # Literal mode (disable path parsing)
-gst Test add -l "URL: http://example.com"
+gosynctest Test add -l "URL: http://example.com"
 ```
 
 ### Test Custom Views
 
 ```bash
 # Create view interactively
-gst view create my-view
+gosynctest view create my-view
 
 # List with view
-gst Test -v my-view
+gosynctest Test -v my-view
 
 # List views
-gst view list
+gosynctest view list
 ```
 
 ### Test Git Backend
