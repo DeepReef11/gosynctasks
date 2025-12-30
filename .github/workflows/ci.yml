@@ -95,10 +95,10 @@ jobs:
             exit 1
           fi
 
-      - name: Run mock backend integration tests
+      - name: Run integration tests
         run: |
-          echo "Running mock backend integration tests..."
-          go test -v -timeout 10m ./backend/integration_test.go ./backend/mockBackend.go ./backend/syncManager.go ./backend/taskManager.go
+          echo "Running integration tests..."
+          go test -v -timeout 10m ./backend -run "TestBasic|TestOffline|TestConflict|TestLarge|TestError|TestConcurrent|TestHierarchical"
         continue-on-error: false
 
       - name: Run Nextcloud integration tests

@@ -4,7 +4,8 @@
 BINARY_NAME=gosynctasks
 BUILD_DIR=.
 GO_FILES=$(shell find . -name '*.go' -not -path "./vendor/*")
-DOCKER_COMPOSE=docker-compose
+# Detect docker compose command (new or old)
+DOCKER_COMPOSE=$(shell if docker compose version >/dev/null 2>&1; then echo "docker compose"; else echo "docker-compose"; fi)
 
 # Default target
 help: ## Show this help message
@@ -39,15 +40,11 @@ test-coverage: test-unit ## Run unit tests and show coverage
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "✓ Coverage report: coverage.html"
 
-test-integration: docker-up ## Run mock backend integration tests
-	@echo "Running mock backend integration tests..."
+test-integration: docker-up ## Run integration tests
+	@echo "Running integration tests..."
 	@sleep 5
-	go test -v -timeout 10m \
-		./backend/integration_test.go \
-		./backend/mockBackend.go \
-		./backend/syncManager.go \
-		./backend/taskManager.go
-	@echo "✓ Mock integration tests complete"
+	go test -v -timeout 10m ./backend -run "TestBasic|TestOffline|TestConflict|TestLarge|TestError|TestConcurrent|TestHierarchical"
+	@echo "✓ Integration tests complete"
 
 test-integration-nextcloud: docker-up ## Run Nextcloud sync integration tests
 	@echo "Waiting for Nextcloud to be ready..."
