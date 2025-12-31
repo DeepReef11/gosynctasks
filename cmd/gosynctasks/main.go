@@ -144,6 +144,7 @@ Config:
 	rootCmd.AddCommand(newViewCmd())
 	rootCmd.AddCommand(newListCmd())
 	rootCmd.AddCommand(newSyncCmd())
+	rootCmd.AddCommand(newCredentialsCmd())
 
 	// Set up graceful shutdown on Ctrl+C / SIGTERM
 	sigChan := make(chan os.Signal, 1)

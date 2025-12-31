@@ -40,7 +40,29 @@ go install ./cmd/gosynctasks
 
 ### Configuration
 
-On first run, `gosynctasks` will create a configuration file at `~/.config/gosynctasks/config.yaml`.
+```bash
+# Launch gosynctasks once to create the config file sample
+gosynctasks 
+# Configure sync (see SQLite Backend configuration above)
+
+# Set credentials
+gosynctasks credentials set backend-name my-user --prompt
+
+# Initial sync
+gosynctasks sync
+
+gosynctasks list create "Work"
+# Work normally - changes sync automatically with auto_sync: true
+gosynctasks Work add "Task created"
+
+# Manual sync if needed
+gosynctasks sync
+gosynctasks sync status
+gosynctasks sync queue
+```
+
+
+**For detailed sync documentation, see [SYNC_GUIDE.md](SYNC_GUIDE.md)**
 
 #### Multi-Backend Configuration
 
@@ -48,10 +70,26 @@ Here is a basic configuration using local sync, Nextcloud as a remote and automa
 
 ```yaml
 backends:
-  nextcloud:
+
+  # Use this line to name the backend 
+  example-backend-name:
     type: nextcloud
     enabled: true
-    url: nextcloud://username:password@your-server.com
+    host: "nextcloud.example.com"
+    username: "myuser"
+  # Docker Test Nextcloud
+  nextcloud-test:
+    type: nextcloud
+    enabled: true
+    host: "localhost:8080"
+    username: "admin"
+    allow_http: true
+    suppress_http_warning: true
+  # Same Docker Test Nextcloud config using unsafe url
+  nextcloud-unsafe:
+    type: nextcloud
+    enabled: true
+    url: nextcloud://admin:admin123@localhost:8080
     insecure_skip_verify: false
   git:
     type: git
@@ -67,18 +105,67 @@ backends:
 sync:
   enabled: true
   local_backend: sqlite
-  remote_backend: nextcloud
+  remote_backend: nextcloud-prod
   conflict_resolution: server_wins
   auto_sync: true        # Enable background daemon sync
   sync_interval: 5       # Minutes before data considered stale
 
-default_backend: nextcloud
+default_backend: nextcloud-prod
 auto_detect_backend: true
 backend_priority:
   - git
-  - nextcloud
+  - nextcloud-prod
 ui: cli
 ```
+
+## Credentials storage
+
+###  System Keyring
+
+Store credentials securely in your OS keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service):
+
+```bash
+# Store credentials securely (interactive password prompt)
+gosynctasks credentials set nextcloud myuser --prompt
+
+# Verify credentials
+gosynctasks credentials get nextcloud myuser
+```
+
+**Config example:**
+```yaml
+nextcloud:
+  type: nextcloud
+  enabled: true
+  host: "nextcloud.example.com"
+  username: "myuser"
+  # Password retrieved from keyring automatically
+```
+
+### Environment Variables
+
+For CI/CD or containerized environments:
+
+```bash
+export GOSYNCTASKS_NEXTCLOUD_USERNAME=myuser
+export GOSYNCTASKS_NEXTCLOUD_PASSWORD=secret
+export GOSYNCTASKS_NEXTCLOUD_HOST=nextcloud.example.com
+```
+
+### Credentials in URL (Not Recommended)
+
+```yaml
+nextcloud:
+  type: nextcloud
+  enabled: true
+  url: "nextcloud://username:password@nextcloud.example.com"
+```
+
+⚠️ **Warning:** Plain text credentials in config files are not recommended for production use.
+
+**Priority:** Keyring > Environment Variables > Config URL
+
+For more details, see [SECURITY.md](SECURITY.md).
 
 ## Backends
 
@@ -131,15 +218,18 @@ The Git backend allows you to manage tasks directly in markdown files within git
 
 Full CalDAV support for Nextcloud Tasks with complete CRUD operations.
 
-**URL Format:**
-```
-nextcloud://username:password@server.com
-nextcloud://username:password@server.com:8080/nextcloud
+```yaml
+nextcloud:
+  type: nextcloud
+  enabled: true
+  host: "nextcloud.example.com"
+  username: "myuser"
+  # Password retrieved from keyring automatically
 ```
 
-### SQLite Backend (Offline Sync)
+### SQLite Backend
 
-Local SQLite database for offline synchronization with remote backends.
+Local SQLite database that can be used for offline synchronization with remote backends to get fast operations.
 
 **Features:**
 - ✅ Offline mode - work without network connectivity
@@ -177,29 +267,8 @@ backend_priority:
 
 ### File Backend
 
+
 Local file-based storage (work in progress).
-
-### Quick Start
-
-```bash
-# Launch gosynctasks once to create the config file sample
-gosynctasks 
-# Configure sync (see SQLite Backend configuration above)
-
-# Initial sync
-gosynctasks sync
-
-gosynctasks list create "Work"
-# Work normally - changes sync automatically with auto_sync: true
-gosynctasks Work add "Task created"
-
-# Manual sync if needed
-gosynctasks sync
-gosynctasks sync status
-gosynctasks sync queue
-```
-
-**For detailed sync documentation, see [SYNC_GUIDE.md](SYNC_GUIDE.md)**
 
 ## Usage
 
@@ -372,6 +441,7 @@ Contributions are welcome! Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md)
 - Custom views with plugin formatters
 - Hierarchical tasks (subtasks)
 - Interactive list and task selection
+- Store credentials securely instead of plain text
 
 ### In Progress 🚧
 - File backend implementation
@@ -379,16 +449,9 @@ Contributions are welcome! Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md)
 
 ### Planned 📋
 - Cross-backend task migration
-- Store credentials securely instead of plain text
 - Documentation website
 
 ## Support
 
 For issues, questions, or contributions:
 - Open an issue on GitHub
-- Check [TESTING.md](TESTING.md) for testing procedures
-- Read [SYNC_GUIDE.md](SYNC_GUIDE.md) for detailed synchronization documentation
-
----
-
-Built with ❤️ using Go and the Cobra CLI framework.

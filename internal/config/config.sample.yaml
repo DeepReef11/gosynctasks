@@ -21,10 +21,28 @@ backends:
 
   # Nextcloud Backend - CalDAV/CardDAV server
   # Best for: Multi-device sync, web interface, shared calendars
-  nextcloud:
+  #
+  # CREDENTIAL STORAGE (Priority: Keyring > Environment Variables > Config URL)
+  #
+  # Option 1: System Keyring (RECOMMENDED - Most Secure)
+  # Store credentials in OS keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service)
+  nextcloud-prod:
     type: nextcloud
     enabled: true
-    url: "nextcloud://username:password@nextcloud.example.com"
+    host: "nextcloud.example.com"  # Hostname without credentials
+    username: "myuser"             # Username for keyring lookup
+    # Password stored in keyring - set with:
+    #   gosynctasks credentials set nextcloud myuser --prompt
+
+    # Option 2: Environment Variables (Good for CI/CD)
+    # Set these environment variables instead of host/username/url:
+    #   export GOSYNCTASKS_NEXTCLOUD_HOST=nextcloud.example.com
+    #   export GOSYNCTASKS_NEXTCLOUD_USERNAME=myuser
+    #   export GOSYNCTASKS_NEXTCLOUD_PASSWORD=secret
+
+    # Option 3: Config URL (LEGACY - Not Recommended)
+    # Credentials in plain text - less secure:
+    #   url: "nextcloud://username:password@nextcloud.example.com"
 
     # SSL/TLS Settings
     insecure_skip_verify: false  # WARNING: Only use for self-signed certs in development
@@ -60,7 +78,7 @@ backends:
 # Default backend for CLI operations
 # NOTE: When sync is enabled, the local_backend is automatically used for operations
 #       and the backend_priority is only used when sync is disabled
-default_backend: nextcloud
+default_backend: nextcloud-prod
 
 # Enable automatic backend detection
 auto_detect_backend: false
@@ -69,7 +87,7 @@ auto_detect_backend: false
 # NOTE: When sync is enabled, you don't need to include the local backend here
 #       The sync configuration will automatically use the local_backend
 backend_priority:
-  - nextcloud  # Use Nextcloud when sync is disabled
+  - nextcloud-prod  # Use Nextcloud when sync is disabled
   - git        # Check for git repo with TODO.md first
 
 # =============================================================================
@@ -97,7 +115,7 @@ sync:
   # When sync.enabled = true, the CLI automatically uses local_backend for operations
   # You don't need to include local_backend in backend_priority
   local_backend: sqlite       # Local backend (must be SQLite type)
-  remote_backend: nextcloud   # Remote backend (nextcloud, git, or file)
+  remote_backend: nextcloud-prod   # Remote backend (nextcloud, git, or file)
 
   # Sync Behavior
   sync_interval: 5            # Minutes before local data is considered stale

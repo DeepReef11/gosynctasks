@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"gosynctasks/backend"
+	"gosynctasks/internal/credentials"
 )
 
 func init() {
@@ -24,11 +25,14 @@ func init() {
 }
 
 type NextcloudBackend struct {
-	Connector backend.ConnectorConfig
-	username  string
-	password  string
-	baseURL   string
-	client    *http.Client
+	Connector      backend.ConnectorConfig
+	BackendName    string // Backend name for credential resolution
+	ConfigHost     string // Host from config (for credential resolution)
+	ConfigUsername string // Username from config (for credential resolution)
+	username       string
+	password       string
+	baseURL        string
+	client         *http.Client
 }
 
 // Status mapping: user-friendly names and abbreviations to CalDAV standard
@@ -71,6 +75,18 @@ func (nB *NextcloudBackend) getClient() *http.Client {
 
 func (nB *NextcloudBackend) getUsername() string {
 	if nB.username == "" {
+		// Try credential resolver first (keyring > env > URL)
+		if nB.BackendName != "" {
+			resolver := credentials.NewResolver()
+			creds, err := resolver.Resolve(nB.BackendName, nB.ConfigUsername, nB.ConfigHost, nB.Connector.URL)
+			if err == nil && creds.Username != "" {
+				nB.username = creds.Username
+				nB.password = creds.Password // Cache both
+				return nB.username
+			}
+		}
+
+		// Fallback to URL (backward compatible)
 		if nB.Connector.URL != nil && nB.Connector.URL.User != nil {
 			nB.username = nB.Connector.URL.User.Username()
 		}
@@ -80,6 +96,18 @@ func (nB *NextcloudBackend) getUsername() string {
 
 func (nB *NextcloudBackend) getPassword() string {
 	if nB.password == "" {
+		// Try credential resolver first
+		if nB.BackendName != "" {
+			resolver := credentials.NewResolver()
+			creds, err := resolver.Resolve(nB.BackendName, nB.ConfigUsername, nB.ConfigHost, nB.Connector.URL)
+			if err == nil && creds.Password != "" {
+				nB.password = creds.Password
+				nB.username = creds.Username // Cache both
+				return nB.password
+			}
+		}
+
+		// Fallback to URL (backward compatible)
 		if nB.Connector.URL != nil && nB.Connector.URL.User != nil {
 			nB.password, _ = nB.Connector.URL.User.Password()
 		}
@@ -239,8 +267,10 @@ func (nB *NextcloudBackend) buildCalendarQuery(filter *backend.TaskFilter) strin
 	return query
 }
 func (nB *NextcloudBackend) GetTasks(listID string, taskFilter *backend.TaskFilter) ([]backend.Task, error) {
-	if nB.Connector.URL.User == nil {
-		return nil, fmt.Errorf("no user credentials in URL")
+	// Credentials can come from URL, keyring, or environment variables
+	// Only require URL.User if we're not using keyring/env (i.e., no BackendName)
+	if nB.BackendName == "" && nB.Connector.URL.User == nil {
+		return nil, fmt.Errorf("no user credentials in URL and no backend name for credential resolution")
 	}
 
 	// Build request body
@@ -835,9 +865,8 @@ func NewNextcloudBackend(connectorConfig backend.ConnectorConfig) (backend.TaskM
 		Connector: connectorConfig,
 	}
 
-	if err := nB.BasicValidation(); err != nil {
-		return nil, err
-	}
+	// Don't call BasicValidation here - it will be called on first operation
+	// This allows BackendName to be set by the factory first (needed for keyring credentials)
 
 	// SECURITY: Check if AllowHTTP is enabled and warn
 	if nB.Connector.AllowHTTP && !nB.Connector.SuppressHTTPWarning {
@@ -879,10 +908,18 @@ func NewNextcloudBackend(connectorConfig backend.ConnectorConfig) (backend.TaskM
 
 // newNextcloudBackendFromBackendConfig creates a Nextcloud backend from BackendConfig
 func newNextcloudBackendFromBackendConfig(bc backend.BackendConfig) (backend.TaskManager, error) {
-	// Convert BackendConfig to ConnectorConfig
-	u, err := url.Parse(bc.URL)
-	if err != nil {
-		return nil, fmt.Errorf("invalid URL for nextcloud backend: %w", err)
+	// Parse URL if provided, otherwise construct from host
+	var u *url.URL
+	var err error
+
+	if bc.URL != "" {
+		u, err = url.Parse(bc.URL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid URL for nextcloud backend: %w", err)
+		}
+	} else if bc.Host != "" {
+		// Construct URL from host (without credentials)
+		u, _ = url.Parse(fmt.Sprintf("nextcloud://%s", bc.Host))
 	}
 
 	connConfig := backend.ConnectorConfig{
@@ -893,7 +930,19 @@ func newNextcloudBackendFromBackendConfig(bc backend.BackendConfig) (backend.Tas
 		SuppressHTTPWarning: bc.SuppressHTTPWarning,
 	}
 
-	return NewNextcloudBackend(connConfig)
+	backendInstance, err := NewNextcloudBackend(connConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set backend name and config fields for credential resolution
+	if nb, ok := backendInstance.(*NextcloudBackend); ok {
+		nb.BackendName = bc.Name
+		nb.ConfigHost = bc.Host
+		nb.ConfigUsername = bc.Username
+	}
+
+	return backendInstance, nil
 }
 
 func (nB *NextcloudBackend) BasicValidation() error {
@@ -901,8 +950,10 @@ func (nB *NextcloudBackend) BasicValidation() error {
 		return fmt.Errorf("connector URL is nil")
 	}
 
-	if nB.Connector.URL.User == nil {
-		return fmt.Errorf("no user credentials in URL")
+	// Credentials can come from URL, keyring, or environment variables
+	// Only require URL.User if we're not using keyring/env (i.e., no BackendName)
+	if nB.BackendName == "" && nB.Connector.URL.User == nil {
+		return fmt.Errorf("no user credentials in URL and no backend name for credential resolution")
 	}
 	return nil
 }

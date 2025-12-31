@@ -47,6 +47,73 @@ gosynctasks view create myview          # Create view
 gosynctasks sync                        # Bidirectional sync
 gosynctasks sync status                 # Show sync status
 gosynctasks sync queue                  # View pending operations
+
+# Credential Management
+gosynctasks credentials set <backend> <user> --prompt  # Store in keyring (secure)
+gosynctasks credentials get <backend> <user>           # Check credential source
+gosynctasks credentials delete <backend> <user>        # Remove from keyring
+```
+
+### Credential Management
+
+**Priority Order:** Keyring > Environment Variables > Config URL
+
+**Credential Storage Options:**
+
+1. **System Keyring (RECOMMENDED)**
+   - Most secure - credentials stored in OS keyring
+   - macOS: Keychain, Windows: Credential Manager, Linux: Secret Service
+   ```bash
+   gosynctasks credentials set nextcloud myuser --prompt
+   ```
+   - Config example:
+   ```yaml
+   nextcloud:
+     type: nextcloud
+     enabled: true
+     host: "nextcloud.example.com"
+     username: "myuser"  # Password retrieved from keyring
+   ```
+
+2. **Environment Variables (Good for CI/CD)**
+   - Set credentials via environment
+   ```bash
+   export GOSYNCTASKS_NEXTCLOUD_USERNAME=myuser
+   export GOSYNCTASKS_NEXTCLOUD_PASSWORD=secret
+   export GOSYNCTASKS_NEXTCLOUD_HOST=nextcloud.example.com
+   ```
+   - Config can be minimal:
+   ```yaml
+   nextcloud:
+     type: nextcloud
+     enabled: true
+     username: "myuser"  # Optional hint
+   ```
+
+3. **Config URL (LEGACY - Not Recommended)**
+   - Plain text credentials in config file
+   ```yaml
+   nextcloud:
+     type: nextcloud
+     enabled: true
+     url: "nextcloud://username:password@nextcloud.example.com"
+   ```
+   - Backward compatible but less secure
+
+**Migration Path:**
+```bash
+# 1. Store credentials in keyring
+gosynctasks credentials set nextcloud myuser --prompt
+
+# 2. Update config to use keyring
+# Change from: url: "nextcloud://user:pass@host"
+# Change to:
+#   host: "nextcloud.example.com"
+#   username: "myuser"
+
+# 3. Verify it works
+gosynctasks credentials get nextcloud myuser
+gosynctasks nextcloud  # Test connection
 ```
 
 ### Status & Abbreviations
