@@ -6,6 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	// Import backend packages to register their init() functions
+	_ "gosynctasks/backend/file"
+	_ "gosynctasks/backend/git"
+	_ "gosynctasks/backend/nextcloud"
+	_ "gosynctasks/backend/sqlite"
 )
 
 // TestGetDefaultBackend tests the GetDefaultBackend method

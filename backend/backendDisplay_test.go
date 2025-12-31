@@ -141,6 +141,8 @@ func TestFileBackend_GetBackendContext(t *testing.T) {
 // Testgit.GitBackend_GetBackendDisplayName tests Git backend display name
 func TestGitBackend_GetBackendDisplayName(t *testing.T) {
 	gitBackend := &git.GitBackend{
+		RepoPath: "/home/user/myproject",
+		FilePath: "/home/user/myproject/TODO.md",
 	}
 
 	displayName := gitBackend.GetBackendDisplayName()
@@ -163,6 +165,8 @@ func TestGitBackend_GetBackendType(t *testing.T) {
 // Testgit.GitBackend_GetBackendContext tests Git backend context
 func TestGitBackend_GetBackendContext(t *testing.T) {
 	gitBackend := &git.GitBackend{
+		RepoPath: "/home/user/gosynctasks",
+		FilePath: "/home/user/gosynctasks/TASKS.md",
 	}
 
 	context := gitBackend.GetBackendContext()

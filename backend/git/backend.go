@@ -27,8 +27,8 @@ func newGitBackendWrapper(config backend.BackendConfig) (backend.TaskManager, er
 // Tasks are stored in markdown format with a special marker to enable gosynctasks.
 type GitBackend struct {
 	config       backend.BackendConfig
-	repoPath     string            // Absolute path to git repository root
-	filePath     string            // Absolute path to task file (e.g., TODO.md)
+	RepoPath     string            // Absolute path to git repository root
+	FilePath     string            // Absolute path to task file (e.g., TODO.md)
 	taskLists    map[string][]backend.Task // Tasks organized by list name (## headers)
 	fileModTime  time.Time         // Last modification time of file
 	detectedInfo string            // Human-readable detection info
@@ -51,14 +51,14 @@ func NewGitBackend(config backend.BackendConfig) (*GitBackend, error) {
 	if err != nil {
 		return nil, fmt.Errorf("git repository not found: %w", err)
 	}
-	gb.repoPath = repoPath
+	gb.RepoPath = repoPath
 
 	// Find TODO file
 	filePath, err := gb.findTodoFile()
 	if err != nil {
 		return nil, fmt.Errorf("TODO file not found: %w", err)
 	}
-	gb.filePath = filePath
+	gb.FilePath = filePath
 
 	// Load tasks from file
 	if err := gb.loadFile(); err != nil {
@@ -66,7 +66,7 @@ func NewGitBackend(config backend.BackendConfig) (*GitBackend, error) {
 	}
 
 	gb.detectedInfo = fmt.Sprintf("Git repository at %s with task file %s",
-		filepath.Base(gb.repoPath), filepath.Base(gb.filePath))
+		filepath.Base(gb.RepoPath), filepath.Base(gb.FilePath))
 
 	return gb, nil
 }
@@ -123,7 +123,7 @@ func (gb *GitBackend) findTodoFile() (string, error) {
 
 	// Try each file
 	for _, filename := range filesToTry {
-		fullPath := filepath.Join(gb.repoPath, filename)
+		fullPath := filepath.Join(gb.RepoPath, filename)
 		if info, err := os.Stat(fullPath); err == nil && !info.IsDir() {
 			// File exists, check for marker
 			content, err := os.ReadFile(fullPath)
@@ -148,13 +148,13 @@ func (gb *GitBackend) hasMarker(content string) bool {
 
 // loadFile reads and parses the markdown file.
 func (gb *GitBackend) loadFile() error {
-	content, err := os.ReadFile(gb.filePath)
+	content, err := os.ReadFile(gb.FilePath)
 	if err != nil {
 		return err
 	}
 
 	// Get file modification time
-	info, err := os.Stat(gb.filePath)
+	info, err := os.Stat(gb.FilePath)
 	if err != nil {
 		return err
 	}
@@ -177,19 +177,19 @@ func (gb *GitBackend) saveFile() error {
 	content := writer.Write(gb.taskLists)
 
 	// Check if file was modified externally
-	if info, err := os.Stat(gb.filePath); err == nil {
+	if info, err := os.Stat(gb.FilePath); err == nil {
 		if info.ModTime().After(gb.fileModTime) {
 			return fmt.Errorf("file was modified externally, refusing to overwrite")
 		}
 	}
 
 	// Write to file
-	if err := os.WriteFile(gb.filePath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(gb.FilePath, []byte(content), 0644); err != nil {
 		return err
 	}
 
 	// Update modification time
-	if info, err := os.Stat(gb.filePath); err == nil {
+	if info, err := os.Stat(gb.FilePath); err == nil {
 		gb.fileModTime = info.ModTime()
 	}
 
@@ -204,24 +204,24 @@ func (gb *GitBackend) saveFile() error {
 // commitChanges commits the task file to git.
 func (gb *GitBackend) commitChanges() error {
 	// Add file
-	cmd := exec.Command("git", "add", gb.filePath)
-	cmd.Dir = gb.repoPath
+	cmd := exec.Command("git", "add", gb.FilePath)
+	cmd.Dir = gb.RepoPath
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("git add failed: %w", err)
 	}
 
 	// Check if there are changes to commit
 	cmd = exec.Command("git", "diff", "--cached", "--quiet")
-	cmd.Dir = gb.repoPath
+	cmd.Dir = gb.RepoPath
 	if err := cmd.Run(); err == nil {
 		// No changes to commit
 		return nil
 	}
 
 	// Commit
-	commitMsg := fmt.Sprintf("gosynctasks: Update tasks in %s", filepath.Base(gb.filePath))
+	commitMsg := fmt.Sprintf("gosynctasks: Update tasks in %s", filepath.Base(gb.FilePath))
 	cmd = exec.Command("git", "commit", "-m", commitMsg)
-	cmd.Dir = gb.repoPath
+	cmd.Dir = gb.RepoPath
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("git commit failed: %w", err)
 	}
@@ -599,8 +599,8 @@ func (gb *GitBackend) GetPriorityColor(priority int) string {
 
 // GetBackendDisplayName returns a formatted string for display in task list headers.
 func (gb *GitBackend) GetBackendDisplayName() string {
-	repoName := filepath.Base(gb.repoPath)
-	fileName := filepath.Base(gb.filePath)
+	repoName := filepath.Base(gb.RepoPath)
+	fileName := filepath.Base(gb.FilePath)
 	return fmt.Sprintf("[git:%s/%s]", repoName, fileName)
 }
 
@@ -611,8 +611,8 @@ func (gb *GitBackend) GetBackendType() string {
 
 // GetBackendContext returns contextual details specific to the backend.
 func (gb *GitBackend) GetBackendContext() string {
-	repoName := filepath.Base(gb.repoPath)
-	fileName := filepath.Base(gb.filePath)
+	repoName := filepath.Base(gb.RepoPath)
+	fileName := filepath.Base(gb.FilePath)
 	return fmt.Sprintf("%s/%s", repoName, fileName)
 }
 
