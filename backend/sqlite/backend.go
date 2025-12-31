@@ -51,16 +51,16 @@ type SQLiteBackend struct {
 
 // NewSQLiteBackend creates a new SQLite backend instance
 func NewSQLiteBackend(config backend.BackendConfig) (*SQLiteBackend, error) {
-	backend := &SQLiteBackend{
+	sb := &SQLiteBackend{
 		Config: config,
 	}
 
 	// Initialize database immediately
-	if err := backend.initDB(); err != nil {
+	if err := sb.initDB(); err != nil {
 		return nil, &SQLiteError{Op: "init", Err: err}
 	}
 
-	return backend, nil
+	return sb, nil
 }
 
 // initDB initializes the database connection (lazy initialization)

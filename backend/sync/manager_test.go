@@ -558,7 +558,7 @@ func TestRetryLogic(t *testing.T) {
 	local.AddTask(listID, task)
 
 	// Make remote return error
-	remote.addTaskErr = fmt.Errorf("temporary error")
+	remote.AddTaskErr = fmt.Errorf("temporary error")
 
 	// Sync (should fail and increment retry)
 	_, _ = sm.Sync()
@@ -578,7 +578,7 @@ func TestRetryLogic(t *testing.T) {
 	}
 
 	// Clear error and sync again
-	remote.addTaskErr = nil
+	remote.AddTaskErr = nil
 	result, err := sm.Sync()
 	if err != nil {
 		t.Fatalf("Retry sync failed: %v", err)

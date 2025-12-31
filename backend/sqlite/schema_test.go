@@ -1,7 +1,6 @@
 package sqlite
 
 import (
-	"gosynctasks/backend"
 	"database/sql"
 	"os"
 	"path/filepath"

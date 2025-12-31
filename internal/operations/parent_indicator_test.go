@@ -2,6 +2,7 @@ package operations
 
 import (
 	"gosynctasks/backend"
+	"gosynctasks/backend/nextcloud"
 	"strings"
 	"testing"
 	"time"
@@ -74,7 +75,7 @@ func TestParentIndicator_NestedHierarchy(t *testing.T) {
 	tree := BuildTaskTree(tasks)
 
 	// Format the tree
-	mockBackend := &backend.NextcloudBackend{}
+	mockBackend := &nextcloud.NextcloudBackend{}
 	output := FormatTaskTree(tree, "default", mockBackend, "2006-01-02")
 
 	// Verify Project has parent indicator with count (2)

@@ -1,4 +1,4 @@
-package backend
+package backend_test
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"gosynctasks/backend"
 	"gosynctasks/backend/sqlite"
 	"gosynctasks/backend/sync"
 )
@@ -21,7 +22,7 @@ func TestBasicSyncWorkflow(t *testing.T) {
 	dbPath := filepath.Join(tmpDir, "test.db")
 
 	// Create backends
-	localBackend, err := sqlite.NewSQLiteBackend(BackendConfig{
+	localBackend, err := sqlite.NewSQLiteBackend(backend.BackendConfig{
 		Type:    "sqlite",
 		Enabled: true,
 		DBPath:  dbPath,
@@ -31,7 +32,7 @@ func TestBasicSyncWorkflow(t *testing.T) {
 	}
 	defer localBackend.Close()
 
-	remoteBackend := NewMockBackend()
+	remoteBackend := backend.NewMockBackend()
 	sm := sync.NewSyncManager(localBackend, remoteBackend, sync.ServerWins)
 
 	// Step 1: Create data on remote
@@ -43,9 +44,9 @@ func TestBasicSyncWorkflow(t *testing.T) {
 
 	now := time.Now()
 	for i := 1; i <= 5; i++ {
-		err := remoteBackend.AddTask(listID, Task{
+		err := remoteBackend.AddTask(listID, backend.Task{
 			UID:      fmt.Sprintf("task-%d", i),
-			Summary:  fmt.Sprintf("Remote Task %d", i),
+			Summary:  fmt.Sprintf("Remote backend.Task %d", i),
 			Status:   "NEEDS-ACTION",
 			Priority: i,
 			Created:  now,
@@ -120,7 +121,7 @@ func TestOfflineModeWorkflow(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 
-	localBackend, err := sqlite.NewSQLiteBackend(BackendConfig{
+	localBackend, err := sqlite.NewSQLiteBackend(backend.BackendConfig{
 		Type:    "sqlite",
 		Enabled: true,
 		DBPath:  dbPath,
@@ -140,9 +141,9 @@ func TestOfflineModeWorkflow(t *testing.T) {
 	now := time.Now()
 	taskUIDs := []string{}
 	for i := 1; i <= 3; i++ {
-		task := Task{
+		task := backend.Task{
 			UID:      fmt.Sprintf("offline-task-%d", i),
-			Summary:  fmt.Sprintf("Offline Task %d", i),
+			Summary:  fmt.Sprintf("Offline backend.Task %d", i),
 			Status:   "NEEDS-ACTION",
 			Priority: i,
 			Created:  now,
@@ -172,13 +173,13 @@ func TestOfflineModeWorkflow(t *testing.T) {
 	}
 
 	// Simulate going online: Create remote backend and sync
-	remoteBackend := NewMockBackend()
-	remoteBackend.Lists = append(remoteBackend.Lists, TaskList{
+	remoteBackend := backend.NewMockBackend()
+	remoteBackend.Lists = append(remoteBackend.Lists, backend.TaskList{
 		ID:    listID,
 		Name:  "Offline Work",
 		CTags: "ctag-100",
 	})
-	remoteBackend.Tasks[listID] = []Task{}
+	remoteBackend.Tasks[listID] = []backend.Task{}
 
 	sm := sync.NewSyncManager(localBackend, remoteBackend, sync.ServerWins)
 
@@ -234,7 +235,7 @@ func TestConflictResolutionScenarios(t *testing.T) {
 			tmpDir := t.TempDir()
 			dbPath := filepath.Join(tmpDir, "test.db")
 
-			localBackend, err := sqlite.NewSQLiteBackend(BackendConfig{
+			localBackend, err := sqlite.NewSQLiteBackend(backend.BackendConfig{
 				Type:    "sqlite",
 				Enabled: true,
 				DBPath:  dbPath,
@@ -244,20 +245,20 @@ func TestConflictResolutionScenarios(t *testing.T) {
 			}
 			defer localBackend.Close()
 
-			remoteBackend := NewMockBackend()
+			remoteBackend := backend.NewMockBackend()
 
 			// Create list on both
 			listID, _ := localBackend.CreateTaskList("Test List", "", "")
-			remoteBackend.Lists = append(remoteBackend.Lists, TaskList{
+			remoteBackend.Lists = append(remoteBackend.Lists, backend.TaskList{
 				ID:    listID,
 				Name:  "Test List",
 				CTags: "ctag-123",
 			})
-			remoteBackend.Tasks[listID] = []Task{}
+			remoteBackend.Tasks[listID] = []backend.Task{}
 
 			// Add task to both
 			now := time.Now()
-			task := Task{
+			task := backend.Task{
 				UID:      "conflict-task",
 				Summary:  "Original",
 				Status:   "NEEDS-ACTION",
@@ -319,7 +320,7 @@ func TestConflictResolutionScenarios(t *testing.T) {
 			}
 
 			// For keep_both, verify we have a copy
-			if strategy.name == KeepBoth {
+			if strategy.name == sync.KeepBoth {
 				foundCopy := false
 				for _, lt := range localTasks {
 					if lt.Summary == "Local Modification (local copy)" {
@@ -342,7 +343,7 @@ func TestLargeDatasetPerformance(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 
-	localBackend, err := sqlite.NewSQLiteBackend(BackendConfig{
+	localBackend, err := sqlite.NewSQLiteBackend(backend.BackendConfig{
 		Type:    "sqlite",
 		Enabled: true,
 		DBPath:  dbPath,
@@ -352,7 +353,7 @@ func TestLargeDatasetPerformance(t *testing.T) {
 	}
 	defer localBackend.Close()
 
-	remoteBackend := NewMockBackend()
+	remoteBackend := backend.NewMockBackend()
 	sm := sync.NewSyncManager(localBackend, remoteBackend, sync.ServerWins)
 
 	// Create list on remote
@@ -368,9 +369,9 @@ func TestLargeDatasetPerformance(t *testing.T) {
 
 	t.Logf("Creating %d tasks on remote...", taskCount)
 	for i := 1; i <= taskCount; i++ {
-		err := remoteBackend.AddTask(listID, Task{
+		err := remoteBackend.AddTask(listID, backend.Task{
 			UID:      fmt.Sprintf("large-task-%d", i),
-			Summary:  fmt.Sprintf("Task %d of %d", i, taskCount),
+			Summary:  fmt.Sprintf("backend.Task %d of %d", i, taskCount),
 			Status:   "NEEDS-ACTION",
 			Priority: (i % 9) + 1,
 			Created:  now,
@@ -421,7 +422,7 @@ func TestErrorRecoveryWithRetry(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 
-	localBackend, err := sqlite.NewSQLiteBackend(BackendConfig{
+	localBackend, err := sqlite.NewSQLiteBackend(backend.BackendConfig{
 		Type:    "sqlite",
 		Enabled: true,
 		DBPath:  dbPath,
@@ -431,7 +432,7 @@ func TestErrorRecoveryWithRetry(t *testing.T) {
 	}
 	defer localBackend.Close()
 
-	remoteBackend := NewMockBackend()
+	remoteBackend := backend.NewMockBackend()
 
 	// Create list
 	listID, err := localBackend.CreateTaskList("Retry Test", "", "")
@@ -440,18 +441,18 @@ func TestErrorRecoveryWithRetry(t *testing.T) {
 	}
 
 	// Setup remote
-	remoteBackend.Lists = append(remoteBackend.Lists, TaskList{
+	remoteBackend.Lists = append(remoteBackend.Lists, backend.TaskList{
 		ID:    listID,
 		Name:  "Retry Test",
 		CTags: "ctag-retry",
 	})
-	remoteBackend.Tasks[listID] = []Task{}
+	remoteBackend.Tasks[listID] = []backend.Task{}
 
 	// Add task locally
 	now := time.Now()
-	task := Task{
+	task := backend.Task{
 		UID:      "retry-task",
-		Summary:  "Task to retry",
+		Summary:  "backend.Task to retry",
 		Status:   "NEEDS-ACTION",
 		Created:  now,
 		Modified: now,
@@ -524,7 +525,7 @@ func TestConcurrentSyncOperations(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 
-	localBackend, err := sqlite.NewSQLiteBackend(BackendConfig{
+	localBackend, err := sqlite.NewSQLiteBackend(backend.BackendConfig{
 		Type:    "sqlite",
 		Enabled: true,
 		DBPath:  dbPath,
@@ -534,7 +535,7 @@ func TestConcurrentSyncOperations(t *testing.T) {
 	}
 	defer localBackend.Close()
 
-	remoteBackend := NewMockBackend()
+	remoteBackend := backend.NewMockBackend()
 	_, _ = remoteBackend.CreateTaskList("Concurrent Test", "", "")
 	remoteBackend.Lists[0].CTags = "ctag-concurrent"
 
@@ -576,7 +577,7 @@ func TestHierarchicalTaskSync(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 
-	localBackend, err := sqlite.NewSQLiteBackend(BackendConfig{
+	localBackend, err := sqlite.NewSQLiteBackend(backend.BackendConfig{
 		Type:    "sqlite",
 		Enabled: true,
 		DBPath:  dbPath,
@@ -586,7 +587,7 @@ func TestHierarchicalTaskSync(t *testing.T) {
 	}
 	defer localBackend.Close()
 
-	remoteBackend := NewMockBackend()
+	remoteBackend := backend.NewMockBackend()
 	sm := sync.NewSyncManager(localBackend, remoteBackend, sync.ServerWins)
 
 	// Create list on remote
@@ -597,18 +598,18 @@ func TestHierarchicalTaskSync(t *testing.T) {
 
 	// Create parent and child tasks on remote
 	// IMPORTANT: Parents must come before children for foreign key constraints
-	parentTask := Task{
+	parentTask := backend.Task{
 		UID:      "parent-task",
-		Summary:  "Parent Task",
+		Summary:  "Parent backend.Task",
 		Status:   "NEEDS-ACTION",
 		Created:  now,
 		Modified: now,
 	}
 	remoteBackend.AddTask(listID, parentTask)
 
-	childTask := Task{
+	childTask := backend.Task{
 		UID:       "child-task",
-		Summary:   "Child Task",
+		Summary:   "Child backend.Task",
 		Status:    "NEEDS-ACTION",
 		ParentUID: "parent-task",
 		Created:   now,
@@ -632,7 +633,7 @@ func TestHierarchicalTaskSync(t *testing.T) {
 		t.Fatalf("Expected 2 local tasks, got %d", len(localTasks))
 	}
 
-	var child *Task
+	var child *backend.Task
 	for i := range localTasks {
 		if localTasks[i].UID == "child-task" {
 			child = &localTasks[i]
