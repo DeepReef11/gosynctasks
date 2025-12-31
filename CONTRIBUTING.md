@@ -2,6 +2,10 @@
 
 ## Development
 
+### Add a new backend service
+
+To add a new backend service, the `TaskManager` interface must be implemented.
+
 ### Quick Commands (Makefile)
 
 ```bash

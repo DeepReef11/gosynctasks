@@ -1,9 +1,11 @@
 //go:build integration
 // +build integration
 
-package backend
+package sync
 
 import (
+	"gosynctasks/backend"
+	"gosynctasks/backend/sqlite"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,7 +35,7 @@ func getNextcloudURL() string {
 }
 
 // skipIfNoNextcloud skips the test if Nextcloud server is not available
-func skipIfNoNextcloud(t *testing.T) TaskManager {
+func skipIfNoNextcloud(t *testing.T) backend.TaskManager {
 	t.Helper()
 
 	if os.Getenv("SKIP_INTEGRATION") == "1" {
@@ -41,7 +43,7 @@ func skipIfNoNextcloud(t *testing.T) TaskManager {
 	}
 
 	url := getNextcloudURL()
-	config := BackendConfig{
+	config := backend.BackendConfig{
 		Type:                "nextcloud",
 		Enabled:             true,
 		URL:                 url,
@@ -51,7 +53,7 @@ func skipIfNoNextcloud(t *testing.T) TaskManager {
 		SuppressSSLWarning:  true,
 	}
 
-	backend, err := config.TaskManager()
+	backend, err := config.backend.TaskManager()
 	if err != nil {
 		t.Skipf("Nextcloud server not available: %v", err)
 	}
@@ -66,7 +68,7 @@ func skipIfNoNextcloud(t *testing.T) TaskManager {
 }
 
 // cleanupNextcloudTasks removes all tasks from test lists
-func cleanupNextcloudTasks(t *testing.T, backend TaskManager, listID string) {
+func cleanupNextcloudTasks(t *testing.T, backend backend.TaskManager, listID string) {
 	t.Helper()
 
 	tasks, err := backend.GetTasks(listID, nil)
@@ -90,7 +92,7 @@ func TestSyncPushToNextcloud(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 
-	local, err := NewSQLiteBackend(BackendConfig{
+	local, err := sqlite.NewSQLiteBackend(backend.BackendConfig{
 		Type:    "sqlite",
 		Enabled: true,
 		DBPath:  dbPath,
@@ -130,9 +132,9 @@ func TestSyncPushToNextcloud(t *testing.T) {
 
 	// Create local task
 	now := time.Now()
-	localTask := Task{
+	localTask := backend.Task{
 		UID:      "test-push-task-1",
-		Summary:  "Test Push Task",
+		Summary:  "Test Push backend.Task",
 		Status:   "TODO",
 		Priority: 5,
 		Created:  now,
@@ -171,7 +173,7 @@ func TestSyncPushToNextcloud(t *testing.T) {
 
 	found := false
 	for _, task := range remoteTasks {
-		if task.Summary == "Test Push Task" {
+		if task.Summary == "Test Push backend.Task" {
 			found = true
 			if task.Priority != 5 {
 				t.Errorf("Expected priority 5, got %d", task.Priority)
@@ -181,7 +183,7 @@ func TestSyncPushToNextcloud(t *testing.T) {
 	}
 
 	if !found {
-		t.Error("Task not found on remote after push")
+		t.Error("backend.Task not found on remote after push")
 	}
 }
 
@@ -193,7 +195,7 @@ func TestSyncPullFromNextcloud(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 
-	local, err := NewSQLiteBackend(BackendConfig{
+	local, err := sqlite.NewSQLiteBackend(backend.BackendConfig{
 		Type:    "sqlite",
 		Enabled: true,
 		DBPath:  dbPath,
@@ -229,9 +231,9 @@ func TestSyncPullFromNextcloud(t *testing.T) {
 
 	// Create task on remote
 	now := time.Now()
-	remoteTask := Task{
+	remoteTask := backend.Task{
 		UID:      "test-pull-task-1",
-		Summary:  "Test Pull Task",
+		Summary:  "Test Pull backend.Task",
 		Status:   "TODO",
 		Priority: 3,
 		Created:  now,
@@ -270,7 +272,7 @@ func TestSyncPullFromNextcloud(t *testing.T) {
 
 	found := false
 	for _, task := range localTasks {
-		if task.Summary == "Test Pull Task" {
+		if task.Summary == "Test Pull backend.Task" {
 			found = true
 			if task.Priority != 3 {
 				t.Errorf("Expected priority 3, got %d", task.Priority)
@@ -280,7 +282,7 @@ func TestSyncPullFromNextcloud(t *testing.T) {
 	}
 
 	if !found {
-		t.Error("Task not found locally after pull")
+		t.Error("backend.Task not found locally after pull")
 	}
 }
 
@@ -292,7 +294,7 @@ func TestSyncBidirectional(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 
-	local, err := NewSQLiteBackend(BackendConfig{
+	local, err := sqlite.NewSQLiteBackend(backend.BackendConfig{
 		Type:    "sqlite",
 		Enabled: true,
 		DBPath:  dbPath,
@@ -330,9 +332,9 @@ func TestSyncBidirectional(t *testing.T) {
 	now := time.Now()
 
 	// Create local task
-	localTask := Task{
+	localTask := backend.Task{
 		UID:      "bidirectional-local-1",
-		Summary:  "Local Task",
+		Summary:  "Local backend.Task",
 		Status:   "TODO",
 		Priority: 1,
 		Created:  now,
@@ -348,9 +350,9 @@ func TestSyncBidirectional(t *testing.T) {
 	}
 
 	// Create remote task
-	remoteTask := Task{
+	remoteTask := backend.Task{
 		UID:      "bidirectional-remote-1",
-		Summary:  "Remote Task",
+		Summary:  "Remote backend.Task",
 		Status:   "TODO",
 		Priority: 2,
 		Created:  now,
@@ -386,10 +388,10 @@ func TestSyncBidirectional(t *testing.T) {
 	foundLocal := false
 	foundRemote := false
 	for _, task := range localTasks {
-		if task.Summary == "Local Task" {
+		if task.Summary == "Local backend.Task" {
 			foundLocal = true
 		}
-		if task.Summary == "Remote Task" {
+		if task.Summary == "Remote backend.Task" {
 			foundRemote = true
 		}
 	}
@@ -418,7 +420,7 @@ func TestSyncConflictResolution(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		strategy ConflictResolutionStrategy
+		strategy backend.ConflictResolutionStrategy
 	}{
 		{"ServerWins", ServerWins},
 		{"LocalWins", LocalWins},
@@ -430,7 +432,7 @@ func TestSyncConflictResolution(t *testing.T) {
 			tmpDir := t.TempDir()
 			dbPath := filepath.Join(tmpDir, "test.db")
 
-			local, err := NewSQLiteBackend(BackendConfig{
+			local, err := sqlite.NewSQLiteBackend(backend.BackendConfig{
 				Type:    "sqlite",
 				Enabled: true,
 				DBPath:  dbPath,
@@ -468,9 +470,9 @@ func TestSyncConflictResolution(t *testing.T) {
 
 			// Create task on remote first
 			taskUID := fmt.Sprintf("conflict-task-%s", tt.name)
-			remoteTask := Task{
+			remoteTask := backend.Task{
 				UID:         taskUID,
-				Summary:     "Original Task",
+				Summary:     "Original backend.Task",
 				Description: "Remote version",
 				Status:      "TODO",
 				Priority:    1,
@@ -492,7 +494,7 @@ func TestSyncConflictResolution(t *testing.T) {
 			}
 
 			// Modify locally
-			localTask := Task{
+			localTask := backend.Task{
 				UID:         taskUID,
 				Summary:     "Modified Locally",
 				Description: "Local version",
@@ -541,7 +543,7 @@ func TestSyncConflictResolution(t *testing.T) {
 				t.Fatalf("Failed to get final tasks: %v", err)
 			}
 
-			var finalTask *Task
+			var finalTask *backend.Task
 			for i := range finalTasks {
 				if finalTasks[i].UID == taskUID {
 					finalTask = &finalTasks[i]
@@ -550,7 +552,7 @@ func TestSyncConflictResolution(t *testing.T) {
 			}
 
 			if finalTask == nil {
-				t.Fatal("Task disappeared after conflict resolution")
+				t.Fatal("backend.Task disappeared after conflict resolution")
 			}
 
 			switch tt.strategy {
@@ -575,7 +577,7 @@ func TestSyncDeleteTask(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 
-	local, err := NewSQLiteBackend(BackendConfig{
+	local, err := sqlite.NewSQLiteBackend(backend.BackendConfig{
 		Type:    "sqlite",
 		Enabled: true,
 		DBPath:  dbPath,
@@ -613,9 +615,9 @@ func TestSyncDeleteTask(t *testing.T) {
 	now := time.Now()
 
 	// Create and sync a task
-	task := Task{
+	task := backend.Task{
 		UID:      "delete-test-task",
-		Summary:  "Task to Delete",
+		Summary:  "backend.Task to Delete",
 		Status:   "TODO",
 		Priority: 1,
 		Created:  now,
@@ -658,7 +660,7 @@ func TestSyncDeleteTask(t *testing.T) {
 
 	for _, rt := range remoteTasks {
 		if rt.UID == task.UID {
-			t.Error("Task still exists on remote after deletion sync")
+			t.Error("backend.Task still exists on remote after deletion sync")
 		}
 	}
 }

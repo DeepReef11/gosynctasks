@@ -1,6 +1,7 @@
-package backend
+package nextcloud
 
 import (
+	"gosynctasks/backend"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -22,8 +23,8 @@ func createTestURL(t *testing.T, serverURL string) *url.URL {
 }
 
 // Helper function to create test connector config with InsecureSkipVerify
-func createTestConnector(t *testing.T, serverURL string) ConnectorConfig {
-	return ConnectorConfig{
+func createTestConnector(t *testing.T, serverURL string) backend.ConnectorConfig {
+	return backend.ConnectorConfig{
 		URL:                createTestURL(t, serverURL),
 		InsecureSkipVerify: true, // Allow HTTP connections for testing
 		SuppressSSLWarning: true,
@@ -32,12 +33,12 @@ func createTestConnector(t *testing.T, serverURL string) ConnectorConfig {
 
 // Helper function to create test backend with proper HTTP URL
 func createTestBackend(t *testing.T, serverURL string) *NextcloudBackend {
-	backend := &NextcloudBackend{
+	nb := &NextcloudBackend{
 		Connector: createTestConnector(t, serverURL),
 	}
 	// Override baseURL to use HTTP for httptest server
-	backend.baseURL = serverURL
-	return backend
+	nb.baseURL = serverURL
+	return nb
 }
 
 // Mock CalDAV server responses
@@ -140,10 +141,10 @@ func TestNextcloudBackend_GetTaskLists(t *testing.T) {
 	defer server.Close()
 
 	// Create backend with test server
-	backend := createTestBackend(t, server.URL)
+	nb := createTestBackend(t, server.URL)
 
 	// Test GetTaskLists
-	lists, err := backend.GetTaskLists()
+	lists, err := nb.GetTaskLists()
 	if err != nil {
 		t.Fatalf("GetTaskLists failed: %v", err)
 	}
@@ -185,18 +186,18 @@ func TestNextcloudBackend_GetTaskLists_AuthenticationError(t *testing.T) {
 	defer server.Close()
 
 	// Create backend with test server
-	backend := createTestBackend(t, server.URL)
+	nb := createTestBackend(t, server.URL)
 
 	// Test GetTaskLists with authentication failure
-	_, err := backend.GetTaskLists()
+	_, err := nb.GetTaskLists()
 	if err == nil {
 		t.Fatal("Expected error for 401 response, got nil")
 	}
 
-	// Verify it's a BackendError
-	backendErr, ok := err.(*BackendError)
+	// Verify it's a backend.BackendError
+	backendErr, ok := err.(*backend.BackendError)
 	if !ok {
-		t.Fatalf("Expected BackendError, got %T", err)
+		t.Fatalf("Expected backend.BackendError, got %T", err)
 	}
 
 	// Verify it's recognized as unauthorized
@@ -230,10 +231,10 @@ func TestNextcloudBackend_GetTasks(t *testing.T) {
 	defer server.Close()
 
 	// Create backend with test server
-	backend := createTestBackend(t, server.URL)
+	nb := createTestBackend(t, server.URL)
 
 	// Test GetTasks
-	tasks, err := backend.GetTasks("/calendars/testuser/tasks/", nil)
+	tasks, err := nb.GetTasks("/calendars/testuser/tasks/", nil)
 	if err != nil {
 		t.Fatalf("GetTasks failed: %v", err)
 	}
@@ -295,15 +296,15 @@ func TestNextcloudBackend_GetTasks_WithFilter(t *testing.T) {
 	}))
 	defer server.Close()
 
-	backend := createTestBackend(t, server.URL)
+	nb := createTestBackend(t, server.URL)
 
 	// Test with status filter (use CalDAV status name, not app status name)
 	needsActionStatus := "NEEDS-ACTION"
-	filter := &TaskFilter{
+	filter := &backend.TaskFilter{
 		Statuses: &[]string{needsActionStatus},
 	}
 
-	_, err := backend.GetTasks("/calendars/testuser/tasks/", filter)
+	_, err := nb.GetTasks("/calendars/testuser/tasks/", filter)
 	if err != nil {
 		t.Fatalf("GetTasks with filter failed: %v", err)
 	}
@@ -329,7 +330,7 @@ func TestNextcloudBackend_FindTasksBySummary(t *testing.T) {
 	}))
 	defer server.Close()
 
-	backend := createTestBackend(t, server.URL)
+	nb := createTestBackend(t, server.URL)
 
 	tests := []struct {
 		name          string
@@ -364,7 +365,7 @@ func TestNextcloudBackend_FindTasksBySummary(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			matches, err := backend.FindTasksBySummary("/calendars/testuser/tasks/", tt.searchSummary)
+			matches, err := nb.FindTasksBySummary("/calendars/testuser/tasks/", tt.searchSummary)
 			if err != nil {
 				t.Fatalf("FindTasksBySummary failed: %v", err)
 			}
@@ -395,17 +396,17 @@ func TestNextcloudBackend_AddTask(t *testing.T) {
 	}))
 	defer server.Close()
 
-	backend := createTestBackend(t, server.URL)
+	nb := createTestBackend(t, server.URL)
 
 	// Create test task
-	task := Task{
+	task := backend.Task{
 		Summary:     "New test task",
-		Description: "Task description",
+		Description: "backend.Task description",
 		Status:      "NEEDS-ACTION",
 		Priority:    3,
 	}
 
-	err := backend.AddTask("/calendars/testuser/tasks/", task)
+	err := nb.AddTask("/calendars/testuser/tasks/", task)
 	if err != nil {
 		t.Fatalf("AddTask failed: %v", err)
 	}
@@ -425,7 +426,7 @@ func TestNextcloudBackend_AddTask(t *testing.T) {
 	if !strings.Contains(capturedBody, "SUMMARY:New test task") {
 		t.Error("Expected iCalendar content to contain task summary")
 	}
-	if !strings.Contains(capturedBody, "DESCRIPTION:Task description") {
+	if !strings.Contains(capturedBody, "DESCRIPTION:backend.Task description") {
 		t.Error("Expected iCalendar content to contain task description")
 	}
 	if !strings.Contains(capturedBody, "STATUS:NEEDS-ACTION") {
@@ -451,10 +452,10 @@ func TestNextcloudBackend_UpdateTask(t *testing.T) {
 	}))
 	defer server.Close()
 
-	backend := createTestBackend(t, server.URL)
+	nb := createTestBackend(t, server.URL)
 
 	// Create test task with UID (required for update)
-	task := Task{
+	task := backend.Task{
 		UID:         "existing-task-123",
 		Summary:     "Updated task",
 		Description: "Updated description",
@@ -462,7 +463,7 @@ func TestNextcloudBackend_UpdateTask(t *testing.T) {
 		Priority:    1,
 	}
 
-	err := backend.UpdateTask("/calendars/testuser/tasks/", task)
+	err := nb.UpdateTask("/calendars/testuser/tasks/", task)
 	if err != nil {
 		t.Fatalf("UpdateTask failed: %v", err)
 	}
@@ -485,17 +486,17 @@ func TestNextcloudBackend_UpdateTask(t *testing.T) {
 }
 
 func TestNextcloudBackend_SortTasks(t *testing.T) {
-	backend := &NextcloudBackend{}
+	nb := &NextcloudBackend{}
 
-	tasks := []Task{
-		{Summary: "Task A", Priority: 0}, // Undefined (should be last)
-		{Summary: "Task B", Priority: 5}, // Medium
-		{Summary: "Task C", Priority: 1}, // Highest
-		{Summary: "Task D", Priority: 9}, // Lowest
-		{Summary: "Task E", Priority: 3}, // High
+	tasks := []backend.Task{
+		{Summary: "backend.Task A", Priority: 0}, // Undefined (should be last)
+		{Summary: "backend.Task B", Priority: 5}, // Medium
+		{Summary: "backend.Task C", Priority: 1}, // Highest
+		{Summary: "backend.Task D", Priority: 9}, // Lowest
+		{Summary: "backend.Task E", Priority: 3}, // High
 	}
 
-	backend.SortTasks(tasks)
+	nb.SortTasks(tasks)
 
 	// Expected order: 1, 3, 5, 9, 0 (undefined last)
 	expected := []int{1, 3, 5, 9, 0}
@@ -507,7 +508,7 @@ func TestNextcloudBackend_SortTasks(t *testing.T) {
 }
 
 func TestNextcloudBackend_GetPriorityColor(t *testing.T) {
-	backend := &NextcloudBackend{}
+	nb := &NextcloudBackend{}
 
 	tests := []struct {
 		priority int
@@ -523,7 +524,7 @@ func TestNextcloudBackend_GetPriorityColor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(string(rune(tt.priority)), func(t *testing.T) {
-			color := backend.GetPriorityColor(tt.priority)
+			color := nb.GetPriorityColor(tt.priority)
 			if color != tt.expected {
 				t.Errorf("Priority %d: expected color %q, got %q", tt.priority, tt.expected, color)
 			}
@@ -532,7 +533,7 @@ func TestNextcloudBackend_GetPriorityColor(t *testing.T) {
 }
 
 func TestNextcloudBackend_ParseStatusFlag(t *testing.T) {
-	backend := &NextcloudBackend{}
+	nb := &NextcloudBackend{}
 
 	tests := []struct {
 		name        string
@@ -570,7 +571,7 @@ func TestNextcloudBackend_ParseStatusFlag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := backend.ParseStatusFlag(tt.input)
+			result, err := nb.ParseStatusFlag(tt.input)
 
 			if tt.expectError {
 				if err == nil {
@@ -592,7 +593,7 @@ func TestNextcloudBackend_ParseStatusFlag(t *testing.T) {
 }
 
 func TestNextcloudBackend_StatusToDisplayName(t *testing.T) {
-	backend := &NextcloudBackend{}
+	nb := &NextcloudBackend{}
 
 	tests := []struct {
 		name     string
@@ -615,7 +616,7 @@ func TestNextcloudBackend_StatusToDisplayName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := backend.StatusToDisplayName(tt.input)
+			result := nb.StatusToDisplayName(tt.input)
 			if result != tt.expected {
 				t.Errorf("StatusToDisplayName(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
@@ -693,10 +694,10 @@ func TestNextcloudBackend_DeleteTask(t *testing.T) {
 			defer server.Close()
 
 			// Create backend with mock server
-			backend := createTestBackend(t, server.URL)
+			nb := createTestBackend(t, server.URL)
 
 			// Execute DeleteTask
-			err := backend.DeleteTask("test-list", tt.taskUID)
+			err := nb.DeleteTask("test-list", tt.taskUID)
 
 			// Check error expectation
 			if tt.expectError {
@@ -799,10 +800,10 @@ func TestNextcloudBackend_CreateTaskList(t *testing.T) {
 			defer server.Close()
 
 			// Create backend with mock server
-			backend := createTestBackend(t, server.URL)
+			nb := createTestBackend(t, server.URL)
 
 			// Execute CreateTaskList
-			listID, err := backend.CreateTaskList(tt.listName, tt.description, tt.color)
+			listID, err := nb.CreateTaskList(tt.listName, tt.description, tt.color)
 
 			// Check error expectation
 			if tt.expectError {
@@ -880,10 +881,10 @@ func TestNextcloudBackend_DeleteTaskList(t *testing.T) {
 			defer server.Close()
 
 			// Create backend with mock server
-			backend := createTestBackend(t, server.URL)
+			nb := createTestBackend(t, server.URL)
 
 			// Execute DeleteTaskList
-			err := backend.DeleteTaskList(tt.listID)
+			err := nb.DeleteTaskList(tt.listID)
 
 			// Check error expectation
 			if tt.expectError {
@@ -969,10 +970,10 @@ func TestNextcloudBackend_RenameTaskList(t *testing.T) {
 			defer server.Close()
 
 			// Create backend with mock server
-			backend := createTestBackend(t, server.URL)
+			nb := createTestBackend(t, server.URL)
 
 			// Execute RenameTaskList
-			err := backend.RenameTaskList(tt.listID, tt.newName)
+			err := nb.RenameTaskList(tt.listID, tt.newName)
 
 			// Check error expectation
 			if tt.expectError {
@@ -1059,7 +1060,7 @@ func TestHTTPSEnforcement(t *testing.T) {
 			}
 
 			// Create connector config
-			config := ConnectorConfig{
+			config := backend.ConnectorConfig{
 				URL:                u,
 				AllowHTTP:          tt.allowHTTP,
 				InsecureSkipVerify: true,
@@ -1067,12 +1068,12 @@ func TestHTTPSEnforcement(t *testing.T) {
 			}
 
 			// Create backend
-			backend := &NextcloudBackend{
+			nb := &NextcloudBackend{
 				Connector: config,
 			}
 
 			// Get base URL (this triggers protocol selection)
-			baseURL := backend.getBaseURL()
+			baseURL := nb.getBaseURL()
 
 			// Verify the protocol
 			if !strings.HasPrefix(baseURL, tt.expectedProto+"://") {
@@ -1092,18 +1093,18 @@ func TestHTTPSEnforcementDefault(t *testing.T) {
 	// Create URL without AllowHTTP (defaults to false)
 	u, _ := url.Parse("nextcloud://user:pass@localhost:8080")
 
-	config := ConnectorConfig{
+	config := backend.ConnectorConfig{
 		URL:                u,
 		InsecureSkipVerify: true,
 		SuppressSSLWarning: true,
 		// AllowHTTP is not set, defaults to false
 	}
 
-	backend := &NextcloudBackend{
+	nb := &NextcloudBackend{
 		Connector: config,
 	}
 
-	baseURL := backend.getBaseURL()
+	baseURL := nb.getBaseURL()
 
 	// Should use HTTPS even though port is 8080 (common HTTP port)
 	if !strings.HasPrefix(baseURL, "https://") {

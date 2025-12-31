@@ -1,4 +1,4 @@
-package backend
+package nextcloud
 
 import (
 	"bytes"
@@ -6,14 +6,25 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
 	"time"
+
+	"gosynctasks/backend"
 )
 
+func init() {
+	// Register Nextcloud backend for URL scheme "nextcloud://"
+	backend.RegisterScheme("nextcloud", NewNextcloudBackend)
+
+	// Register Nextcloud backend for config type "nextcloud"
+	backend.RegisterType("nextcloud", newNextcloudBackendFromBackendConfig)
+}
+
 type NextcloudBackend struct {
-	Connector ConnectorConfig
+	Connector backend.ConnectorConfig
 	username  string
 	password  string
 	baseURL   string
@@ -161,21 +172,21 @@ func (nB *NextcloudBackend) checkHTTPResponse(resp *http.Response, operation str
 	// Common error cases
 	switch resp.StatusCode {
 	case 401, 403:
-		return NewBackendError(operation, resp.StatusCode, "Authentication failed. Please check your username and password in the config file").
+		return backend.NewBackendError(operation, resp.StatusCode, "Authentication failed. Please check your username and password in the config file").
 			WithBody(string(body))
 	case 404:
-		return NewBackendError(operation, resp.StatusCode, "Resource not found. Please check your configuration").
+		return backend.NewBackendError(operation, resp.StatusCode, "Resource not found. Please check your configuration").
 			WithBody(string(body))
 	case 405:
-		return NewBackendError(operation, resp.StatusCode, "Operation not allowed or resource already exists").
+		return backend.NewBackendError(operation, resp.StatusCode, "Operation not allowed or resource already exists").
 			WithBody(string(body))
 	default:
-		return NewBackendError(operation, resp.StatusCode, resp.Status).
+		return backend.NewBackendError(operation, resp.StatusCode, resp.Status).
 			WithBody(string(body))
 	}
 }
 
-func (nB *NextcloudBackend) buildCalendarQuery(filter *TaskFilter) string {
+func (nB *NextcloudBackend) buildCalendarQuery(filter *backend.TaskFilter) string {
 	query := `<?xml version="1.0" encoding="utf-8" ?>
 <c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
   <d:prop>
@@ -227,7 +238,7 @@ func (nB *NextcloudBackend) buildCalendarQuery(filter *TaskFilter) string {
 
 	return query
 }
-func (nB *NextcloudBackend) GetTasks(listID string, taskFilter *TaskFilter) ([]Task, error) {
+func (nB *NextcloudBackend) GetTasks(listID string, taskFilter *backend.TaskFilter) ([]backend.Task, error) {
 	if nB.Connector.URL.User == nil {
 		return nil, fmt.Errorf("no user credentials in URL")
 	}
@@ -264,7 +275,7 @@ func (nB *NextcloudBackend) GetTasks(listID string, taskFilter *TaskFilter) ([]T
 
 	// Apply client-side ExcludeStatuses filter (CalDAV doesn't support NOT IN queries easily)
 	if taskFilter != nil && taskFilter.ExcludeStatuses != nil && len(*taskFilter.ExcludeStatuses) > 0 {
-		filtered := make([]Task, 0, len(tasks))
+		filtered := make([]backend.Task, 0, len(tasks))
 		excludeMap := make(map[string]bool)
 		for _, status := range *taskFilter.ExcludeStatuses {
 			excludeMap[status] = true
@@ -280,7 +291,7 @@ func (nB *NextcloudBackend) GetTasks(listID string, taskFilter *TaskFilter) ([]T
 	return tasks, nil
 }
 
-func (nB *NextcloudBackend) FindTasksBySummary(listID string, summary string) ([]Task, error) {
+func (nB *NextcloudBackend) FindTasksBySummary(listID string, summary string) ([]backend.Task, error) {
 	// For now, implement client-side filtering
 	// Future optimization: could use CalDAV text-match query for server-side search
 
@@ -291,7 +302,7 @@ func (nB *NextcloudBackend) FindTasksBySummary(listID string, summary string) ([
 	}
 
 	// Filter by summary (case-insensitive partial match)
-	var matches []Task
+	var matches []backend.Task
 	summaryLower := strings.ToLower(summary)
 
 	for _, task := range allTasks {
@@ -306,7 +317,7 @@ func (nB *NextcloudBackend) FindTasksBySummary(listID string, summary string) ([
 	return matches, nil
 }
 
-func (nB *NextcloudBackend) GetTaskLists() ([]TaskList, error) {
+func (nB *NextcloudBackend) GetTaskLists() ([]backend.TaskList, error) {
 	calendarURL := nB.buildCalendarURL()
 
 	// Build request body
@@ -347,7 +358,7 @@ func (nB *NextcloudBackend) GetTaskLists() ([]TaskList, error) {
 	return nB.parseTaskLists(string(respBody), calendarURL)
 }
 
-func (nB *NextcloudBackend) GetDeletedTaskLists() ([]TaskList, error) {
+func (nB *NextcloudBackend) GetDeletedTaskLists() ([]backend.TaskList, error) {
 	calendarURL := nB.buildCalendarURL()
 
 	// Build request body (same as GetTaskLists)
@@ -388,7 +399,7 @@ func (nB *NextcloudBackend) GetDeletedTaskLists() ([]TaskList, error) {
 	return nB.parseDeletedTaskLists(string(respBody), calendarURL)
 }
 
-func (nB *NextcloudBackend) AddTask(listID string, task Task) error {
+func (nB *NextcloudBackend) AddTask(listID string, task backend.Task) error {
 	// Set defaults
 	if task.UID == "" {
 		task.UID = fmt.Sprintf("task-%d", time.Now().Unix())
@@ -415,7 +426,7 @@ func (nB *NextcloudBackend) AddTask(listID string, task Task) error {
 
 	// Check response status
 	if err := nB.checkHTTPResponse(resp, "AddTask"); err != nil {
-		if backendErr, ok := err.(*BackendError); ok {
+		if backendErr, ok := err.(*backend.BackendError); ok {
 			return backendErr.WithTaskUID(task.UID).WithListID(listID)
 		}
 		return err
@@ -424,7 +435,7 @@ func (nB *NextcloudBackend) AddTask(listID string, task Task) error {
 	return nil
 }
 
-func (nB *NextcloudBackend) UpdateTask(listID string, task Task) error {
+func (nB *NextcloudBackend) UpdateTask(listID string, task backend.Task) error {
 	// Set modified time to now
 	task.Modified = time.Now()
 
@@ -449,7 +460,7 @@ func (nB *NextcloudBackend) UpdateTask(listID string, task Task) error {
 
 	// Check response status
 	if err := nB.checkHTTPResponse(resp, "UpdateTask"); err != nil {
-		if backendErr, ok := err.(*BackendError); ok {
+		if backendErr, ok := err.(*backend.BackendError); ok {
 			return backendErr.WithTaskUID(task.UID).WithListID(listID)
 		}
 		return err
@@ -469,14 +480,14 @@ func (nB *NextcloudBackend) DeleteTask(listID string, taskUID string) error {
 
 	// Check response status - handle 404 specifically for task not found
 	if resp.StatusCode == 404 {
-		return NewBackendError("DeleteTask", 404, "task not found (may have been already deleted)").
+		return backend.NewBackendError("DeleteTask", 404, "task not found (may have been already deleted)").
 			WithTaskUID(taskUID).
 			WithListID(listID)
 	}
 
 	// Check for other errors
 	if err := nB.checkHTTPResponse(resp, "DeleteTask", 200, 204); err != nil {
-		if backendErr, ok := err.(*BackendError); ok {
+		if backendErr, ok := err.(*backend.BackendError); ok {
 			return backendErr.WithTaskUID(taskUID).WithListID(listID)
 		}
 		return err
@@ -534,7 +545,7 @@ func (nB *NextcloudBackend) CreateTaskList(name, description, color string) (str
 	// Check response status - handle 405 specifically for list already exists
 	if resp.StatusCode == 405 {
 		body, _ := io.ReadAll(resp.Body)
-		return "", NewBackendError("CreateTaskList", 405, "list already exists or name conflict").
+		return "", backend.NewBackendError("CreateTaskList", 405, "list already exists or name conflict").
 			WithBody(string(body))
 	}
 
@@ -557,13 +568,13 @@ func (nB *NextcloudBackend) DeleteTaskList(listID string) error {
 
 	// Check response status - handle 404 specifically for list not found
 	if resp.StatusCode == 404 {
-		return NewBackendError("DeleteTaskList", 404, "list not found").
+		return backend.NewBackendError("DeleteTaskList", 404, "list not found").
 			WithListID(listID)
 	}
 
 	// Check for other errors
 	if err := nB.checkHTTPResponse(resp, "DeleteTaskList", 200, 204); err != nil {
-		if backendErr, ok := err.(*BackendError); ok {
+		if backendErr, ok := err.(*backend.BackendError); ok {
 			return backendErr.WithListID(listID)
 		}
 		return err
@@ -596,13 +607,13 @@ func (nB *NextcloudBackend) RenameTaskList(listID, newName string) error {
 
 	// Check response status - handle 404 specifically for list not found
 	if resp.StatusCode == 404 {
-		return NewBackendError("RenameTaskList", 404, "list not found").
+		return backend.NewBackendError("RenameTaskList", 404, "list not found").
 			WithListID(listID)
 	}
 
 	// Check for other errors
 	if err := nB.checkHTTPResponse(resp, "RenameTaskList", 200, 207); err != nil {
-		if backendErr, ok := err.(*BackendError); ok {
+		if backendErr, ok := err.(*backend.BackendError); ok {
 			return backendErr.WithListID(listID)
 		}
 		return err
@@ -641,12 +652,12 @@ func (nB *NextcloudBackend) RestoreTaskList(listID string) error {
 
 	// Check response status - 201 Created or 204 No Content are success statuses
 	if resp.StatusCode == 404 {
-		return NewBackendError("RestoreTaskList", 404, "list not found in trash").
+		return backend.NewBackendError("RestoreTaskList", 404, "list not found in trash").
 			WithListID(listID)
 	}
 
 	if err := nB.checkHTTPResponse(resp, "RestoreTaskList", 201, 204); err != nil {
-		if backendErr, ok := err.(*BackendError); ok {
+		if backendErr, ok := err.(*backend.BackendError); ok {
 			return backendErr.WithListID(listID)
 		}
 		return err
@@ -668,13 +679,13 @@ func (nB *NextcloudBackend) PermanentlyDeleteTaskList(listID string) error {
 
 	// Check response status - handle 404 specifically for list not found
 	if resp.StatusCode == 404 {
-		return NewBackendError("PermanentlyDeleteTaskList", 404, "list not found in trash").
+		return backend.NewBackendError("PermanentlyDeleteTaskList", 404, "list not found in trash").
 			WithListID(listID)
 	}
 
 	// Check for other errors - 200 OK or 204 No Content are success statuses
 	if err := nB.checkHTTPResponse(resp, "PermanentlyDeleteTaskList", 200, 204); err != nil {
-		if backendErr, ok := err.(*BackendError); ok {
+		if backendErr, ok := err.(*backend.BackendError); ok {
 			return backendErr.WithListID(listID)
 		}
 		return err
@@ -683,7 +694,7 @@ func (nB *NextcloudBackend) PermanentlyDeleteTaskList(listID string) error {
 	return nil
 }
 
-func (nb *NextcloudBackend) buildICalContent(task Task) string {
+func (nb *NextcloudBackend) buildICalContent(task backend.Task) string {
 	var icalContent bytes.Buffer
 
 	// Format timestamps
@@ -744,7 +755,7 @@ func (nb *NextcloudBackend) buildICalContent(task Task) string {
 	return icalContent.String()
 }
 
-func (nB *NextcloudBackend) SortTasks(tasks []Task) {
+func (nB *NextcloudBackend) SortTasks(tasks []backend.Task) {
 	// Nextcloud priority: 1 is highest, 0 is undefined (goes last)
 	sort.Slice(tasks, func(i, j int) bool {
 		pi, pj := tasks[i].Priority, tasks[j].Priority
@@ -819,7 +830,7 @@ func (nB *NextcloudBackend) GetBackendContext() string {
 	return fmt.Sprintf("%s@%s", username, host)
 }
 
-func NewNextcloudBackend(connectorConfig ConnectorConfig) (TaskManager, error) {
+func NewNextcloudBackend(connectorConfig backend.ConnectorConfig) (backend.TaskManager, error) {
 	nB := &NextcloudBackend{
 		Connector: connectorConfig,
 	}
@@ -864,6 +875,25 @@ func NewNextcloudBackend(connectorConfig ConnectorConfig) (TaskManager, error) {
 	}
 
 	return nB, nil
+}
+
+// newNextcloudBackendFromBackendConfig creates a Nextcloud backend from BackendConfig
+func newNextcloudBackendFromBackendConfig(bc backend.BackendConfig) (backend.TaskManager, error) {
+	// Convert BackendConfig to ConnectorConfig
+	u, err := url.Parse(bc.URL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URL for nextcloud backend: %w", err)
+	}
+
+	connConfig := backend.ConnectorConfig{
+		URL:                 u,
+		InsecureSkipVerify:  bc.InsecureSkipVerify,
+		SuppressSSLWarning:  bc.SuppressSSLWarning,
+		AllowHTTP:           bc.AllowHTTP,
+		SuppressHTTPWarning: bc.SuppressHTTPWarning,
+	}
+
+	return NewNextcloudBackend(connConfig)
 }
 
 func (nB *NextcloudBackend) BasicValidation() error {

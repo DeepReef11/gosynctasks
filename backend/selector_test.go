@@ -79,7 +79,7 @@ func TestBackendRegistryGetBackend(t *testing.T) {
 func TestBackendRegistryListBackends(t *testing.T) {
 	registry := &BackendRegistry{
 		backends: map[string]TaskManager{
-			"mock1": &MockBackend{name: "mock1"},
+			"mock1": &MockBackend{Name: "mock1"},
 		},
 		configs: map[string]BackendConfig{
 			"mock1": {Type: "mock", Enabled: true},
@@ -209,8 +209,8 @@ func TestBackendSelector(t *testing.T) {
 			name: "sync enabled - uses local backend",
 			registry: &BackendRegistry{
 				backends: map[string]TaskManager{
-					"sqlite":    &MockBackend{name: "sqlite"},
-					"nextcloud": &MockBackend{name: "nextcloud"},
+					"sqlite":    &MockBackend{Name: "sqlite"},
+					"nextcloud": &MockBackend{Name: "nextcloud"},
 				},
 				configs: map[string]BackendConfig{
 					"sqlite":    {Type: "sqlite", Enabled: true},
@@ -227,8 +227,8 @@ func TestBackendSelector(t *testing.T) {
 			name: "sync disabled - uses default backend",
 			registry: &BackendRegistry{
 				backends: map[string]TaskManager{
-					"sqlite":    &MockBackend{name: "sqlite"},
-					"nextcloud": &MockBackend{name: "nextcloud"},
+					"sqlite":    &MockBackend{Name: "sqlite"},
+					"nextcloud": &MockBackend{Name: "nextcloud"},
 				},
 				configs: map[string]BackendConfig{
 					"sqlite":    {Type: "sqlite", Enabled: true},
@@ -245,8 +245,8 @@ func TestBackendSelector(t *testing.T) {
 			name: "explicit backend overrides sync",
 			registry: &BackendRegistry{
 				backends: map[string]TaskManager{
-					"sqlite":    &MockBackend{name: "sqlite"},
-					"nextcloud": &MockBackend{name: "nextcloud"},
+					"sqlite":    &MockBackend{Name: "sqlite"},
+					"nextcloud": &MockBackend{Name: "nextcloud"},
 				},
 				configs: map[string]BackendConfig{
 					"sqlite":    {Type: "sqlite", Enabled: true},

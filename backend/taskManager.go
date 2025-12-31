@@ -77,16 +77,13 @@ func (c *ConnectorConfig) UnmarshalYAML(value *yaml.Node) error {
 }
 
 func (c *ConnectorConfig) TaskManager() (TaskManager, error) {
-	switch c.URL.Scheme {
-	case "nextcloud":
-		return NewNextcloudBackend(*c)
-	case "file":
-		return NewFileBackend(*c)
-	default:
+	constructor, err := GetSchemeConstructor(c.URL.Scheme)
+	if err != nil {
 		return nil, &UnsupportedSchemeError{
 			Scheme: c.URL.Scheme,
 		}
 	}
+	return constructor(*c)
 }
 
 // TaskManager creates a TaskManager instance from BackendConfig.
@@ -96,46 +93,14 @@ func (bc *BackendConfig) TaskManager() (TaskManager, error) {
 		return nil, fmt.Errorf("backend is disabled")
 	}
 
-	switch bc.Type {
-	case "nextcloud":
-		// Convert BackendConfig to ConnectorConfig for backward compatibility
-		u, err := url.Parse(bc.URL)
-		if err != nil {
-			return nil, fmt.Errorf("invalid URL for nextcloud backend: %w", err)
-		}
-		connConfig := ConnectorConfig{
-			URL:                 u,
-			InsecureSkipVerify:  bc.InsecureSkipVerify,
-			SuppressSSLWarning:  bc.SuppressSSLWarning,
-			AllowHTTP:           bc.AllowHTTP,
-			SuppressHTTPWarning: bc.SuppressHTTPWarning,
-		}
-		return NewNextcloudBackend(connConfig)
-
-	case "file":
-		// Convert BackendConfig to ConnectorConfig for backward compatibility
-		u, err := url.Parse(bc.URL)
-		if err != nil {
-			return nil, fmt.Errorf("invalid URL for file backend: %w", err)
-		}
-		connConfig := ConnectorConfig{
-			URL: u,
-		}
-		return NewFileBackend(connConfig)
-
-	case "git":
-		// Create Git backend
-		return NewGitBackend(*bc)
-
-	case "sqlite":
-		// Create SQLite backend
-		return NewSQLiteBackend(*bc)
-
-	default:
+	constructor, err := GetTypeConstructor(bc.Type)
+	if err != nil {
 		return nil, &UnsupportedSchemeError{
 			Scheme: bc.Type,
 		}
 	}
+
+	return constructor(*bc)
 }
 
 // TaskManager defines the interface for task management backends.

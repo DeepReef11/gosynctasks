@@ -1,6 +1,8 @@
-package backend
+package sync
 
 import (
+	"gosynctasks/backend"
+	"gosynctasks/backend/sqlite"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -19,13 +21,13 @@ const (
 
 // SyncManager coordinates synchronization between local SQLite and remote backend
 type SyncManager struct {
-	local    *SQLiteBackend
-	remote   TaskManager
+	local    *sqlite.SQLiteBackend
+	remote   backend.TaskManager
 	strategy ConflictResolutionStrategy
 }
 
 // NewSyncManager creates a new sync manager
-func NewSyncManager(local *SQLiteBackend, remote TaskManager, strategy ConflictResolutionStrategy) *SyncManager {
+func NewSyncManager(local *sqlite.SQLiteBackend, remote backend.TaskManager, strategy ConflictResolutionStrategy) *SyncManager {
 	return &SyncManager{
 		local:    local,
 		remote:   remote,
@@ -162,7 +164,7 @@ func (sm *SyncManager) pull() (*pullResult, error) {
 		}
 
 		// Create map of local tasks for quick lookup
-		localTaskMap := make(map[string]*Task)
+		localTaskMap := make(map[string]*backend.Task)
 		for i := range localTasks {
 			localTaskMap[localTasks[i].UID] = &localTasks[i]
 		}
@@ -179,7 +181,7 @@ func (sm *SyncManager) pull() (*pullResult, error) {
 				}
 				result.PulledTasks++
 			} else {
-				// Task exists locally - check for conflict
+				// backend.Task exists locally - check for conflict
 				isLocallyModified, err := sm.isTaskLocallyModified(remoteTask.UID)
 				if err != nil {
 					return nil, err
@@ -308,14 +310,14 @@ func (sm *SyncManager) push() (*pushResult, error) {
 }
 
 // pushCreate pushes a create operation to remote
-func (sm *SyncManager) pushCreate(op SyncOperation) error {
+func (sm *SyncManager) pushCreate(op sqlite.SyncOperation) error {
 	// Get task from local
 	tasks, err := sm.local.GetTasks(op.ListID, nil)
 	if err != nil {
 		return err
 	}
 
-	var task *Task
+	var task *backend.Task
 	for i := range tasks {
 		if tasks[i].UID == op.TaskUID {
 			task = &tasks[i]
@@ -324,7 +326,7 @@ func (sm *SyncManager) pushCreate(op SyncOperation) error {
 	}
 
 	if task == nil {
-		// Task was deleted locally, remove from queue
+		// backend.Task was deleted locally, remove from queue
 		return nil
 	}
 
@@ -338,14 +340,14 @@ func (sm *SyncManager) pushCreate(op SyncOperation) error {
 }
 
 // pushUpdate pushes an update operation to remote
-func (sm *SyncManager) pushUpdate(op SyncOperation) error {
+func (sm *SyncManager) pushUpdate(op sqlite.SyncOperation) error {
 	// Get task from local
 	tasks, err := sm.local.GetTasks(op.ListID, nil)
 	if err != nil {
 		return err
 	}
 
-	var task *Task
+	var task *backend.Task
 	for i := range tasks {
 		if tasks[i].UID == op.TaskUID {
 			task = &tasks[i]
@@ -354,7 +356,7 @@ func (sm *SyncManager) pushUpdate(op SyncOperation) error {
 	}
 
 	if task == nil {
-		// Task was deleted locally, remove from queue
+		// backend.Task was deleted locally, remove from queue
 		return nil
 	}
 
@@ -368,11 +370,11 @@ func (sm *SyncManager) pushUpdate(op SyncOperation) error {
 }
 
 // pushDelete pushes a delete operation to remote
-func (sm *SyncManager) pushDelete(op SyncOperation) error {
+func (sm *SyncManager) pushDelete(op sqlite.SyncOperation) error {
 	err := sm.remote.DeleteTask(op.ListID, op.TaskUID)
 	if err != nil {
 		// If task doesn't exist on remote, that's ok
-		if backendErr, ok := err.(*BackendError); ok && backendErr.IsNotFound() {
+		if backendErr, ok := err.(*backend.BackendError); ok && backendErr.IsNotFound() {
 			return nil
 		}
 		return fmt.Errorf("failed to delete task on remote: %w", err)
@@ -403,7 +405,7 @@ func (sm *SyncManager) isTaskLocallyModified(taskUID string) (bool, error) {
 }
 
 // isTaskRemoteModified checks if a remote task has been modified since last sync
-func (sm *SyncManager) isTaskRemoteModified(remoteTask Task) (bool, error) {
+func (sm *SyncManager) isTaskRemoteModified(remoteTask backend.Task) (bool, error) {
 	db, err := sm.local.GetDB()
 	if err != nil {
 		return false, err
@@ -439,7 +441,7 @@ func (sm *SyncManager) isTaskRemoteModified(remoteTask Task) (bool, error) {
 }
 
 // resolveConflict resolves a conflict between local and remote versions
-func (sm *SyncManager) resolveConflict(listID string, localTask, remoteTask Task) error {
+func (sm *SyncManager) resolveConflict(listID string, localTask, remoteTask backend.Task) error {
 	switch sm.strategy {
 	case ServerWins:
 		return sm.resolveServerWins(listID, localTask, remoteTask)
@@ -455,7 +457,7 @@ func (sm *SyncManager) resolveConflict(listID string, localTask, remoteTask Task
 }
 
 // resolveServerWins discards local changes and uses server version
-func (sm *SyncManager) resolveServerWins(listID string, localTask, remoteTask Task) error {
+func (sm *SyncManager) resolveServerWins(listID string, localTask, remoteTask backend.Task) error {
 	// Update local with remote version
 	err := sm.updateTaskLocally(listID, remoteTask)
 	if err != nil {
@@ -468,7 +470,7 @@ func (sm *SyncManager) resolveServerWins(listID string, localTask, remoteTask Ta
 }
 
 // resolveLocalWins keeps local changes for push to server
-func (sm *SyncManager) resolveLocalWins(listID string, localTask, remoteTask Task) error {
+func (sm *SyncManager) resolveLocalWins(listID string, localTask, remoteTask backend.Task) error {
 	// Keep local version, mark for push
 	// Local task already has locally_modified=1, so it will be pushed
 	// Just update sync metadata with remote info
@@ -479,7 +481,7 @@ func (sm *SyncManager) resolveLocalWins(listID string, localTask, remoteTask Tas
 }
 
 // resolveMerge intelligently merges local and remote changes
-func (sm *SyncManager) resolveMerge(listID string, localTask, remoteTask Task) error {
+func (sm *SyncManager) resolveMerge(listID string, localTask, remoteTask backend.Task) error {
 	mergedTask := remoteTask // Start with remote as base
 
 	// Preserve local description if remote hasn't changed
@@ -521,7 +523,7 @@ func (sm *SyncManager) resolveMerge(listID string, localTask, remoteTask Task) e
 }
 
 // resolveKeepBoth creates a copy of the local version
-func (sm *SyncManager) resolveKeepBoth(listID string, localTask, remoteTask Task) error {
+func (sm *SyncManager) resolveKeepBoth(listID string, localTask, remoteTask backend.Task) error {
 	// Update local task with remote version
 	err := sm.updateTaskLocally(listID, remoteTask)
 	if err != nil {
@@ -530,7 +532,7 @@ func (sm *SyncManager) resolveKeepBoth(listID string, localTask, remoteTask Task
 
 	// Create a copy of the local version with new UID
 	localCopy := localTask
-	localCopy.UID = generateUID()
+	localCopy.UID = sqlite.GenerateUID()
 	localCopy.Summary = localTask.Summary + " (local copy)"
 
 	// Insert the copy
@@ -545,7 +547,7 @@ func (sm *SyncManager) resolveKeepBoth(listID string, localTask, remoteTask Task
 }
 
 // insertTaskLocally inserts a remote task into local storage
-func (sm *SyncManager) insertTaskLocally(listID string, task Task) error {
+func (sm *SyncManager) insertTaskLocally(listID string, task backend.Task) error {
 	db, err := sm.local.GetDB()
 	if err != nil {
 		return err
@@ -568,16 +570,16 @@ func (sm *SyncManager) insertTaskLocally(listID string, task Task) error {
 		task.UID,
 		listID,
 		task.Summary,
-		nullString(task.Description),
+		sqlite.NullString(task.Description),
 		task.Status,
 		task.Priority,
-		timeValueToNullInt64(task.Created),
-		timeValueToNullInt64(task.Modified),
-		timeToNullInt64(task.DueDate),
-		timeToNullInt64(task.StartDate),
-		timeToNullInt64(task.Completed),
-		nullString(task.ParentUID),
-		nullString(strings.Join(task.Categories, ",")),
+		sqlite.TimeValueToNullInt64(task.Created),
+		sqlite.TimeValueToNullInt64(task.Modified),
+		sqlite.TimeToNullInt64(task.DueDate),
+		sqlite.TimeToNullInt64(task.StartDate),
+		sqlite.TimeToNullInt64(task.Completed),
+		sqlite.NullString(task.ParentUID),
+		sqlite.NullString(strings.Join(task.Categories, ",")),
 	)
 	if err != nil {
 		return err
@@ -604,7 +606,7 @@ func (sm *SyncManager) insertTaskLocally(listID string, task Task) error {
 }
 
 // updateTaskLocally updates a local task with remote data
-func (sm *SyncManager) updateTaskLocally(listID string, task Task) error {
+func (sm *SyncManager) updateTaskLocally(listID string, task backend.Task) error {
 	db, err := sm.local.GetDB()
 	if err != nil {
 		return err
@@ -625,15 +627,15 @@ func (sm *SyncManager) updateTaskLocally(listID string, task Task) error {
 		WHERE id = ? AND list_id = ?
 	`,
 		task.Summary,
-		nullString(task.Description),
+		sqlite.NullString(task.Description),
 		task.Status,
 		task.Priority,
-		timeValueToNullInt64(task.Modified),
-		timeToNullInt64(task.DueDate),
-		timeToNullInt64(task.StartDate),
-		timeToNullInt64(task.Completed),
-		nullString(task.ParentUID),
-		nullString(strings.Join(task.Categories, ",")),
+		sqlite.TimeValueToNullInt64(task.Modified),
+		sqlite.TimeToNullInt64(task.DueDate),
+		sqlite.TimeToNullInt64(task.StartDate),
+		sqlite.TimeToNullInt64(task.Completed),
+		sqlite.NullString(task.ParentUID),
+		sqlite.NullString(strings.Join(task.Categories, ",")),
 		task.UID,
 		listID,
 	)
@@ -690,7 +692,12 @@ func (sm *SyncManager) FullSync() (*SyncResult, error) {
 
 // GetSyncStats returns current sync statistics
 func (sm *SyncManager) GetSyncStats() (*SyncStats, error) {
-	stats, err := sm.local.db.GetStats()
+	db, err := sm.local.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	stats, err := db.GetStats()
 	if err != nil {
 		return nil, err
 	}
@@ -713,7 +720,7 @@ type SyncStats struct {
 
 // sortTasksByHierarchy sorts tasks so parent tasks come before child tasks.
 // This is critical for respecting foreign key constraints during sync.
-func sortTasksByHierarchy(tasks []Task) []Task {
+func sortTasksByHierarchy(tasks []backend.Task) []backend.Task {
 	// Build parent-child relationships
 	childrenMap := make(map[string][]int) // parentUID -> child indexes
 	rootIndexes := []int{}                // tasks with no parent
@@ -727,7 +734,7 @@ func sortTasksByHierarchy(tasks []Task) []Task {
 	}
 
 	// Traverse hierarchy depth-first, collecting tasks in order
-	sorted := []Task{}
+	sorted := []backend.Task{}
 	visited := make(map[int]bool)
 
 	var visit func(index int)
@@ -778,7 +785,7 @@ func (sm *SyncManager) PushOnly() (*SyncResult, error) {
 	return result, nil
 }
 
-// GetRemote returns the remote TaskManager
-func (sm *SyncManager) GetRemote() TaskManager {
+// GetRemote returns the remote backend.TaskManager
+func (sm *SyncManager) GetRemote() backend.TaskManager {
 	return sm.remote
 }

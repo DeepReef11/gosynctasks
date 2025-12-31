@@ -1,13 +1,14 @@
-package backend
+package git
 
 import (
+	"gosynctasks/backend"
 	"fmt"
 	"regexp"
 	"strings"
 	"time"
 )
 
-// MarkdownParser parses markdown task files into Task structures.
+// MarkdownParser parses markdown task files into backend.Task structures.
 type MarkdownParser struct {
 	// Regex patterns for parsing
 	checkboxPattern *regexp.Regexp
@@ -17,7 +18,7 @@ type MarkdownParser struct {
 // NewMarkdownParser creates a new markdown parser.
 func NewMarkdownParser() *MarkdownParser {
 	return &MarkdownParser{
-		// Matches: - [ ] Task summary @tag:value @tag2:value2
+		// Matches: - [ ] backend.Task summary @tag:value @tag2:value2
 		checkboxPattern: regexp.MustCompile(`^-\s+\[([ xX>\-])\]\s+(.+)$`),
 		// Matches: @tag:value
 		tagPattern: regexp.MustCompile(`@(\w+):([^\s]+)`),
@@ -25,11 +26,11 @@ func NewMarkdownParser() *MarkdownParser {
 }
 
 // Parse parses markdown content into task lists.
-func (p *MarkdownParser) Parse(content string) (map[string][]Task, error) {
+func (p *MarkdownParser) Parse(content string) (map[string][]backend.Task, error) {
 	lines := strings.Split(content, "\n")
-	taskLists := make(map[string][]Task)
+	taskLists := make(map[string][]backend.Task)
 	currentList := "Default"
-	var currentTask *Task
+	var currentTask *backend.Task
 	var descriptionLines []string
 
 	for i, line := range lines {
@@ -63,7 +64,7 @@ func (p *MarkdownParser) Parse(content string) (map[string][]Task, error) {
 			statusChar := matches[1]
 			rest := matches[2]
 
-			task := Task{
+			task := backend.Task{
 				Status:   p.parseStatus(statusChar),
 				Created:  time.Now(),
 				Modified: time.Now(),

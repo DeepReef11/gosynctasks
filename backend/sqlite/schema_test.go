@@ -1,4 +1,4 @@
-package backend
+package sqlite
 
 import (
 	"database/sql"
@@ -85,7 +85,7 @@ func TestTasksTableSchema(t *testing.T) {
 			parent_uid, categories
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
-		"task-1", "list-1", "Test Task", "Description", "NEEDS-ACTION", 5,
+		"task-1", "list-1", "Test backend.Task", "Description", "NEEDS-ACTION", 5,
 		now, now, now+86400, now, nil,
 		nil, "work,urgent",
 	)
@@ -99,8 +99,8 @@ func TestTasksTableSchema(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to query task: %v", err)
 	}
-	if summary != "Test Task" {
-		t.Errorf("Expected summary 'Test Task', got '%s'", summary)
+	if summary != "Test backend.Task" {
+		t.Errorf("Expected summary 'Test backend.Task', got '%s'", summary)
 	}
 }
 
@@ -120,7 +120,7 @@ func TestSyncMetadataTableSchema(t *testing.T) {
 	_, err = db.Exec(`
 		INSERT INTO tasks (id, list_id, summary, status, created_at)
 		VALUES (?, ?, ?, ?, ?)
-	`, "task-1", "list-1", "Test Task", "NEEDS-ACTION", now)
+	`, "task-1", "list-1", "Test backend.Task", "NEEDS-ACTION", now)
 	if err != nil {
 		t.Fatalf("Failed to create task: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestForeignKeyConstraints(t *testing.T) {
 	_, err = db.Exec(`
 		INSERT INTO tasks (id, list_id, summary, status, created_at)
 		VALUES (?, ?, ?, ?, ?)
-	`, "task-1", "list-1", "Test Task", "NEEDS-ACTION", now)
+	`, "task-1", "list-1", "Test backend.Task", "NEEDS-ACTION", now)
 	if err != nil {
 		t.Fatalf("Failed to create task: %v", err)
 	}
@@ -280,7 +280,7 @@ func TestCascadeDelete(t *testing.T) {
 	_, err = db.Exec(`
 		INSERT INTO tasks (id, list_id, summary, status, created_at)
 		VALUES (?, ?, ?, ?, ?)
-	`, "task-1", "list-1", "Test Task", "NEEDS-ACTION", now)
+	`, "task-1", "list-1", "Test backend.Task", "NEEDS-ACTION", now)
 	if err != nil {
 		t.Fatalf("Failed to create task: %v", err)
 	}
@@ -398,7 +398,7 @@ func TestDatabaseStats(t *testing.T) {
 	_, err = db.Exec(`
 		INSERT INTO tasks (id, list_id, summary, status, created_at)
 		VALUES (?, ?, ?, ?, ?)
-	`, "task-1", "list-1", "Test Task", "NEEDS-ACTION", now)
+	`, "task-1", "list-1", "Test backend.Task", "NEEDS-ACTION", now)
 	if err != nil {
 		t.Fatalf("Failed to create task: %v", err)
 	}
@@ -557,7 +557,7 @@ func TestParentTaskReference(t *testing.T) {
 	_, err = db.Exec(`
 		INSERT INTO tasks (id, list_id, summary, status, created_at)
 		VALUES (?, ?, ?, ?, ?)
-	`, "parent-1", "list-1", "Parent Task", "NEEDS-ACTION", now)
+	`, "parent-1", "list-1", "Parent backend.Task", "NEEDS-ACTION", now)
 	if err != nil {
 		t.Fatalf("Failed to create parent task: %v", err)
 	}
@@ -566,7 +566,7 @@ func TestParentTaskReference(t *testing.T) {
 	_, err = db.Exec(`
 		INSERT INTO tasks (id, list_id, summary, status, created_at, parent_uid)
 		VALUES (?, ?, ?, ?, ?, ?)
-	`, "child-1", "list-1", "Child Task", "NEEDS-ACTION", now, "parent-1")
+	`, "child-1", "list-1", "Child backend.Task", "NEEDS-ACTION", now, "parent-1")
 	if err != nil {
 		t.Errorf("Failed to create child task: %v", err)
 	}

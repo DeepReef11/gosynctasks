@@ -1,6 +1,8 @@
-package backend
+package sync
 
 import (
+	"gosynctasks/backend"
+	"gosynctasks/backend/sqlite"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -8,22 +10,22 @@ import (
 )
 
 // Helper to create test sync manager
-func createTestSyncManager(t *testing.T, strategy ConflictResolutionStrategy) (*SyncManager, *SQLiteBackend, *MockBackend, func()) {
+func createTestSyncManager(t *testing.T, strategy ConflictResolutionStrategy) (*SyncManager, *sqlite.SQLiteBackend, *backend.MockBackend, func()) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 
-	config := BackendConfig{
+	config := backend.BackendConfig{
 		Type:    "sqlite",
 		Enabled: true,
 		DBPath:  dbPath,
 	}
 
-	local, err := NewSQLiteBackend(config)
+	local, err := sqlite.NewSQLiteBackend(config)
 	if err != nil {
 		t.Fatalf("Failed to create local backend: %v", err)
 	}
 
-	remote := NewMockBackend()
+	remote := backend.NewMockBackend()
 	sm := NewSyncManager(local, remote, strategy)
 
 	cleanup := func() {
@@ -54,22 +56,22 @@ func TestPullNewTasks(t *testing.T) {
 
 	// Create list on remote
 	listID, _ := remote.CreateTaskList("Test List", "", "")
-	remote.lists[0].CTags = "ctag-123"
+	remote.Lists[0].CTags = "ctag-123"
 
 	// Add tasks to remote
 	now := time.Now()
-	remote.AddTask(listID, Task{
+	remote.AddTask(listID, backend.Task{
 		UID:      "task-1",
-		Summary:  "Remote Task 1",
+		Summary:  "Remote backend.Task 1",
 		Status:   "NEEDS-ACTION",
 		Priority: 5,
 		Created:  now,
 		Modified: now,
 	})
 
-	remote.AddTask(listID, Task{
+	remote.AddTask(listID, backend.Task{
 		UID:      "task-2",
-		Summary:  "Remote Task 2",
+		Summary:  "Remote backend.Task 2",
 		Status:   "NEEDS-ACTION",
 		Priority: 3,
 		Created:  now,
@@ -104,16 +106,16 @@ func TestPullUpdatedTasks(t *testing.T) {
 
 	// Create list on both local and remote
 	listID, _ := local.CreateTaskList("Test List", "", "")
-	remote.lists = append(remote.lists, TaskList{
+	remote.Lists = append(remote.Lists, backend.TaskList{
 		ID:    listID,
 		Name:  "Test List",
 		CTags: "ctag-123",
 	})
-	remote.tasks[listID] = []Task{}
+	remote.Tasks[listID] = []backend.Task{}
 
 	// Add task to local (not modified)
 	now := time.Now()
-	task := Task{
+	task := backend.Task{
 		UID:      "task-1",
 		Summary:  "Original Summary",
 		Status:   "NEEDS-ACTION",
@@ -132,7 +134,7 @@ func TestPullUpdatedTasks(t *testing.T) {
 	remote.AddTask(listID, task)
 
 	// Change CTag to trigger sync
-	remote.lists[0].CTags = "ctag-456"
+	remote.Lists[0].CTags = "ctag-456"
 
 	// Sync
 	result, err := sm.Sync()
@@ -158,16 +160,16 @@ func TestConflictResolutionServerWins(t *testing.T) {
 
 	// Create list
 	listID, _ := local.CreateTaskList("Test List", "", "")
-	remote.lists = append(remote.lists, TaskList{
+	remote.Lists = append(remote.Lists, backend.TaskList{
 		ID:    listID,
 		Name:  "Test List",
 		CTags: "ctag-123",
 	})
-	remote.tasks[listID] = []Task{}
+	remote.Tasks[listID] = []backend.Task{}
 
 	// Add task to both
 	now := time.Now()
-	task := Task{
+	task := backend.Task{
 		UID:      "task-1",
 		Summary:  "Original",
 		Status:   "NEEDS-ACTION",
@@ -189,7 +191,7 @@ func TestConflictResolutionServerWins(t *testing.T) {
 	remote.AddTask(listID, remoteTask)
 
 	// Change CTag
-	remote.lists[0].CTags = "ctag-456"
+	remote.Lists[0].CTags = "ctag-456"
 
 	// Sync
 	result, err := sm.Sync()
@@ -222,16 +224,16 @@ func TestConflictResolutionLocalWins(t *testing.T) {
 
 	// Create list
 	listID, _ := local.CreateTaskList("Test List", "", "")
-	remote.lists = append(remote.lists, TaskList{
+	remote.Lists = append(remote.Lists, backend.TaskList{
 		ID:    listID,
 		Name:  "Test List",
 		CTags: "ctag-123",
 	})
-	remote.tasks[listID] = []Task{}
+	remote.Tasks[listID] = []backend.Task{}
 
 	// Add task to both
 	now := time.Now()
-	task := Task{
+	task := backend.Task{
 		UID:      "task-1",
 		Summary:  "Original",
 		Status:   "NEEDS-ACTION",
@@ -253,7 +255,7 @@ func TestConflictResolutionLocalWins(t *testing.T) {
 	remote.AddTask(listID, remoteTask)
 
 	// Change CTag
-	remote.lists[0].CTags = "ctag-456"
+	remote.Lists[0].CTags = "ctag-456"
 
 	// Sync (pull phase will detect conflict, push phase will send local version)
 	result, err := sm.Sync()
@@ -279,16 +281,16 @@ func TestConflictResolutionKeepBoth(t *testing.T) {
 
 	// Create list
 	listID, _ := local.CreateTaskList("Test List", "", "")
-	remote.lists = append(remote.lists, TaskList{
+	remote.Lists = append(remote.Lists, backend.TaskList{
 		ID:    listID,
 		Name:  "Test List",
 		CTags: "ctag-123",
 	})
-	remote.tasks[listID] = []Task{}
+	remote.Tasks[listID] = []backend.Task{}
 
 	// Add task to both
 	now := time.Now()
-	task := Task{
+	task := backend.Task{
 		UID:      "task-1",
 		Summary:  "Original",
 		Status:   "NEEDS-ACTION",
@@ -308,7 +310,7 @@ func TestConflictResolutionKeepBoth(t *testing.T) {
 	remote.AddTask(listID, remoteTask)
 
 	// Change CTag
-	remote.lists[0].CTags = "ctag-456"
+	remote.Lists[0].CTags = "ctag-456"
 
 	// Sync
 	result, err := sm.Sync()
@@ -345,18 +347,18 @@ func TestPushCreateOperation(t *testing.T) {
 
 	// Create list on both
 	listID, _ := local.CreateTaskList("Test List", "", "")
-	remote.lists = append(remote.lists, TaskList{
+	remote.Lists = append(remote.Lists, backend.TaskList{
 		ID:    listID,
 		Name:  "Test List",
 		CTags: "ctag-123",
 	})
-	remote.tasks[listID] = []Task{}
+	remote.Tasks[listID] = []backend.Task{}
 
 	// Add task locally (this queues a create operation)
 	now := time.Now()
-	task := Task{
+	task := backend.Task{
 		UID:      "task-1",
-		Summary:  "New Task",
+		Summary:  "New backend.Task",
 		Status:   "NEEDS-ACTION",
 		Priority: 5,
 		Created:  now,
@@ -380,8 +382,8 @@ func TestPushCreateOperation(t *testing.T) {
 		t.Errorf("Expected 1 remote task, got %d", len(remoteTasks))
 	}
 
-	if remoteTasks[0].Summary != "New Task" {
-		t.Errorf("Expected summary 'New Task', got '%s'", remoteTasks[0].Summary)
+	if remoteTasks[0].Summary != "New backend.Task" {
+		t.Errorf("Expected summary 'New backend.Task', got '%s'", remoteTasks[0].Summary)
 	}
 }
 
@@ -392,16 +394,16 @@ func TestPushUpdateOperation(t *testing.T) {
 
 	// Create list on both
 	listID, _ := local.CreateTaskList("Test List", "", "")
-	remote.lists = append(remote.lists, TaskList{
+	remote.Lists = append(remote.Lists, backend.TaskList{
 		ID:    listID,
 		Name:  "Test List",
 		CTags: "ctag-123",
 	})
-	remote.tasks[listID] = []Task{}
+	remote.Tasks[listID] = []backend.Task{}
 
 	// Add task to both
 	now := time.Now()
-	task := Task{
+	task := backend.Task{
 		UID:      "task-1",
 		Summary:  "Original",
 		Status:   "NEEDS-ACTION",
@@ -442,16 +444,16 @@ func TestPushDeleteOperation(t *testing.T) {
 
 	// Create list on both
 	listID, _ := local.CreateTaskList("Test List", "", "")
-	remote.lists = append(remote.lists, TaskList{
+	remote.Lists = append(remote.Lists, backend.TaskList{
 		ID:    listID,
 		Name:  "Test List",
 		CTags: "ctag-123",
 	})
-	remote.tasks[listID] = []Task{}
+	remote.Tasks[listID] = []backend.Task{}
 
 	// Add task to both
 	now := time.Now()
-	task := Task{
+	task := backend.Task{
 		UID:      "task-1",
 		Summary:  "To Delete",
 		Status:   "NEEDS-ACTION",
@@ -490,13 +492,13 @@ func TestFullSync(t *testing.T) {
 
 	// Create list on remote
 	listID, _ := remote.CreateTaskList("Test List", "", "")
-	remote.lists[0].CTags = "ctag-123"
+	remote.Lists[0].CTags = "ctag-123"
 
 	// Add tasks to remote
 	now := time.Now()
-	remote.AddTask(listID, Task{
+	remote.AddTask(listID, backend.Task{
 		UID:      "task-1",
-		Summary:  "Task 1",
+		Summary:  "backend.Task 1",
 		Status:   "NEEDS-ACTION",
 		Created:  now,
 		Modified: now,
@@ -506,9 +508,9 @@ func TestFullSync(t *testing.T) {
 	_, _ = sm.Sync()
 
 	// Add more tasks
-	remote.AddTask(listID, Task{
+	remote.AddTask(listID, backend.Task{
 		UID:      "task-2",
-		Summary:  "Task 2",
+		Summary:  "backend.Task 2",
 		Status:   "NEEDS-ACTION",
 		Created:  now,
 		Modified: now,
@@ -537,18 +539,18 @@ func TestRetryLogic(t *testing.T) {
 
 	// Create list on both
 	listID, _ := local.CreateTaskList("Test List", "", "")
-	remote.lists = append(remote.lists, TaskList{
+	remote.Lists = append(remote.Lists, backend.TaskList{
 		ID:    listID,
 		Name:  "Test List",
 		CTags: "ctag-123",
 	})
-	remote.tasks[listID] = []Task{}
+	remote.Tasks[listID] = []backend.Task{}
 
 	// Add task locally
 	now := time.Now()
-	task := Task{
+	task := backend.Task{
 		UID:      "task-1",
-		Summary:  "Task",
+		Summary:  "backend.Task",
 		Status:   "NEEDS-ACTION",
 		Created:  now,
 		Modified: now,
@@ -556,7 +558,7 @@ func TestRetryLogic(t *testing.T) {
 	local.AddTask(listID, task)
 
 	// Make remote return error
-	remote.addTaskErr = fmt.Errorf("temporary error")
+	remote.AddTaskErr = fmt.Errorf("temporary error")
 
 	// Sync (should fail and increment retry)
 	_, _ = sm.Sync()
@@ -576,7 +578,7 @@ func TestRetryLogic(t *testing.T) {
 	}
 
 	// Clear error and sync again
-	remote.addTaskErr = nil
+	remote.AddTaskErr = nil
 	result, err := sm.Sync()
 	if err != nil {
 		t.Fatalf("Retry sync failed: %v", err)
@@ -602,8 +604,8 @@ func TestSyncStats(t *testing.T) {
 	listID, _ := local.CreateTaskList("Test List", "", "")
 
 	now := time.Now()
-	local.AddTask(listID, Task{UID: "task-1", Summary: "Task 1", Status: "NEEDS-ACTION", Created: now, Modified: now})
-	local.AddTask(listID, Task{UID: "task-2", Summary: "Task 2", Status: "NEEDS-ACTION", Created: now, Modified: now})
+	local.AddTask(listID, backend.Task{UID: "task-1", Summary: "backend.Task 1", Status: "NEEDS-ACTION", Created: now, Modified: now})
+	local.AddTask(listID, backend.Task{UID: "task-2", Summary: "backend.Task 2", Status: "NEEDS-ACTION", Created: now, Modified: now})
 
 	// Get stats
 	stats, err := sm.GetSyncStats()
@@ -636,7 +638,7 @@ func TestSyncWithEmptyRemote(t *testing.T) {
 	// Add tasks locally
 	listID, _ := local.CreateTaskList("Test List", "", "")
 	now := time.Now()
-	local.AddTask(listID, Task{UID: "task-1", Summary: "Local Task", Status: "NEEDS-ACTION", Created: now, Modified: now})
+	local.AddTask(listID, backend.Task{UID: "task-1", Summary: "Local backend.Task", Status: "NEEDS-ACTION", Created: now, Modified: now})
 
 	// Sync (should push to empty remote)
 	result, err := sm.Sync()
@@ -656,10 +658,10 @@ func TestSyncResult(t *testing.T) {
 
 	// Add remote data
 	listID, _ := remote.CreateTaskList("Test List", "", "")
-	remote.lists[0].CTags = "ctag-123"
+	remote.Lists[0].CTags = "ctag-123"
 
 	now := time.Now()
-	remote.AddTask(listID, Task{UID: "task-1", Summary: "Task 1", Status: "NEEDS-ACTION", Created: now, Modified: now})
+	remote.AddTask(listID, backend.Task{UID: "task-1", Summary: "backend.Task 1", Status: "NEEDS-ACTION", Created: now, Modified: now})
 
 	// Sync
 	result, err := sm.Sync()
