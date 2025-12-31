@@ -26,35 +26,35 @@ func randomString(length int) string {
 
 // MockBackend implements TaskManager for testing
 type MockBackend struct {
-	lists         []TaskList
-	tasks         map[string][]Task // listID -> tasks
-	addTaskErr    error
-	updateTaskErr error
-	deleteTaskErr error
-	name          string // For tests that need to identify the mock
+	Lists         []TaskList
+	Tasks         map[string][]Task // listID -> tasks
+	AddTaskErr    error
+	UpdateTaskErr error
+	DeleteTaskErr error
+	Name          string // For tests that need to identify the mock
 }
 
 // NewMockBackend creates a new mock backend instance
 func NewMockBackend() *MockBackend {
 	return &MockBackend{
-		lists: []TaskList{},
-		tasks: make(map[string][]Task),
+		Lists: []TaskList{},
+		Tasks: make(map[string][]Task),
 	}
 }
 
 // NewMockBackendWithName creates a new mock backend with a name
 func NewMockBackendWithName(name string) *MockBackend {
 	mb := NewMockBackend()
-	mb.name = name
+	mb.Name = name
 	return mb
 }
 
 func (mb *MockBackend) GetTaskLists() ([]TaskList, error) {
-	return mb.lists, nil
+	return mb.Lists, nil
 }
 
 func (mb *MockBackend) GetTasks(listID string, filter *TaskFilter) ([]Task, error) {
-	tasks, ok := mb.tasks[listID]
+	tasks, ok := mb.Tasks[listID]
 	if !ok {
 		return []Task{}, nil
 	}
@@ -66,26 +66,26 @@ func (mb *MockBackend) FindTasksBySummary(listID string, summary string) ([]Task
 }
 
 func (mb *MockBackend) AddTask(listID string, task Task) error {
-	if mb.addTaskErr != nil {
-		return mb.addTaskErr
+	if mb.AddTaskErr != nil {
+		return mb.AddTaskErr
 	}
 
-	tasks := mb.tasks[listID]
+	tasks := mb.Tasks[listID]
 	tasks = append(tasks, task)
-	mb.tasks[listID] = tasks
+	mb.Tasks[listID] = tasks
 	return nil
 }
 
 func (mb *MockBackend) UpdateTask(listID string, task Task) error {
-	if mb.updateTaskErr != nil {
-		return mb.updateTaskErr
+	if mb.UpdateTaskErr != nil {
+		return mb.UpdateTaskErr
 	}
 
-	tasks := mb.tasks[listID]
+	tasks := mb.Tasks[listID]
 	for i, t := range tasks {
 		if t.UID == task.UID {
 			tasks[i] = task
-			mb.tasks[listID] = tasks
+			mb.Tasks[listID] = tasks
 			return nil
 		}
 	}
@@ -93,15 +93,15 @@ func (mb *MockBackend) UpdateTask(listID string, task Task) error {
 }
 
 func (mb *MockBackend) DeleteTask(listID string, taskUID string) error {
-	if mb.deleteTaskErr != nil {
-		return mb.deleteTaskErr
+	if mb.DeleteTaskErr != nil {
+		return mb.DeleteTaskErr
 	}
 
-	tasks := mb.tasks[listID]
+	tasks := mb.Tasks[listID]
 	for i, t := range tasks {
 		if t.UID == taskUID {
 			tasks = append(tasks[:i], tasks[i+1:]...)
-			mb.tasks[listID] = tasks
+			mb.Tasks[listID] = tasks
 			return nil
 		}
 	}
@@ -110,21 +110,21 @@ func (mb *MockBackend) DeleteTask(listID string, taskUID string) error {
 
 func (mb *MockBackend) CreateTaskList(name, description, color string) (string, error) {
 	listID := generateUID()
-	mb.lists = append(mb.lists, TaskList{
+	mb.Lists = append(mb.Lists, TaskList{
 		ID:    listID,
 		Name:  name,
 		Color: color,
 		CTags: "ctag-initial",
 	})
-	mb.tasks[listID] = []Task{}
+	mb.Tasks[listID] = []Task{}
 	return listID, nil
 }
 
 func (mb *MockBackend) DeleteTaskList(listID string) error {
-	delete(mb.tasks, listID)
-	for i, list := range mb.lists {
+	delete(mb.Tasks, listID)
+	for i, list := range mb.Lists {
 		if list.ID == listID {
-			mb.lists = append(mb.lists[:i], mb.lists[i+1:]...)
+			mb.Lists = append(mb.Lists[:i], mb.Lists[i+1:]...)
 			return nil
 		}
 	}
@@ -132,9 +132,9 @@ func (mb *MockBackend) DeleteTaskList(listID string) error {
 }
 
 func (mb *MockBackend) RenameTaskList(listID, newName string) error {
-	for i, list := range mb.lists {
+	for i, list := range mb.Lists {
 		if list.ID == listID {
-			mb.lists[i].Name = newName
+			mb.Lists[i].Name = newName
 			return nil
 		}
 	}
@@ -193,8 +193,8 @@ func (mb *MockBackend) GetPriorityColor(priority int) string {
 }
 
 func (mb *MockBackend) GetBackendDisplayName() string {
-	if mb.name != "" {
-		return "[mock:" + mb.name + "]"
+	if mb.Name != "" {
+		return "[mock:" + mb.Name + "]"
 	}
 	return "[mock]"
 }
@@ -204,8 +204,8 @@ func (mb *MockBackend) GetBackendType() string {
 }
 
 func (mb *MockBackend) GetBackendContext() string {
-	if mb.name != "" {
-		return mb.name
+	if mb.Name != "" {
+		return mb.Name
 	}
 	return "mock-backend"
 }

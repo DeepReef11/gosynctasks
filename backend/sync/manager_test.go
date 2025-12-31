@@ -56,7 +56,7 @@ func TestPullNewTasks(t *testing.T) {
 
 	// Create list on remote
 	listID, _ := remote.CreateTaskList("Test List", "", "")
-	remote.lists[0].CTags = "ctag-123"
+	remote.Lists[0].CTags = "ctag-123"
 
 	// Add tasks to remote
 	now := time.Now()
@@ -106,12 +106,12 @@ func TestPullUpdatedTasks(t *testing.T) {
 
 	// Create list on both local and remote
 	listID, _ := local.CreateTaskList("Test List", "", "")
-	remote.lists = append(remote.lists, backend.TaskList{
+	remote.Lists = append(remote.Lists, backend.TaskList{
 		ID:    listID,
 		Name:  "Test List",
 		CTags: "ctag-123",
 	})
-	remote.tasks[listID] = []backend.Task{}
+	remote.Tasks[listID] = []backend.Task{}
 
 	// Add task to local (not modified)
 	now := time.Now()
@@ -134,7 +134,7 @@ func TestPullUpdatedTasks(t *testing.T) {
 	remote.AddTask(listID, task)
 
 	// Change CTag to trigger sync
-	remote.lists[0].CTags = "ctag-456"
+	remote.Lists[0].CTags = "ctag-456"
 
 	// Sync
 	result, err := sm.Sync()
@@ -160,12 +160,12 @@ func TestConflictResolutionServerWins(t *testing.T) {
 
 	// Create list
 	listID, _ := local.CreateTaskList("Test List", "", "")
-	remote.lists = append(remote.lists, backend.TaskList{
+	remote.Lists = append(remote.Lists, backend.TaskList{
 		ID:    listID,
 		Name:  "Test List",
 		CTags: "ctag-123",
 	})
-	remote.tasks[listID] = []backend.Task{}
+	remote.Tasks[listID] = []backend.Task{}
 
 	// Add task to both
 	now := time.Now()
@@ -191,7 +191,7 @@ func TestConflictResolutionServerWins(t *testing.T) {
 	remote.AddTask(listID, remoteTask)
 
 	// Change CTag
-	remote.lists[0].CTags = "ctag-456"
+	remote.Lists[0].CTags = "ctag-456"
 
 	// Sync
 	result, err := sm.Sync()
@@ -224,12 +224,12 @@ func TestConflictResolutionLocalWins(t *testing.T) {
 
 	// Create list
 	listID, _ := local.CreateTaskList("Test List", "", "")
-	remote.lists = append(remote.lists, backend.TaskList{
+	remote.Lists = append(remote.Lists, backend.TaskList{
 		ID:    listID,
 		Name:  "Test List",
 		CTags: "ctag-123",
 	})
-	remote.tasks[listID] = []backend.Task{}
+	remote.Tasks[listID] = []backend.Task{}
 
 	// Add task to both
 	now := time.Now()
@@ -255,7 +255,7 @@ func TestConflictResolutionLocalWins(t *testing.T) {
 	remote.AddTask(listID, remoteTask)
 
 	// Change CTag
-	remote.lists[0].CTags = "ctag-456"
+	remote.Lists[0].CTags = "ctag-456"
 
 	// Sync (pull phase will detect conflict, push phase will send local version)
 	result, err := sm.Sync()
@@ -281,12 +281,12 @@ func TestConflictResolutionKeepBoth(t *testing.T) {
 
 	// Create list
 	listID, _ := local.CreateTaskList("Test List", "", "")
-	remote.lists = append(remote.lists, backend.TaskList{
+	remote.Lists = append(remote.Lists, backend.TaskList{
 		ID:    listID,
 		Name:  "Test List",
 		CTags: "ctag-123",
 	})
-	remote.tasks[listID] = []backend.Task{}
+	remote.Tasks[listID] = []backend.Task{}
 
 	// Add task to both
 	now := time.Now()
@@ -310,7 +310,7 @@ func TestConflictResolutionKeepBoth(t *testing.T) {
 	remote.AddTask(listID, remoteTask)
 
 	// Change CTag
-	remote.lists[0].CTags = "ctag-456"
+	remote.Lists[0].CTags = "ctag-456"
 
 	// Sync
 	result, err := sm.Sync()
@@ -347,12 +347,12 @@ func TestPushCreateOperation(t *testing.T) {
 
 	// Create list on both
 	listID, _ := local.CreateTaskList("Test List", "", "")
-	remote.lists = append(remote.lists, backend.TaskList{
+	remote.Lists = append(remote.Lists, backend.TaskList{
 		ID:    listID,
 		Name:  "Test List",
 		CTags: "ctag-123",
 	})
-	remote.tasks[listID] = []backend.Task{}
+	remote.Tasks[listID] = []backend.Task{}
 
 	// Add task locally (this queues a create operation)
 	now := time.Now()
@@ -394,12 +394,12 @@ func TestPushUpdateOperation(t *testing.T) {
 
 	// Create list on both
 	listID, _ := local.CreateTaskList("Test List", "", "")
-	remote.lists = append(remote.lists, backend.TaskList{
+	remote.Lists = append(remote.Lists, backend.TaskList{
 		ID:    listID,
 		Name:  "Test List",
 		CTags: "ctag-123",
 	})
-	remote.tasks[listID] = []backend.Task{}
+	remote.Tasks[listID] = []backend.Task{}
 
 	// Add task to both
 	now := time.Now()
@@ -444,12 +444,12 @@ func TestPushDeleteOperation(t *testing.T) {
 
 	// Create list on both
 	listID, _ := local.CreateTaskList("Test List", "", "")
-	remote.lists = append(remote.lists, backend.TaskList{
+	remote.Lists = append(remote.Lists, backend.TaskList{
 		ID:    listID,
 		Name:  "Test List",
 		CTags: "ctag-123",
 	})
-	remote.tasks[listID] = []backend.Task{}
+	remote.Tasks[listID] = []backend.Task{}
 
 	// Add task to both
 	now := time.Now()
@@ -492,7 +492,7 @@ func TestFullSync(t *testing.T) {
 
 	// Create list on remote
 	listID, _ := remote.CreateTaskList("Test List", "", "")
-	remote.lists[0].CTags = "ctag-123"
+	remote.Lists[0].CTags = "ctag-123"
 
 	// Add tasks to remote
 	now := time.Now()
@@ -539,12 +539,12 @@ func TestRetryLogic(t *testing.T) {
 
 	// Create list on both
 	listID, _ := local.CreateTaskList("Test List", "", "")
-	remote.lists = append(remote.lists, backend.TaskList{
+	remote.Lists = append(remote.Lists, backend.TaskList{
 		ID:    listID,
 		Name:  "Test List",
 		CTags: "ctag-123",
 	})
-	remote.tasks[listID] = []backend.Task{}
+	remote.Tasks[listID] = []backend.Task{}
 
 	// Add task locally
 	now := time.Now()
@@ -658,7 +658,7 @@ func TestSyncResult(t *testing.T) {
 
 	// Add remote data
 	listID, _ := remote.CreateTaskList("Test List", "", "")
-	remote.lists[0].CTags = "ctag-123"
+	remote.Lists[0].CTags = "ctag-123"
 
 	now := time.Now()
 	remote.AddTask(listID, backend.Task{UID: "task-1", Summary: "backend.Task 1", Status: "NEEDS-ACTION", Created: now, Modified: now})
