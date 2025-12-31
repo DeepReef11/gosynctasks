@@ -29,10 +29,10 @@ type ConnectorConfig struct {
 }
 
 // BackendConfig represents configuration for a single backend in the multi-backend system.
-// Each backend has a type (nextcloud, git, file, sqlite) and type-specific configuration.
+// Each backend has a type (nextcloud, git, file, sqlite, todoist) and type-specific configuration.
 type BackendConfig struct {
 	Name                string   `yaml:"-"`                               // Backend name (set during config loading from map key)
-	Type                string   `yaml:"type" validate:"required,oneof=nextcloud git file sqlite"`
+	Type                string   `yaml:"type" validate:"required,oneof=nextcloud git file sqlite todoist"`
 	Enabled             bool     `yaml:"enabled"`
 	URL                 string   `yaml:"url,omitempty"`                   // Used by: nextcloud, file
 	Host                string   `yaml:"host,omitempty"`                  // Alternative to URL (used with credentials from keyring/env)
@@ -46,6 +46,7 @@ type BackendConfig struct {
 	FallbackFiles       []string `yaml:"fallback_files,omitempty"`        // Used by: git
 	AutoCommit          bool     `yaml:"auto_commit,omitempty"`           // Used by: git
 	DBPath              string   `yaml:"db_path,omitempty"`               // Used by: sqlite
+	APIToken            string   `yaml:"api_token,omitempty"`             // Used by: todoist (can also be stored in keyring)
 }
 
 func (c *ConnectorConfig) UnmarshalYAML(value *yaml.Node) error {
