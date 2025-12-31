@@ -173,7 +173,7 @@ func (c *APIClient) GetProjects() ([]Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -194,7 +194,7 @@ func (c *APIClient) GetProject(projectID string) (*Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("project not found: %s", projectID)
@@ -218,7 +218,8 @@ func (c *APIClient) CreateProject(req CreateProjectRequest) (*Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -239,7 +240,7 @@ func (c *APIClient) UpdateProject(projectID string, req UpdateProjectRequest) er
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("project not found: %s", projectID)
@@ -259,7 +260,7 @@ func (c *APIClient) DeleteProject(projectID string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("project not found: %s", projectID)
@@ -283,7 +284,7 @@ func (c *APIClient) GetTasks(projectID string) ([]TodoistTask, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -304,7 +305,7 @@ func (c *APIClient) GetTask(taskID string) (*TodoistTask, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("task not found: %s", taskID)
@@ -328,7 +329,7 @@ func (c *APIClient) CreateTask(req CreateTaskRequest) (*TodoistTask, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -349,7 +350,7 @@ func (c *APIClient) UpdateTask(taskID string, req UpdateTaskRequest) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("task not found: %s", taskID)
@@ -369,7 +370,7 @@ func (c *APIClient) CloseTask(taskID string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("task not found: %s", taskID)
@@ -389,7 +390,7 @@ func (c *APIClient) ReopenTask(taskID string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("task not found: %s", taskID)
@@ -409,7 +410,7 @@ func (c *APIClient) DeleteTask(taskID string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("task not found: %s", taskID)
