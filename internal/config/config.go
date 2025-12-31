@@ -167,8 +167,19 @@ func (c Config) Validate() error {
 		// Type-specific validation
 		switch backendConfig.Type {
 		case "nextcloud", "file":
-			if backendConfig.URL == "" {
-				return fmt.Errorf("backend %q: URL is required for %s backend", name, backendConfig.Type)
+			// Accept either:
+			// - Full URL with credentials (legacy)
+			// - URL without credentials + username (keyring/env)
+			// - Host + username (keyring/env)
+			// - Neither (all from env vars)
+			hasURL := backendConfig.URL != ""
+			hasHost := backendConfig.Host != ""
+
+			if !hasURL && !hasHost {
+				// Must have username for env var lookup
+				if backendConfig.Username == "" {
+					return fmt.Errorf("backend %q: URL, host, or username is required for %s backend", name, backendConfig.Type)
+				}
 			}
 		case "git":
 			if backendConfig.File == "" {
@@ -368,6 +379,12 @@ func parseConfig(configData []byte, configPath string) (*Config, error) {
 
 	if err != nil {
 		log.Fatalf("Invalid YAML in config file %s: %v", configPath, err)
+	}
+
+	// Set backend names from map keys
+	for name, backendConfig := range configObj.Backends {
+		backendConfig.Name = name
+		configObj.Backends[name] = backendConfig
 	}
 
 	// Expand ~ and $HOME in all path fields

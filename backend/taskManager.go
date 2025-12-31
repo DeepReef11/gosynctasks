@@ -31,9 +31,12 @@ type ConnectorConfig struct {
 // BackendConfig represents configuration for a single backend in the multi-backend system.
 // Each backend has a type (nextcloud, git, file, sqlite) and type-specific configuration.
 type BackendConfig struct {
+	Name                string   `yaml:"-"`                               // Backend name (set during config loading from map key)
 	Type                string   `yaml:"type" validate:"required,oneof=nextcloud git file sqlite"`
 	Enabled             bool     `yaml:"enabled"`
 	URL                 string   `yaml:"url,omitempty"`                   // Used by: nextcloud, file
+	Host                string   `yaml:"host,omitempty"`                  // Alternative to URL (used with credentials from keyring/env)
+	Username            string   `yaml:"username,omitempty"`              // Username hint for keyring/env credential lookup
 	InsecureSkipVerify  bool     `yaml:"insecure_skip_verify,omitempty"`  // Used by: nextcloud
 	SuppressSSLWarning  bool     `yaml:"suppress_ssl_warning,omitempty"`  // Used by: nextcloud
 	AllowHTTP           bool     `yaml:"allow_http,omitempty"`            // Used by: nextcloud (allow insecure HTTP)
