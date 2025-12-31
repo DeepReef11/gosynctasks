@@ -1,6 +1,7 @@
-package backend
+package git
 
 import (
+	"gosynctasks/backend"
 	"os"
 	"path/filepath"
 	"strings"
@@ -92,7 +93,7 @@ func TestMarkdownParser(t *testing.T) {
 
 // TestMarkdownWriter tests the markdown writer
 func TestMarkdownWriter(t *testing.T) {
-	taskLists := map[string][]Task{
+	taskLists := map[string][]backend.Task{
 		"Work Tasks": {
 			{
 				UID:      "task-001",
@@ -160,8 +161,8 @@ func TestMarkdownRoundTrip(t *testing.T) {
 	original := `<!-- gosynctasks:enabled -->
 
 ## Test List
-- [ ] Task 1 @uid:task-001 @priority:1
-- [x] Task 2 @uid:task-002
+- [ ] backend.Task 1 @uid:task-001 @priority:1
+- [x] backend.Task 2 @uid:task-002
   With description
 `
 
@@ -252,12 +253,12 @@ func TestGitBackendHasMarker(t *testing.T) {
 		},
 		{
 			name:    "without marker",
-			content: "# Tasks\n- [ ] Task 1",
+			content: "# Tasks\n- [ ] backend.Task 1",
 			want:    false,
 		},
 		{
 			name:    "marker in middle",
-			content: "# Header\n<!-- gosynctasks:enabled -->\n- [ ] Task",
+			content: "# Header\n<!-- gosynctasks:enabled -->\n- [ ] backend.Task",
 			want:    true,
 		},
 	}
@@ -336,7 +337,7 @@ func TestGitBackendGenerateUID(t *testing.T) {
 func TestGitBackendSortTasks(t *testing.T) {
 	gb := &GitBackend{}
 
-	tasks := []Task{
+	tasks := []backend.Task{
 		{UID: "3", Priority: 0, Created: time.Now()},                     // undefined priority
 		{UID: "1", Priority: 1, Created: time.Now().Add(-2 * time.Hour)}, // high priority, older
 		{UID: "2", Priority: 1, Created: time.Now().Add(-1 * time.Hour)}, // high priority, newer
@@ -391,7 +392,7 @@ func TestGitBackendFilterTasks(t *testing.T) {
 	yesterday := now.Add(-24 * time.Hour)
 	tomorrow := now.Add(24 * time.Hour)
 
-	tasks := []Task{
+	tasks := []backend.Task{
 		{UID: "1", Status: "TODO", DueDate: &tomorrow, Created: yesterday},
 		{UID: "2", Status: "DONE", DueDate: &yesterday, Created: yesterday},
 		{UID: "3", Status: "TODO", DueDate: &now, Created: now},
@@ -399,26 +400,26 @@ func TestGitBackendFilterTasks(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		filter TaskFilter
+		filter backend.TaskFilter
 		want   int
 	}{
 		{
 			name: "filter by status",
-			filter: TaskFilter{
+			filter: backend.TaskFilter{
 				Statuses: &[]string{"TODO"},
 			},
 			want: 2, // tasks 1 and 3
 		},
 		{
 			name: "filter by due after",
-			filter: TaskFilter{
+			filter: backend.TaskFilter{
 				DueAfter: &now,
 			},
 			want: 2, // tasks 1 and 3
 		},
 		{
 			name: "filter by created after",
-			filter: TaskFilter{
+			filter: backend.TaskFilter{
 				CreatedAfter: &now,
 			},
 			want: 1, // task 3

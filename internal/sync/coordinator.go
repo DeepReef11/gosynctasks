@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"gosynctasks/backend"
+	backendsqlite "gosynctasks/backend/sqlite"
+	backendsync "gosynctasks/backend/sync"
 	"gosynctasks/internal/config"
 )
 
@@ -17,8 +19,8 @@ import (
 // between local SQLite and remote backends
 type SyncCoordinator struct {
 	config      *config.Config
-	syncManager *backend.SyncManager
-	local       *backend.SQLiteBackend
+	syncManager *backendsync.SyncManager
+	local       *backendsqlite.SQLiteBackend
 
 	// Goroutine management
 	wg sync.WaitGroup
@@ -36,7 +38,7 @@ type SyncCoordinator struct {
 }
 
 // NewSyncCoordinator creates a new sync coordinator
-func NewSyncCoordinator(cfg *config.Config, local *backend.SQLiteBackend, remote backend.TaskManager) (*SyncCoordinator, error) {
+func NewSyncCoordinator(cfg *config.Config, local *backendsqlite.SQLiteBackend, remote backend.TaskManager) (*SyncCoordinator, error) {
 	if cfg == nil || local == nil || remote == nil {
 		return nil, fmt.Errorf("config, local backend, and remote backend are required")
 	}
@@ -47,8 +49,8 @@ func NewSyncCoordinator(cfg *config.Config, local *backend.SQLiteBackend, remote
 
 	// Create sync manager
 	// Convert conflict resolution string to strategy type
-	strategy := backend.ConflictResolutionStrategy(cfg.Sync.ConflictResolution)
-	syncManager := backend.NewSyncManager(local, remote, strategy)
+	strategy := backendsync.ConflictResolutionStrategy(cfg.Sync.ConflictResolution)
+	syncManager := backendsync.NewSyncManager(local, remote, strategy)
 
 	// Create logger for silent error logging
 	logger := log.New(os.Stderr, "[AutoSync] ", log.LstdFlags)
@@ -259,6 +261,6 @@ func (sc *SyncCoordinator) Shutdown(timeout time.Duration) {
 }
 
 // GetSyncManager returns the underlying sync manager for direct access
-func (sc *SyncCoordinator) GetSyncManager() *backend.SyncManager {
+func (sc *SyncCoordinator) GetSyncManager() *backendsync.SyncManager {
 	return sc.syncManager
 }

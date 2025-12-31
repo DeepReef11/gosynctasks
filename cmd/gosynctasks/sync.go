@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"gosynctasks/backend"
+	"gosynctasks/backend/sqlite"
+	"gosynctasks/backend/sync"
 	"gosynctasks/internal/config"
 	"net"
 	"net/url"
@@ -63,12 +65,12 @@ Examples:
 			}
 
 			// Create sync manager
-			strategy := backend.ConflictResolutionStrategy(cfg.Sync.ConflictResolution)
+			strategy := sync.ConflictResolutionStrategy(cfg.Sync.ConflictResolution)
 			if strategy == "" {
-				strategy = backend.ServerWins // Default
+				strategy = sync.ServerWins // Default
 			}
 
-			sm := backend.NewSyncManager(localBackend, remoteBackend, strategy)
+			sm := sync.NewSyncManager(localBackend, remoteBackend, strategy)
 
 			if dryRun {
 				if !quiet {
@@ -82,7 +84,7 @@ Examples:
 			if !quiet {
 				fmt.Println("Syncing...")
 			}
-			var result *backend.SyncResult
+			var result *sync.SyncResult
 			if fullSync {
 				result, err = sm.FullSync()
 			} else {
@@ -144,7 +146,7 @@ func newSyncStatusCmd() *cobra.Command {
 			isOffline, offlineReason := isBackendOffline(remoteBackend)
 
 			// Get sync stats
-			sm := backend.NewSyncManager(localBackend, remoteBackend, backend.ServerWins)
+			sm := sync.NewSyncManager(localBackend, remoteBackend, sync.ServerWins)
 			stats, err := sm.GetSyncStats()
 			if err != nil {
 				return fmt.Errorf("failed to get sync stats: %w", err)
@@ -330,7 +332,7 @@ func newSyncQueueRetryCmd() *cobra.Command {
 // Helper functions
 
 // getSyncBackends returns the local and remote backends for sync
-func getSyncBackends(cfg *config.Config) (*backend.SQLiteBackend, backend.TaskManager, error) {
+func getSyncBackends(cfg *config.Config) (*sqlite.SQLiteBackend, backend.TaskManager, error) {
 	if cfg.Sync.LocalBackend == "" {
 		return nil, nil, fmt.Errorf("local_backend not configured for sync")
 	}
@@ -348,7 +350,7 @@ func getSyncBackends(cfg *config.Config) (*backend.SQLiteBackend, backend.TaskMa
 		return nil, nil, fmt.Errorf("local backend must be SQLite, got %s", localCfg.Type)
 	}
 
-	local, err := backend.NewSQLiteBackend(*localCfg)
+	local, err := sqlite.NewSQLiteBackend(*localCfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create local backend: %w", err)
 	}
@@ -443,7 +445,7 @@ func isTimeout(err error) bool {
 }
 
 // printSyncResult displays sync result in a user-friendly format
-func printSyncResult(result *backend.SyncResult) {
+func printSyncResult(result *sync.SyncResult) {
 	fmt.Println("\n=== Sync Complete ===")
 	fmt.Printf("Pulled tasks: %d\n", result.PulledTasks)
 	fmt.Printf("Pushed tasks: %d\n", result.PushedTasks)
@@ -465,7 +467,7 @@ func printSyncResult(result *backend.SyncResult) {
 }
 
 // getLastSyncTime retrieves the most recent sync timestamp
-func getLastSyncTime(local *backend.SQLiteBackend) (time.Time, error) {
+func getLastSyncTime(local *sqlite.SQLiteBackend) (time.Time, error) {
 	db, err := local.GetDB()
 	if err != nil {
 		return time.Time{}, err
@@ -546,12 +548,12 @@ func performAutoSync(cfg *config.Config) {
 			return // Skip auto-sync if offline
 		}
 
-		strategy := backend.ConflictResolutionStrategy(cfg.Sync.ConflictResolution)
+		strategy := sync.ConflictResolutionStrategy(cfg.Sync.ConflictResolution)
 		if strategy == "" {
-			strategy = backend.ServerWins
+			strategy = sync.ServerWins
 		}
 
-		sm := backend.NewSyncManager(localBackend, remoteBackend, strategy)
+		sm := sync.NewSyncManager(localBackend, remoteBackend, strategy)
 		_, _ = sm.Sync()
 	}()
 }

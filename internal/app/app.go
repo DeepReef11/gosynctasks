@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"gosynctasks/backend"
+	"gosynctasks/backend/sqlite"
 	"gosynctasks/internal/cache"
 	"gosynctasks/internal/config"
 	"gosynctasks/internal/operations"
@@ -194,7 +195,7 @@ func (a *App) initializeSyncCoordinator() error {
 		return fmt.Errorf("failed to get local backend '%s': %w", cfg.Sync.LocalBackend, err)
 	}
 
-	sqliteBackend, ok := localBackend.(*backend.SQLiteBackend)
+	sqliteBackend, ok := localBackend.(*sqlite.SQLiteBackend)
 	if !ok {
 		return fmt.Errorf("local backend must be SQLite, got %T", localBackend)
 	}

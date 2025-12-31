@@ -1,6 +1,8 @@
-package backend
+package sync
 
 import (
+	"gosynctasks/backend"
+	"gosynctasks/backend/sqlite"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -18,7 +20,7 @@ func BenchmarkSyncPull(b *testing.B) {
 			tmpDir := b.TempDir()
 			dbPath := filepath.Join(tmpDir, "bench.db")
 
-			localBackend, err := NewSQLiteBackend(BackendConfig{
+			localBackend, err := sqlite.NewSQLiteBackend(backend.BackendConfig{
 				Type:    "sqlite",
 				Enabled: true,
 				DBPath:  dbPath,
@@ -28,16 +30,16 @@ func BenchmarkSyncPull(b *testing.B) {
 			}
 			defer localBackend.Close()
 
-			remoteBackend := NewMockBackend()
+			remoteBackend := backend.NewMockBackend()
 			listID, _ := remoteBackend.CreateTaskList("Benchmark List", "", "")
 			remoteBackend.lists[0].CTags = "ctag-bench"
 
 			// Pre-populate remote with tasks
 			now := time.Now()
 			for i := 0; i < size; i++ {
-				remoteBackend.AddTask(listID, Task{
+				remoteBackend.AddTask(listID, backend.Task{
 					UID:      fmt.Sprintf("task-%d", i),
-					Summary:  fmt.Sprintf("Task %d", i),
+					Summary:  fmt.Sprintf("backend.Task %d", i),
 					Status:   "NEEDS-ACTION",
 					Priority: (i % 9) + 1,
 					Created:  now,
@@ -71,7 +73,7 @@ func BenchmarkSyncPush(b *testing.B) {
 			tmpDir := b.TempDir()
 			dbPath := filepath.Join(tmpDir, "bench.db")
 
-			localBackend, err := NewSQLiteBackend(BackendConfig{
+			localBackend, err := sqlite.NewSQLiteBackend(backend.BackendConfig{
 				Type:    "sqlite",
 				Enabled: true,
 				DBPath:  dbPath,
@@ -81,14 +83,14 @@ func BenchmarkSyncPush(b *testing.B) {
 			}
 			defer localBackend.Close()
 
-			remoteBackend := NewMockBackend()
+			remoteBackend := backend.NewMockBackend()
 			listID, _ := localBackend.CreateTaskList("Benchmark List", "", "")
-			remoteBackend.lists = append(remoteBackend.lists, TaskList{
+			remoteBackend.lists = append(remoteBackend.lists, backend.TaskList{
 				ID:    listID,
 				Name:  "Benchmark List",
 				CTags: "ctag-bench",
 			})
-			remoteBackend.tasks[listID] = []Task{}
+			remoteBackend.tasks[listID] = []backend.Task{}
 
 			sm := NewSyncManager(localBackend, remoteBackend, ServerWins)
 
@@ -98,9 +100,9 @@ func BenchmarkSyncPush(b *testing.B) {
 				// Add tasks locally
 				now := time.Now()
 				for j := 0; j < size; j++ {
-					localBackend.AddTask(listID, Task{
+					localBackend.AddTask(listID, backend.Task{
 						UID:      fmt.Sprintf("task-%d-%d", i, j),
-						Summary:  fmt.Sprintf("Task %d-%d", i, j),
+						Summary:  fmt.Sprintf("backend.Task %d-%d", i, j),
 						Status:   "NEEDS-ACTION",
 						Priority: (j % 9) + 1,
 						Created:  now,
@@ -121,7 +123,7 @@ func BenchmarkSyncPush(b *testing.B) {
 
 // BenchmarkConflictResolution benchmarks different conflict resolution strategies
 func BenchmarkConflictResolution(b *testing.B) {
-	strategies := []ConflictResolutionStrategy{
+	strategies := []backend.ConflictResolutionStrategy{
 		ServerWins,
 		LocalWins,
 		Merge,
@@ -133,7 +135,7 @@ func BenchmarkConflictResolution(b *testing.B) {
 			tmpDir := b.TempDir()
 			dbPath := filepath.Join(tmpDir, "bench.db")
 
-			localBackend, err := NewSQLiteBackend(BackendConfig{
+			localBackend, err := sqlite.NewSQLiteBackend(backend.BackendConfig{
 				Type:    "sqlite",
 				Enabled: true,
 				DBPath:  dbPath,
@@ -143,16 +145,16 @@ func BenchmarkConflictResolution(b *testing.B) {
 			}
 			defer localBackend.Close()
 
-			remoteBackend := NewMockBackend()
+			remoteBackend := backend.NewMockBackend()
 
 			// Create list
 			listID, _ := localBackend.CreateTaskList("Conflict Bench", "", "")
-			remoteBackend.lists = append(remoteBackend.lists, TaskList{
+			remoteBackend.lists = append(remoteBackend.lists, backend.TaskList{
 				ID:    listID,
 				Name:  "Conflict Bench",
 				CTags: "ctag-initial",
 			})
-			remoteBackend.tasks[listID] = []Task{}
+			remoteBackend.tasks[listID] = []backend.Task{}
 
 			sm := NewSyncManager(localBackend, remoteBackend, strategy)
 
@@ -161,7 +163,7 @@ func BenchmarkConflictResolution(b *testing.B) {
 				b.StopTimer()
 				// Setup conflict
 				now := time.Now()
-				task := Task{
+				task := backend.Task{
 					UID:      fmt.Sprintf("conflict-task-%d", i),
 					Summary:  "Original",
 					Status:   "NEEDS-ACTION",
@@ -202,7 +204,7 @@ func BenchmarkDatabaseOperations(b *testing.B) {
 	tmpDir := b.TempDir()
 	dbPath := filepath.Join(tmpDir, "bench.db")
 
-	backend, err := NewSQLiteBackend(BackendConfig{
+	backend, err := sqlite.NewSQLiteBackend(backend.BackendConfig{
 		Type:    "sqlite",
 		Enabled: true,
 		DBPath:  dbPath,
@@ -218,9 +220,9 @@ func BenchmarkDatabaseOperations(b *testing.B) {
 		now := time.Now()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			backend.AddTask(listID, Task{
+			backend.AddTask(listID, backend.Task{
 				UID:      fmt.Sprintf("task-%d", i),
-				Summary:  fmt.Sprintf("Task %d", i),
+				Summary:  fmt.Sprintf("backend.Task %d", i),
 				Status:   "NEEDS-ACTION",
 				Priority: (i % 9) + 1,
 				Created:  now,
@@ -234,9 +236,9 @@ func BenchmarkDatabaseOperations(b *testing.B) {
 	taskUIDs := make([]string, 100)
 	for i := 0; i < 100; i++ {
 		uid := fmt.Sprintf("existing-task-%d", i)
-		backend.AddTask(listID, Task{
+		backend.AddTask(listID, backend.Task{
 			UID:      uid,
-			Summary:  fmt.Sprintf("Existing Task %d", i),
+			Summary:  fmt.Sprintf("Existing backend.Task %d", i),
 			Status:   "NEEDS-ACTION",
 			Priority: 5,
 			Created:  now,
@@ -259,9 +261,9 @@ func BenchmarkDatabaseOperations(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			uid := taskUIDs[i%len(taskUIDs)]
-			backend.UpdateTask(listID, Task{
+			backend.UpdateTask(listID, backend.Task{
 				UID:      uid,
-				Summary:  fmt.Sprintf("Updated Task %d", i),
+				Summary:  fmt.Sprintf("Updated backend.Task %d", i),
 				Status:   "COMPLETED",
 				Priority: 1,
 				Created:  now,
@@ -285,7 +287,7 @@ func BenchmarkDatabaseOperations(b *testing.B) {
 		deleteUIDs := make([]string, b.N)
 		for i := 0; i < b.N; i++ {
 			uid := fmt.Sprintf("delete-task-%d", i)
-			backend.AddTask(listID, Task{
+			backend.AddTask(listID, backend.Task{
 				UID:      uid,
 				Summary:  "To Delete",
 				Status:   "NEEDS-ACTION",
@@ -307,7 +309,7 @@ func BenchmarkSyncQueue(b *testing.B) {
 	tmpDir := b.TempDir()
 	dbPath := filepath.Join(tmpDir, "bench.db")
 
-	backend, err := NewSQLiteBackend(BackendConfig{
+	backend, err := sqlite.NewSQLiteBackend(backend.BackendConfig{
 		Type:    "sqlite",
 		Enabled: true,
 		DBPath:  dbPath,
@@ -322,9 +324,9 @@ func BenchmarkSyncQueue(b *testing.B) {
 	b.Run("GetPendingSyncOperations", func(b *testing.B) {
 		// Pre-populate queue
 		for i := 0; i < 100; i++ {
-			backend.AddTask(listID, Task{
+			backend.AddTask(listID, backend.Task{
 				UID:      fmt.Sprintf("queue-task-%d", i),
-				Summary:  "Queued Task",
+				Summary:  "Queued backend.Task",
 				Status:   "NEEDS-ACTION",
 				Created:  time.Now(),
 				Modified: time.Now(),
@@ -345,9 +347,9 @@ func BenchmarkSyncQueue(b *testing.B) {
 		taskUIDs := make([]string, b.N)
 		for i := 0; i < b.N; i++ {
 			uid := fmt.Sprintf("clear-task-%d", i)
-			backend.AddTask(listID, Task{
+			backend.AddTask(listID, backend.Task{
 				UID:      uid,
-				Summary:  "Task",
+				Summary:  "backend.Task",
 				Status:   "NEEDS-ACTION",
 				Created:  time.Now(),
 				Modified: time.Now(),
@@ -370,7 +372,7 @@ func BenchmarkHierarchicalTaskSorting(b *testing.B) {
 		b.Run(fmt.Sprintf("tasks=%d", size), func(b *testing.B) {
 			// Create hierarchical task structure
 			now := time.Now()
-			tasks := make([]Task, size)
+			tasks := make([]backend.Task, size)
 
 			// Create a tree: root tasks with children
 			numRoots := size / 10
@@ -379,9 +381,9 @@ func BenchmarkHierarchicalTaskSorting(b *testing.B) {
 			}
 
 			for i := 0; i < size; i++ {
-				task := Task{
+				task := backend.Task{
 					UID:      fmt.Sprintf("task-%d", i),
-					Summary:  fmt.Sprintf("Task %d", i),
+					Summary:  fmt.Sprintf("backend.Task %d", i),
 					Status:   "NEEDS-ACTION",
 					Created:  now,
 					Modified: now,
@@ -399,7 +401,7 @@ func BenchmarkHierarchicalTaskSorting(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				// Create a copy to avoid modifying original
-				tasksCopy := make([]Task, len(tasks))
+				tasksCopy := make([]backend.Task, len(tasks))
 				copy(tasksCopy, tasks)
 
 				// Sort by hierarchy

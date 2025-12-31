@@ -1,6 +1,7 @@
-package backend
+package git
 
 import (
+	"gosynctasks/backend"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -11,13 +12,24 @@ import (
 	"time"
 )
 
-// GitBackend implements TaskManager for git repositories with markdown task files.
+func init() {
+	// Register Git backend for config type "git"
+	// Git backend supports auto-detection
+	backend.RegisterDetectable("git", newGitBackendWrapper)
+}
+
+// newGitBackendWrapper wraps NewGitBackend to match BackendConfigConstructor signature
+func newGitBackendWrapper(config backend.BackendConfig) (backend.TaskManager, error) {
+	return NewGitBackend(config)
+}
+
+// GitBackend implements backend.TaskManager for git repositories with markdown task files.
 // Tasks are stored in markdown format with a special marker to enable gosynctasks.
 type GitBackend struct {
-	config       BackendConfig
+	config       backend.BackendConfig
 	repoPath     string            // Absolute path to git repository root
 	filePath     string            // Absolute path to task file (e.g., TODO.md)
-	taskLists    map[string][]Task // Tasks organized by list name (## headers)
+	taskLists    map[string][]backend.Task // Tasks organized by list name (## headers)
 	fileModTime  time.Time         // Last modification time of file
 	detectedInfo string            // Human-readable detection info
 }
@@ -28,10 +40,10 @@ const (
 )
 
 // NewGitBackend creates a new Git backend instance.
-func NewGitBackend(config BackendConfig) (*GitBackend, error) {
+func NewGitBackend(config backend.BackendConfig) (*GitBackend, error) {
 	gb := &GitBackend{
 		config:    config,
-		taskLists: make(map[string][]Task),
+		taskLists: make(map[string][]backend.Task),
 	}
 
 	// Find git repository
@@ -247,15 +259,15 @@ func (gb *GitBackend) DetectionInfo() string {
 }
 
 // GetTaskLists retrieves all task lists (headers) from the markdown file.
-func (gb *GitBackend) GetTaskLists() ([]TaskList, error) {
+func (gb *GitBackend) GetTaskLists() ([]backend.TaskList, error) {
 	// Reload file to get latest changes
 	if err := gb.loadFile(); err != nil {
 		return nil, err
 	}
 
-	var lists []TaskList
+	var lists []backend.TaskList
 	for name := range gb.taskLists {
-		lists = append(lists, TaskList{
+		lists = append(lists, backend.TaskList{
 			ID:          name,
 			Name:        name,
 			Description: fmt.Sprintf("%d tasks", len(gb.taskLists[name])),
@@ -266,7 +278,7 @@ func (gb *GitBackend) GetTaskLists() ([]TaskList, error) {
 }
 
 // GetTasks retrieves tasks from a specific list with optional filtering.
-func (gb *GitBackend) GetTasks(listID string, filter *TaskFilter) ([]Task, error) {
+func (gb *GitBackend) GetTasks(listID string, filter *backend.TaskFilter) ([]backend.Task, error) {
 	// Reload file to get latest changes
 	if err := gb.loadFile(); err != nil {
 		return nil, err
@@ -288,9 +300,9 @@ func (gb *GitBackend) GetTasks(listID string, filter *TaskFilter) ([]Task, error
 	return tasks, nil
 }
 
-// filterTasks applies a TaskFilter to a slice of tasks.
-func (gb *GitBackend) filterTasks(tasks []Task, filter *TaskFilter) []Task {
-	var filtered []Task
+// filterTasks applies a backend.TaskFilter to a slice of tasks.
+func (gb *GitBackend) filterTasks(tasks []backend.Task, filter *backend.TaskFilter) []backend.Task {
+	var filtered []backend.Task
 
 	for _, task := range tasks {
 		// Check status filter
@@ -334,14 +346,14 @@ func (gb *GitBackend) filterTasks(tasks []Task, filter *TaskFilter) []Task {
 }
 
 // FindTasksBySummary searches for tasks by summary text.
-func (gb *GitBackend) FindTasksBySummary(listID string, summary string) ([]Task, error) {
+func (gb *GitBackend) FindTasksBySummary(listID string, summary string) ([]backend.Task, error) {
 	tasks, err := gb.GetTasks(listID, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	summary = strings.ToLower(summary)
-	var matches []Task
+	var matches []backend.Task
 
 	for _, task := range tasks {
 		if strings.Contains(strings.ToLower(task.Summary), summary) {
@@ -353,7 +365,7 @@ func (gb *GitBackend) FindTasksBySummary(listID string, summary string) ([]Task,
 }
 
 // AddTask creates a new task in the specified list.
-func (gb *GitBackend) AddTask(listID string, task Task) error {
+func (gb *GitBackend) AddTask(listID string, task backend.Task) error {
 	// Reload file to get latest changes
 	if err := gb.loadFile(); err != nil {
 		return err
@@ -378,7 +390,7 @@ func (gb *GitBackend) AddTask(listID string, task Task) error {
 }
 
 // UpdateTask modifies an existing task.
-func (gb *GitBackend) UpdateTask(listID string, task Task) error {
+func (gb *GitBackend) UpdateTask(listID string, task backend.Task) error {
 	// Reload file to get latest changes
 	if err := gb.loadFile(); err != nil {
 		return err
@@ -401,7 +413,7 @@ func (gb *GitBackend) UpdateTask(listID string, task Task) error {
 	}
 
 	if !found {
-		return NewBackendError("UpdateTask", 404, fmt.Sprintf("task %q not found", task.UID))
+		return backend.NewBackendError("UpdateTask", 404, fmt.Sprintf("task %q not found", task.UID))
 	}
 
 	gb.taskLists[listID] = tasks
@@ -433,7 +445,7 @@ func (gb *GitBackend) DeleteTask(listID string, taskUID string) error {
 	}
 
 	if !found {
-		return NewBackendError("DeleteTask", 404, fmt.Sprintf("task %q not found", taskUID))
+		return backend.NewBackendError("DeleteTask", 404, fmt.Sprintf("task %q not found", taskUID))
 	}
 
 	gb.taskLists[listID] = tasks
@@ -455,7 +467,7 @@ func (gb *GitBackend) CreateTaskList(name, description, color string) (string, e
 	}
 
 	// Create empty list
-	gb.taskLists[name] = []Task{}
+	gb.taskLists[name] = []backend.Task{}
 
 	// Save file
 	if err := gb.saveFile(); err != nil {
@@ -543,7 +555,7 @@ func (gb *GitBackend) StatusToDisplayName(backendStatus string) string {
 }
 
 // SortTasks sorts tasks by priority (1=highest) and creation date.
-func (gb *GitBackend) SortTasks(tasks []Task) {
+func (gb *GitBackend) SortTasks(tasks []backend.Task) {
 	// Simple bubble sort (good enough for typical task lists)
 	for i := 0; i < len(tasks); i++ {
 		for j := i + 1; j < len(tasks); j++ {
@@ -605,9 +617,9 @@ func (gb *GitBackend) GetBackendContext() string {
 }
 
 // GetDeletedTaskLists retrieves deleted task lists (not supported for Git backend).
-func (gb *GitBackend) GetDeletedTaskLists() ([]TaskList, error) {
+func (gb *GitBackend) GetDeletedTaskLists() ([]backend.TaskList, error) {
 	// Git backend doesn't support trash functionality
-	return []TaskList{}, nil
+	return []backend.TaskList{}, nil
 }
 
 // RestoreTaskList restores a deleted task list (not supported for Git backend).

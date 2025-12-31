@@ -1,6 +1,7 @@
-package backend
+package sqlite
 
 import (
+	"gosynctasks/backend"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,7 +13,7 @@ func createTestSQLiteBackend(t *testing.T) (*SQLiteBackend, func()) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 
-	config := BackendConfig{
+	config := backend.BackendConfig{
 		Type:    "sqlite",
 		Enabled: true,
 		DBPath:  dbPath,
@@ -35,7 +36,7 @@ func TestNewSQLiteBackend(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 
-	config := BackendConfig{
+	config := backend.BackendConfig{
 		Type:    "sqlite",
 		Enabled: true,
 		DBPath:  dbPath,
@@ -133,8 +134,8 @@ func TestAddTask(t *testing.T) {
 	}
 
 	// Create a task
-	task := Task{
-		Summary:     "Test Task",
+	task := backend.Task{
+		Summary:     "Test backend.Task",
 		Description: "This is a test",
 		Status:      "NEEDS-ACTION",
 		Priority:    5,
@@ -155,8 +156,8 @@ func TestAddTask(t *testing.T) {
 		t.Fatalf("Expected 1 task, got %d", len(tasks))
 	}
 
-	if tasks[0].Summary != "Test Task" {
-		t.Errorf("Expected summary 'Test Task', got '%s'", tasks[0].Summary)
+	if tasks[0].Summary != "Test backend.Task" {
+		t.Errorf("Expected summary 'Test backend.Task', got '%s'", tasks[0].Summary)
 	}
 
 	if tasks[0].Description != "This is a test" {
@@ -175,9 +176,9 @@ func TestAddTaskWithUID(t *testing.T) {
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
 
-	task := Task{
+	task := backend.Task{
 		UID:     "custom-uid-123",
-		Summary: "Task with UID",
+		Summary: "backend.Task with UID",
 		Status:  "NEEDS-ACTION",
 	}
 
@@ -199,7 +200,7 @@ func TestUpdateTask(t *testing.T) {
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
 
-	task := Task{
+	task := backend.Task{
 		UID:      "task-1",
 		Summary:  "Original",
 		Status:   "NEEDS-ACTION",
@@ -240,7 +241,7 @@ func TestUpdateNonexistentTask(t *testing.T) {
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
 
-	task := Task{
+	task := backend.Task{
 		UID:     "nonexistent",
 		Summary: "Does not exist",
 		Status:  "NEEDS-ACTION",
@@ -251,7 +252,7 @@ func TestUpdateNonexistentTask(t *testing.T) {
 		t.Error("Expected error when updating nonexistent task")
 	}
 
-	// Should be a BackendError with NotFound
+	// Should be a backend.BackendError with NotFound
 	if backendErr, ok := err.(*BackendError); ok {
 		if !backendErr.IsNotFound() {
 			t.Error("Expected NotFound error")
@@ -266,7 +267,7 @@ func TestDeleteTask(t *testing.T) {
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
 
-	task := Task{
+	task := backend.Task{
 		UID:     "task-to-delete",
 		Summary: "Delete me",
 		Status:  "NEEDS-ACTION",
@@ -320,13 +321,13 @@ func TestGetTasksWithStatusFilter(t *testing.T) {
 	listID, _ := backend.CreateTaskList("Test List", "", "")
 
 	// Add tasks with different statuses
-	backend.AddTask(listID, Task{UID: "task-1", Summary: "Task 1", Status: "NEEDS-ACTION"})
-	backend.AddTask(listID, Task{UID: "task-2", Summary: "Task 2", Status: "COMPLETED"})
-	backend.AddTask(listID, Task{UID: "task-3", Summary: "Task 3", Status: "NEEDS-ACTION"})
+	backend.AddTask(listID, backend.Task{UID: "task-1", Summary: "backend.Task 1", Status: "NEEDS-ACTION"})
+	backend.AddTask(listID, backend.Task{UID: "task-2", Summary: "backend.Task 2", Status: "COMPLETED"})
+	backend.AddTask(listID, backend.Task{UID: "task-3", Summary: "backend.Task 3", Status: "NEEDS-ACTION"})
 
 	// Filter by NEEDS-ACTION
 	statuses := []string{"NEEDS-ACTION"}
-	filter := &TaskFilter{Statuses: &statuses}
+	filter := &backend.TaskFilter{Statuses: &statuses}
 
 	tasks, err := backend.GetTasks(listID, filter)
 	if err != nil {
@@ -356,11 +357,11 @@ func TestGetTasksWithDateFilter(t *testing.T) {
 	yesterday := now.Add(-24 * time.Hour)
 
 	// Add tasks with different due dates
-	backend.AddTask(listID, Task{UID: "task-1", Summary: "Due tomorrow", Status: "NEEDS-ACTION", DueDate: &tomorrow})
-	backend.AddTask(listID, Task{UID: "task-2", Summary: "Due yesterday", Status: "NEEDS-ACTION", DueDate: &yesterday})
+	backend.AddTask(listID, backend.Task{UID: "task-1", Summary: "Due tomorrow", Status: "NEEDS-ACTION", DueDate: &tomorrow})
+	backend.AddTask(listID, backend.Task{UID: "task-2", Summary: "Due yesterday", Status: "NEEDS-ACTION", DueDate: &yesterday})
 
 	// Filter tasks due before now (should get task-2)
-	filter := &TaskFilter{DueBefore: &now}
+	filter := &backend.TaskFilter{DueBefore: &now}
 
 	tasks, err := backend.GetTasks(listID, filter)
 	if err != nil {
@@ -384,9 +385,9 @@ func TestFindTasksBySummary(t *testing.T) {
 	listID, _ := backend.CreateTaskList("Test List", "", "")
 
 	// Add tasks
-	backend.AddTask(listID, Task{UID: "task-1", Summary: "Buy groceries", Status: "NEEDS-ACTION"})
-	backend.AddTask(listID, Task{UID: "task-2", Summary: "Buy milk", Status: "NEEDS-ACTION"})
-	backend.AddTask(listID, Task{UID: "task-3", Summary: "Write report", Status: "NEEDS-ACTION"})
+	backend.AddTask(listID, backend.Task{UID: "task-1", Summary: "Buy groceries", Status: "NEEDS-ACTION"})
+	backend.AddTask(listID, backend.Task{UID: "task-2", Summary: "Buy milk", Status: "NEEDS-ACTION"})
+	backend.AddTask(listID, backend.Task{UID: "task-3", Summary: "Write report", Status: "NEEDS-ACTION"})
 
 	// Search for "buy" (case-insensitive)
 	tasks, err := backend.FindTasksBySummary(listID, "buy")
@@ -453,7 +454,7 @@ func TestDeleteTaskList(t *testing.T) {
 	listID, _ := backend.CreateTaskList("List to delete", "", "")
 
 	// Add a task to the list
-	backend.AddTask(listID, Task{UID: "task-1", Summary: "Task", Status: "NEEDS-ACTION"})
+	backend.AddTask(listID, backend.Task{UID: "task-1", Summary: "backend.Task", Status: "NEEDS-ACTION"})
 
 	// Delete list
 	err := backend.DeleteTaskList(listID)
@@ -559,7 +560,7 @@ func TestSortTasks(t *testing.T) {
 	backend, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
 
-	tasks := []Task{
+	tasks := []backend.Task{
 		{UID: "1", Summary: "Priority 0", Priority: 0},
 		{UID: "2", Summary: "Priority 5", Priority: 5},
 		{UID: "3", Summary: "Priority 1", Priority: 1},
@@ -611,7 +612,7 @@ func TestMarkLocallyModified(t *testing.T) {
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
-	task := Task{UID: "task-1", Summary: "Test", Status: "NEEDS-ACTION"}
+	task := backend.Task{UID: "task-1", Summary: "Test", Status: "NEEDS-ACTION"}
 	backend.AddTask(listID, task)
 
 	// Clear the flag and queue entry (AddTask sets it to 1 and adds to queue)
@@ -646,7 +647,7 @@ func TestGetPendingSyncOperations(t *testing.T) {
 	listID, _ := backend.CreateTaskList("Test List", "", "")
 
 	// Add a task (this queues a 'create' operation)
-	task := Task{UID: "task-1", Summary: "Test", Status: "NEEDS-ACTION"}
+	task := backend.Task{UID: "task-1", Summary: "Test", Status: "NEEDS-ACTION"}
 	backend.AddTask(listID, task)
 
 	// Get pending operations
@@ -674,10 +675,10 @@ func TestClearSyncFlags(t *testing.T) {
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
-	task := Task{UID: "task-1", Summary: "Test", Status: "NEEDS-ACTION"}
+	task := backend.Task{UID: "task-1", Summary: "Test", Status: "NEEDS-ACTION"}
 	backend.AddTask(listID, task)
 
-	// Task should be locally modified after creation
+	// backend.Task should be locally modified after creation
 	modifiedTasks, _ := backend.GetLocallyModifiedTasks()
 	if len(modifiedTasks) != 1 {
 		t.Fatalf("Expected 1 locally modified task, got %d", len(modifiedTasks))
@@ -702,7 +703,7 @@ func TestUpdateSyncMetadata(t *testing.T) {
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
-	task := Task{UID: "task-1", Summary: "Test", Status: "NEEDS-ACTION"}
+	task := backend.Task{UID: "task-1", Summary: "Test", Status: "NEEDS-ACTION"}
 	backend.AddTask(listID, task)
 
 	now := time.Now()
@@ -721,7 +722,7 @@ func TestRemoveSyncOperation(t *testing.T) {
 	defer cleanup()
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
-	task := Task{UID: "task-1", Summary: "Test", Status: "NEEDS-ACTION"}
+	task := backend.Task{UID: "task-1", Summary: "Test", Status: "NEEDS-ACTION"}
 	backend.AddTask(listID, task)
 
 	// Verify operation exists
@@ -751,17 +752,17 @@ func TestTaskWithParent(t *testing.T) {
 	listID, _ := backend.CreateTaskList("Test List", "", "")
 
 	// Create parent task
-	parentTask := Task{UID: "parent-1", Summary: "Parent", Status: "NEEDS-ACTION"}
+	parentTask := backend.Task{UID: "parent-1", Summary: "Parent", Status: "NEEDS-ACTION"}
 	backend.AddTask(listID, parentTask)
 
 	// Create child task
-	childTask := Task{UID: "child-1", Summary: "Child", Status: "NEEDS-ACTION", ParentUID: "parent-1"}
+	childTask := backend.Task{UID: "child-1", Summary: "Child", Status: "NEEDS-ACTION", ParentUID: "parent-1"}
 	backend.AddTask(listID, childTask)
 
 	// Retrieve tasks
 	tasks, _ := backend.GetTasks(listID, nil)
 
-	var child *Task
+	var child *backend.Task
 	for i := range tasks {
 		if tasks[i].UID == "child-1" {
 			child = &tasks[i]
@@ -785,9 +786,9 @@ func TestTaskWithCategories(t *testing.T) {
 
 	listID, _ := backend.CreateTaskList("Test List", "", "")
 
-	task := Task{
+	task := backend.Task{
 		UID:        "task-1",
-		Summary:    "Task with categories",
+		Summary:    "backend.Task with categories",
 		Status:     "NEEDS-ACTION",
 		Categories: []string{"work", "urgent", "important"},
 	}
@@ -817,9 +818,9 @@ func TestTaskTimestamps(t *testing.T) {
 	dueDate := now.Add(24 * time.Hour)
 	startDate := now.Add(-24 * time.Hour)
 
-	task := Task{
+	task := backend.Task{
 		UID:       "task-1",
-		Summary:   "Task with dates",
+		Summary:   "backend.Task with dates",
 		Status:    "NEEDS-ACTION",
 		DueDate:   &dueDate,
 		StartDate: &startDate,
@@ -898,7 +899,7 @@ func TestTransactionRollback(t *testing.T) {
 	listID, _ := backend.CreateTaskList("Test List", "", "")
 
 	// Try to add task with invalid parent reference
-	task := Task{
+	task := backend.Task{
 		UID:       "task-1",
 		Summary:   "Test",
 		Status:    "NEEDS-ACTION",

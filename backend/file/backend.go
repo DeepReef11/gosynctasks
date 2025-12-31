@@ -1,31 +1,56 @@
-package backend
+package file
 
 import (
+	"gosynctasks/backend"
 	"fmt"
+	"net/url"
 	"strings"
 )
 
+func init() {
+	// Register File backend for URL scheme "file://"
+	backend.RegisterScheme("file", NewFileBackend)
+
+	// Register File backend for config type "file"
+	backend.RegisterType("file", newFileBackendFromBackendConfig)
+}
+
+// newFileBackendFromBackendConfig creates a File backend from BackendConfig
+func newFileBackendFromBackendConfig(bc backend.BackendConfig) (backend.TaskManager, error) {
+	// Convert BackendConfig to ConnectorConfig
+	u, err := url.Parse(bc.URL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URL for file backend: %w", err)
+	}
+
+	connConfig := backend.ConnectorConfig{
+		URL: u,
+	}
+
+	return NewFileBackend(connConfig)
+}
+
 type FileBackend struct {
-	Connector ConnectorConfig
+	Connector backend.ConnectorConfig
 }
 
-func (fB *FileBackend) GetTaskLists() ([]TaskList, error) {
+func (fB *FileBackend) GetTaskLists() ([]backend.TaskList, error) {
 	return nil, nil
 }
 
-func (fB *FileBackend) GetTasks(listID string, taskFilter *TaskFilter) ([]Task, error) {
+func (fB *FileBackend) GetTasks(listID string, taskFilter *backend.TaskFilter) ([]backend.Task, error) {
 	return nil, nil
 }
 
-func (fB *FileBackend) FindTasksBySummary(listID string, summary string) ([]Task, error) {
+func (fB *FileBackend) FindTasksBySummary(listID string, summary string) ([]backend.Task, error) {
 	return nil, nil
 }
 
-func (fB *FileBackend) AddTask(listID string, task Task) error {
+func (fB *FileBackend) AddTask(listID string, task backend.Task) error {
 	return nil
 }
 
-func (fB *FileBackend) UpdateTask(listID string, task Task) error {
+func (fB *FileBackend) UpdateTask(listID string, task backend.Task) error {
 	return nil
 }
 
@@ -45,9 +70,9 @@ func (fB *FileBackend) RenameTaskList(listID, newName string) error {
 	return fmt.Errorf("FileBackend.RenameTaskList not yet implemented")
 }
 
-func (fB *FileBackend) GetDeletedTaskLists() ([]TaskList, error) {
+func (fB *FileBackend) GetDeletedTaskLists() ([]backend.TaskList, error) {
 	// FileBackend doesn't support trash functionality
-	return []TaskList{}, nil
+	return []backend.TaskList{}, nil
 }
 
 func (fB *FileBackend) RestoreTaskList(listID string) error {
@@ -98,7 +123,7 @@ func (fB *FileBackend) StatusToDisplayName(backendStatus string) string {
 	}
 }
 
-func (fB *FileBackend) SortTasks(tasks []Task) {
+func (fB *FileBackend) SortTasks(tasks []backend.Task) {
 	// File backend: no specific sorting
 }
 
@@ -129,7 +154,7 @@ func (fB *FileBackend) GetBackendContext() string {
 	return ""
 }
 
-func NewFileBackend(connectorConfig ConnectorConfig) (TaskManager, error) {
+func NewFileBackend(connectorConfig backend.ConnectorConfig) (backend.TaskManager, error) {
 	return &FileBackend{
 		Connector: connectorConfig,
 	}, nil

@@ -1,7 +1,28 @@
 package backend
 
+import (
+	"fmt"
+	"math/rand"
+	"time"
+)
+
 // This file contains shared test helpers and mocks used across backend tests.
 // These are available to all _test.go files in the backend package.
+
+// generateUID generates a unique identifier for testing
+func generateUID() string {
+	return fmt.Sprintf("task-%d-%s", time.Now().Unix(), randomString(8))
+}
+
+// randomString generates a random string of given length
+func randomString(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+	return string(b)
+}
 
 // MockBackend implements TaskManager for testing
 type MockBackend struct {

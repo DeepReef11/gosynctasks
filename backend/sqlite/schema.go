@@ -1,4 +1,4 @@
-package backend
+package sqlite
 
 // Schema version for migration management
 const SchemaVersion = 1

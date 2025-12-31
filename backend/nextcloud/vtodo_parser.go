@@ -1,14 +1,15 @@
-package backend
+package nextcloud
 
 import (
+	"gosynctasks/backend"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 )
 
-func (nB *NextcloudBackend) parseVTODOs(xmlData string) ([]Task, error) {
-	var tasks []Task
+func (nB *NextcloudBackend) parseVTODOs(xmlData string) ([]backend.Task, error) {
+	var tasks []backend.Task
 
 	// Extract VTODO blocks from XML
 	vtodoBlocks := extractVTODOBlocks(xmlData)
@@ -50,8 +51,8 @@ func extractVTODOBlocks(xmlData string) []string {
 	return blocks
 }
 
-func parseVTODO(vtodo string) (Task, error) {
-	task := Task{
+func parseVTODO(vtodo string) (backend.Task, error) {
+	task := backend.Task{
 		Status:   "NEEDS-ACTION",
 		Priority: 0,
 		Created:  time.Now(),
@@ -158,8 +159,8 @@ func parseInt(s string) int {
 	return 0
 }
 
-func (nB *NextcloudBackend) parseTaskLists(xmlData, baseURL string) ([]TaskList, error) {
-	var taskLists []TaskList
+func (nB *NextcloudBackend) parseTaskLists(xmlData, baseURL string) ([]backend.TaskList, error) {
+	var taskLists []backend.TaskList
 
 	responses := extractResponses(xmlData)
 
@@ -193,8 +194,8 @@ func (nB *NextcloudBackend) parseTaskLists(xmlData, baseURL string) ([]TaskList,
 	return taskLists, nil
 }
 
-func (nB *NextcloudBackend) parseDeletedTaskLists(xmlData, baseURL string) ([]TaskList, error) {
-	var taskLists []TaskList
+func (nB *NextcloudBackend) parseDeletedTaskLists(xmlData, baseURL string) ([]backend.TaskList, error) {
+	var taskLists []backend.TaskList
 
 	responses := extractResponses(xmlData)
 
@@ -305,8 +306,8 @@ func extractResponses(xmlData string) []string {
 	return responses
 }
 
-func parseTaskListResponse(response, baseURL string) TaskList {
-	taskList := TaskList{}
+func parseTaskListResponse(response, baseURL string) backend.TaskList {
+	taskList := backend.TaskList{}
 
 	// Extract href (calendar ID)
 	if href := extractXMLValue(response, "href"); href != "" {

@@ -1,11 +1,12 @@
-package backend
+package git
 
 import (
+	"gosynctasks/backend"
 	"fmt"
 	"strings"
 )
 
-// MarkdownWriter writes Task structures back to markdown format.
+// MarkdownWriter writes backend.Task structures back to markdown format.
 type MarkdownWriter struct{}
 
 // NewMarkdownWriter creates a new markdown writer.
@@ -14,7 +15,7 @@ func NewMarkdownWriter() *MarkdownWriter {
 }
 
 // Write converts task lists to markdown format.
-func (w *MarkdownWriter) Write(taskLists map[string][]Task) string {
+func (w *MarkdownWriter) Write(taskLists map[string][]backend.Task) string {
 	var builder strings.Builder
 
 	// Write marker at the top
@@ -72,7 +73,7 @@ func (w *MarkdownWriter) formatCheckbox(status string) string {
 }
 
 // formatTags formats task metadata as @tag:value pairs.
-func (w *MarkdownWriter) formatTags(task Task) string {
+func (w *MarkdownWriter) formatTags(task backend.Task) string {
 	var tags []string
 
 	// Always include UID

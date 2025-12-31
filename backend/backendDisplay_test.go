@@ -1,9 +1,15 @@
-package backend
+package backend_test
 
 import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"gosynctasks/backend"
+	"gosynctasks/backend/file"
+	"gosynctasks/backend/git"
+	"gosynctasks/backend/nextcloud"
+	"gosynctasks/backend/sqlite"
 )
 
 // Helper function to parse URLs in tests
@@ -15,10 +21,10 @@ func mustParseURL(rawURL string) *url.URL {
 	return u
 }
 
-// TestNextcloudBackend_GetBackendDisplayName tests Nextcloud backend display name
+// Testnextcloud.NextcloudBackend_GetBackendDisplayName tests Nextcloud backend display name
 func TestNextcloudBackend_GetBackendDisplayName(t *testing.T) {
-	backend := &NextcloudBackend{
-		Connector: ConnectorConfig{},
+	backend := &nextcloud.NextcloudBackend{
+		Connector: backend.ConnectorConfig{},
 		username:  "testuser",
 	}
 	backend.Connector.URL = mustParseURL("nextcloud://testuser:pass@localhost:8080")
@@ -30,9 +36,9 @@ func TestNextcloudBackend_GetBackendDisplayName(t *testing.T) {
 	}
 }
 
-// TestNextcloudBackend_GetBackendType tests Nextcloud backend type
+// Testnextcloud.NextcloudBackend_GetBackendType tests Nextcloud backend type
 func TestNextcloudBackend_GetBackendType(t *testing.T) {
-	backend := &NextcloudBackend{}
+	backend := &nextcloud.NextcloudBackend{}
 	backendType := backend.GetBackendType()
 	expected := "nextcloud"
 	if backendType != expected {
@@ -40,10 +46,10 @@ func TestNextcloudBackend_GetBackendType(t *testing.T) {
 	}
 }
 
-// TestNextcloudBackend_GetBackendContext tests Nextcloud backend context
+// Testnextcloud.NextcloudBackend_GetBackendContext tests Nextcloud backend context
 func TestNextcloudBackend_GetBackendContext(t *testing.T) {
-	backend := &NextcloudBackend{
-		Connector: ConnectorConfig{},
+	backend := &nextcloud.NextcloudBackend{
+		Connector: backend.ConnectorConfig{},
 		username:  "admin",
 	}
 	backend.Connector.URL = mustParseURL("nextcloud://admin:secret@example.com")
@@ -55,10 +61,10 @@ func TestNextcloudBackend_GetBackendContext(t *testing.T) {
 	}
 }
 
-// TestSQLiteBackend_GetBackendDisplayName tests SQLite backend display name
+// Testsqlite.SQLiteBackend_GetBackendDisplayName tests SQLite backend display name
 func TestSQLiteBackend_GetBackendDisplayName(t *testing.T) {
-	backend := &SQLiteBackend{
-		Config: BackendConfig{
+	backend := &sqlite.SQLiteBackend{
+		Config: backend.BackendConfig{
 			DBPath: "/home/user/.local/share/gosynctasks/tasks.db",
 		},
 	}
@@ -72,9 +78,9 @@ func TestSQLiteBackend_GetBackendDisplayName(t *testing.T) {
 	}
 }
 
-// TestSQLiteBackend_GetBackendType tests SQLite backend type
+// Testsqlite.SQLiteBackend_GetBackendType tests SQLite backend type
 func TestSQLiteBackend_GetBackendType(t *testing.T) {
-	backend := &SQLiteBackend{}
+	backend := &sqlite.SQLiteBackend{}
 	backendType := backend.GetBackendType()
 	expected := "sqlite"
 	if backendType != expected {
@@ -82,10 +88,10 @@ func TestSQLiteBackend_GetBackendType(t *testing.T) {
 	}
 }
 
-// TestSQLiteBackend_GetBackendContext tests SQLite backend context
+// Testsqlite.SQLiteBackend_GetBackendContext tests SQLite backend context
 func TestSQLiteBackend_GetBackendContext(t *testing.T) {
-	backend := &SQLiteBackend{
-		Config: BackendConfig{
+	backend := &sqlite.SQLiteBackend{
+		Config: backend.BackendConfig{
 			DBPath: "/tmp/test.db",
 		},
 	}
@@ -96,10 +102,10 @@ func TestSQLiteBackend_GetBackendContext(t *testing.T) {
 	}
 }
 
-// TestFileBackend_GetBackendDisplayName tests File backend display name
+// Testfile.FileBackend_GetBackendDisplayName tests File backend display name
 func TestFileBackend_GetBackendDisplayName(t *testing.T) {
-	backend := &FileBackend{
-		Connector: ConnectorConfig{},
+	backend := &file.FileBackend{
+		Connector: backend.ConnectorConfig{},
 	}
 	backend.Connector.URL = mustParseURL("file:///home/user/tasks.txt")
 
@@ -110,9 +116,9 @@ func TestFileBackend_GetBackendDisplayName(t *testing.T) {
 	}
 }
 
-// TestFileBackend_GetBackendType tests File backend type
+// Testfile.FileBackend_GetBackendType tests File backend type
 func TestFileBackend_GetBackendType(t *testing.T) {
-	backend := &FileBackend{}
+	backend := &file.FileBackend{}
 	backendType := backend.GetBackendType()
 	expected := "file"
 	if backendType != expected {
@@ -120,10 +126,10 @@ func TestFileBackend_GetBackendType(t *testing.T) {
 	}
 }
 
-// TestFileBackend_GetBackendContext tests File backend context
+// Testfile.FileBackend_GetBackendContext tests File backend context
 func TestFileBackend_GetBackendContext(t *testing.T) {
-	backend := &FileBackend{
-		Connector: ConnectorConfig{},
+	backend := &file.FileBackend{
+		Connector: backend.ConnectorConfig{},
 	}
 	backend.Connector.URL = mustParseURL("file:///var/data/todos.json")
 
@@ -134,9 +140,9 @@ func TestFileBackend_GetBackendContext(t *testing.T) {
 	}
 }
 
-// TestGitBackend_GetBackendDisplayName tests Git backend display name
+// Testgit.GitBackend_GetBackendDisplayName tests Git backend display name
 func TestGitBackend_GetBackendDisplayName(t *testing.T) {
-	backend := &GitBackend{
+	backend := &git.GitBackend{
 		repoPath: "/home/user/myproject",
 		filePath: "/home/user/myproject/TODO.md",
 	}
@@ -148,9 +154,9 @@ func TestGitBackend_GetBackendDisplayName(t *testing.T) {
 	}
 }
 
-// TestGitBackend_GetBackendType tests Git backend type
+// Testgit.GitBackend_GetBackendType tests Git backend type
 func TestGitBackend_GetBackendType(t *testing.T) {
-	backend := &GitBackend{}
+	backend := &git.GitBackend{}
 	backendType := backend.GetBackendType()
 	expected := "git"
 	if backendType != expected {
@@ -158,9 +164,9 @@ func TestGitBackend_GetBackendType(t *testing.T) {
 	}
 }
 
-// TestGitBackend_GetBackendContext tests Git backend context
+// Testgit.GitBackend_GetBackendContext tests Git backend context
 func TestGitBackend_GetBackendContext(t *testing.T) {
-	backend := &GitBackend{
+	backend := &git.GitBackend{
 		repoPath: "/opt/projects/gosynctasks",
 		filePath: "/opt/projects/gosynctasks/TASKS.md",
 	}
@@ -174,8 +180,8 @@ func TestGitBackend_GetBackendContext(t *testing.T) {
 
 // TestTaskList_StringWithBackend tests TaskList backend display integration
 func TestTaskList_StringWithBackend(t *testing.T) {
-	backend := &NextcloudBackend{
-		Connector: ConnectorConfig{},
+	backend := &nextcloud.NextcloudBackend{
+		Connector: backend.ConnectorConfig{},
 		username:  "admin",
 	}
 	backend.Connector.URL = mustParseURL("nextcloud://admin:pass@localhost")
@@ -226,8 +232,8 @@ func TestTaskList_StringWithBackend_NilBackend(t *testing.T) {
 
 // TestTaskList_StringWithWidthAndBackend_Truncation tests truncation with long names
 func TestTaskList_StringWithWidthAndBackend_Truncation(t *testing.T) {
-	backend := &SQLiteBackend{
-		Config: BackendConfig{
+	backend := &sqlite.SQLiteBackend{
+		Config: backend.BackendConfig{
 			DBPath: "/very/long/path/to/database/that/exceeds/normal/width.db",
 		},
 	}

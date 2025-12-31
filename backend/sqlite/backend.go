@@ -1,6 +1,7 @@
-package backend
+package sqlite
 
 import (
+	"gosynctasks/backend"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -8,6 +9,16 @@ import (
 
 	_ "modernc.org/sqlite" // SQLite driver
 )
+
+func init() {
+	// Register SQLite backend for config type "sqlite"
+	backend.RegisterType("sqlite", newSQLiteBackendWrapper)
+}
+
+// newSQLiteBackendWrapper wraps NewSQLiteBackend to match BackendConfigConstructor signature
+func newSQLiteBackendWrapper(config backend.BackendConfig) (backend.TaskManager, error) {
+	return NewSQLiteBackend(config)
+}
 
 // SQLiteError represents errors specific to SQLite backend operations
 type SQLiteError struct {
@@ -32,14 +43,14 @@ func (e *SQLiteError) Unwrap() error {
 	return e.Err
 }
 
-// SQLiteBackend implements TaskManager interface for local SQLite storage
+// SQLiteBackend implements backend.TaskManager interface for local SQLite storage
 type SQLiteBackend struct {
-	Config BackendConfig
+	Config backend.BackendConfig
 	db     *Database
 }
 
 // NewSQLiteBackend creates a new SQLite backend instance
-func NewSQLiteBackend(config BackendConfig) (*SQLiteBackend, error) {
+func NewSQLiteBackend(config backend.BackendConfig) (*SQLiteBackend, error) {
 	backend := &SQLiteBackend{
 		Config: config,
 	}
@@ -84,7 +95,7 @@ func (sb *SQLiteBackend) Close() error {
 }
 
 // GetTaskLists retrieves all task lists from local storage
-func (sb *SQLiteBackend) GetTaskLists() ([]TaskList, error) {
+func (sb *SQLiteBackend) GetTaskLists() ([]backend.TaskList, error) {
 	db, err := sb.GetDB()
 	if err != nil {
 		return nil, &SQLiteError{Op: "GetTaskLists", Err: err}
@@ -102,9 +113,9 @@ func (sb *SQLiteBackend) GetTaskLists() ([]TaskList, error) {
 	}
 	defer func() { _ = rows.Close() }()
 
-	var lists []TaskList
+	var lists []backend.TaskList
 	for rows.Next() {
-		var list TaskList
+		var list backend.TaskList
 		var createdAt, modifiedAt sql.NullInt64
 		var ctag sql.NullString
 
@@ -135,7 +146,7 @@ func (sb *SQLiteBackend) GetTaskLists() ([]TaskList, error) {
 }
 
 // GetTasks retrieves tasks from a list with optional filtering
-func (sb *SQLiteBackend) GetTasks(listID string, taskFilter *TaskFilter) ([]Task, error) {
+func (sb *SQLiteBackend) GetTasks(listID string, taskFilter *backend.TaskFilter) ([]backend.Task, error) {
 	db, err := sb.GetDB()
 	if err != nil {
 		return nil, &SQLiteError{Op: "GetTasks", ListID: listID, Err: err}
@@ -169,7 +180,7 @@ func (sb *SQLiteBackend) GetTasks(listID string, taskFilter *TaskFilter) ([]Task
 }
 
 // applyFilters adds WHERE clauses for task filtering
-func (sb *SQLiteBackend) applyFilters(query string, args []interface{}, filter *TaskFilter) (string, []interface{}) {
+func (sb *SQLiteBackend) applyFilters(query string, args []interface{}, filter *backend.TaskFilter) (string, []interface{}) {
 	if filter == nil {
 		return query, args
 	}
@@ -214,25 +225,25 @@ func (sb *SQLiteBackend) applyFilters(query string, args []interface{}, filter *
 		args = append(args, filter.CreatedAfter.Unix())
 	}
 
-	// Priority filter (if we add it to TaskFilter in future)
+	// Priority filter (if we add it to backend.TaskFilter in future)
 	// Categories filter would need LIKE queries for the categories TEXT field
 
 	return query, args
 }
 
 // scanTasks scans task rows from a query result
-func (sb *SQLiteBackend) scanTasks(rows *sql.Rows) ([]Task, error) {
-	var tasks []Task
+func (sb *SQLiteBackend) scanTasks(rows *sql.Rows) ([]backend.Task, error) {
+	var tasks []backend.Task
 
 	for rows.Next() {
-		var task Task
-		var listID string // Temporary variable for list_id (not stored in Task struct)
+		var task backend.Task
+		var listID string // Temporary variable for list_id (not stored in backend.Task struct)
 		var description, parentUID, categories sql.NullString
 		var createdAt, modifiedAt, dueDate, startDate, completedAt sql.NullInt64
 
 		err := rows.Scan(
 			&task.UID,
-			&listID, // Scan list_id but don't store in Task
+			&listID, // Scan list_id but don't store in backend.Task
 			&task.Summary,
 			&description,
 			&task.Status,
@@ -287,7 +298,7 @@ func (sb *SQLiteBackend) scanTasks(rows *sql.Rows) ([]Task, error) {
 }
 
 // FindTasksBySummary searches for tasks by summary (case-insensitive)
-func (sb *SQLiteBackend) FindTasksBySummary(listID string, summary string) ([]Task, error) {
+func (sb *SQLiteBackend) FindTasksBySummary(listID string, summary string) ([]backend.Task, error) {
 	db, err := sb.GetDB()
 	if err != nil {
 		return nil, &SQLiteError{Op: "FindTasksBySummary", ListID: listID, Err: err}
@@ -321,7 +332,7 @@ func (sb *SQLiteBackend) FindTasksBySummary(listID string, summary string) ([]Ta
 }
 
 // AddTask creates a new task in the database
-func (sb *SQLiteBackend) AddTask(listID string, task Task) error {
+func (sb *SQLiteBackend) AddTask(listID string, task backend.Task) error {
 	db, err := sb.GetDB()
 	if err != nil {
 		return &SQLiteError{Op: "AddTask", ListID: listID, Err: err}
@@ -329,7 +340,7 @@ func (sb *SQLiteBackend) AddTask(listID string, task Task) error {
 
 	// Generate UID if not provided
 	if task.UID == "" {
-		task.UID = generateUID()
+		task.UID = GenerateUID()
 	}
 
 	// Start transaction
@@ -361,16 +372,16 @@ func (sb *SQLiteBackend) AddTask(listID string, task Task) error {
 		task.UID,
 		listID,
 		task.Summary,
-		nullString(task.Description),
+		NullString(task.Description),
 		task.Status,
 		task.Priority,
-		timeValueToNullInt64(task.Created),
-		timeValueToNullInt64(task.Modified),
-		timeToNullInt64(task.DueDate),
-		timeToNullInt64(task.StartDate),
-		timeToNullInt64(task.Completed),
-		nullString(task.ParentUID),
-		nullString(strings.Join(task.Categories, ",")),
+		TimeValueToNullInt64(task.Created),
+		TimeValueToNullInt64(task.Modified),
+		TimeToNullInt64(task.DueDate),
+		TimeToNullInt64(task.StartDate),
+		TimeToNullInt64(task.Completed),
+		NullString(task.ParentUID),
+		NullString(strings.Join(task.Categories, ",")),
 	)
 	if err != nil {
 		return &SQLiteError{Op: "AddTask", ListID: listID, TaskUID: task.UID, Err: err}
@@ -398,7 +409,7 @@ func (sb *SQLiteBackend) AddTask(listID string, task Task) error {
 }
 
 // UpdateTask updates an existing task
-func (sb *SQLiteBackend) UpdateTask(listID string, task Task) error {
+func (sb *SQLiteBackend) UpdateTask(listID string, task backend.Task) error {
 	db, err := sb.GetDB()
 	if err != nil {
 		return &SQLiteError{Op: "UpdateTask", ListID: listID, TaskUID: task.UID, Err: err}
@@ -426,15 +437,15 @@ func (sb *SQLiteBackend) UpdateTask(listID string, task Task) error {
 
 	result, err := tx.Exec(query,
 		task.Summary,
-		nullString(task.Description),
+		NullString(task.Description),
 		task.Status,
 		task.Priority,
-		timeValueToNullInt64(task.Modified),
-		timeToNullInt64(task.DueDate),
-		timeToNullInt64(task.StartDate),
-		timeToNullInt64(task.Completed),
-		nullString(task.ParentUID),
-		nullString(strings.Join(task.Categories, ",")),
+		TimeValueToNullInt64(task.Modified),
+		TimeToNullInt64(task.DueDate),
+		TimeToNullInt64(task.StartDate),
+		TimeToNullInt64(task.Completed),
+		NullString(task.ParentUID),
+		NullString(strings.Join(task.Categories, ",")),
 		task.UID,
 		listID,
 	)
@@ -448,7 +459,7 @@ func (sb *SQLiteBackend) UpdateTask(listID string, task Task) error {
 		return &SQLiteError{Op: "UpdateTask", ListID: listID, TaskUID: task.UID, Err: err}
 	}
 	if rowsAffected == 0 {
-		return NewBackendError("UpdateTask", 404, fmt.Sprintf("task %s not found in list %s", task.UID, listID))
+		return backend.NewBackendError("UpdateTask", 404, fmt.Sprintf("task %s not found in list %s", task.UID, listID))
 	}
 
 	// Update sync metadata
@@ -494,7 +505,7 @@ func (sb *SQLiteBackend) DeleteTask(listID string, taskUID string) error {
 		return &SQLiteError{Op: "DeleteTask", ListID: listID, TaskUID: taskUID, Err: err}
 	}
 	if !exists {
-		return NewBackendError("DeleteTask", 404, fmt.Sprintf("task %s not found in list %s", taskUID, listID))
+		return backend.NewBackendError("DeleteTask", 404, fmt.Sprintf("task %s not found in list %s", taskUID, listID))
 	}
 
 	// Mark as locally deleted (soft delete for sync)
@@ -533,7 +544,7 @@ func (sb *SQLiteBackend) CreateTaskList(name, description, color string) (string
 		return "", &SQLiteError{Op: "CreateTaskList", Err: err}
 	}
 
-	listID := generateUID()
+	listID := GenerateUID()
 	now := time.Now().Unix()
 
 	_, err = db.Exec(`
@@ -577,7 +588,7 @@ func (sb *SQLiteBackend) DeleteTaskList(listID string) error {
 		return &SQLiteError{Op: "DeleteTaskList", ListID: listID, Err: err}
 	}
 	if rowsAffected == 0 {
-		return NewBackendError("DeleteTaskList", 404, fmt.Sprintf("list %s not found", listID))
+		return backend.NewBackendError("DeleteTaskList", 404, fmt.Sprintf("list %s not found", listID))
 	}
 
 	return tx.Commit()
@@ -604,16 +615,16 @@ func (sb *SQLiteBackend) RenameTaskList(listID, newName string) error {
 		return &SQLiteError{Op: "RenameTaskList", ListID: listID, Err: err}
 	}
 	if rowsAffected == 0 {
-		return NewBackendError("RenameTaskList", 404, fmt.Sprintf("list %s not found", listID))
+		return backend.NewBackendError("RenameTaskList", 404, fmt.Sprintf("list %s not found", listID))
 	}
 
 	return nil
 }
 
 // GetDeletedTaskLists returns deleted task lists (not supported for SQLite yet)
-func (sb *SQLiteBackend) GetDeletedTaskLists() ([]TaskList, error) {
+func (sb *SQLiteBackend) GetDeletedTaskLists() ([]backend.TaskList, error) {
 	// SQLite backend doesn't support trash yet
-	return []TaskList{}, nil
+	return []backend.TaskList{}, nil
 }
 
 // RestoreTaskList restores a deleted task list (not supported for SQLite yet)
@@ -662,7 +673,7 @@ func (sb *SQLiteBackend) StatusToDisplayName(backendStatus string) string {
 }
 
 // SortTasks sorts tasks by priority (1=highest, 0=undefined goes last)
-func (sb *SQLiteBackend) SortTasks(tasks []Task) {
+func (sb *SQLiteBackend) SortTasks(tasks []backend.Task) {
 	// Use the same sorting as Nextcloud (priority-based)
 	// This is already handled in GetTasks ORDER BY clause
 	// But we implement it here for consistency
@@ -755,7 +766,7 @@ func (sb *SQLiteBackend) MarkLocallyDeleted(taskUID string) error {
 }
 
 // GetLocallyModifiedTasks retrieves tasks that have been modified locally
-func (sb *SQLiteBackend) GetLocallyModifiedTasks() ([]Task, error) {
+func (sb *SQLiteBackend) GetLocallyModifiedTasks() ([]backend.Task, error) {
 	db, err := sb.GetDB()
 	if err != nil {
 		return nil, &SQLiteError{Op: "GetLocallyModifiedTasks", Err: err}
@@ -963,7 +974,7 @@ func (sb *SQLiteBackend) RemoveSyncOperation(taskUID, operation string) error {
 // Helper functions
 
 // generateUID generates a unique identifier for tasks/lists
-func generateUID() string {
+func GenerateUID() string {
 	return fmt.Sprintf("task-%d-%s", time.Now().Unix(), randomString(8))
 }
 
@@ -978,7 +989,7 @@ func randomString(length int) string {
 }
 
 // nullString converts string to sql.NullString
-func nullString(s string) sql.NullString {
+func NullString(s string) sql.NullString {
 	if s == "" {
 		return sql.NullString{Valid: false}
 	}
@@ -986,7 +997,7 @@ func nullString(s string) sql.NullString {
 }
 
 // timeToNullInt64 converts *time.Time to sql.NullInt64
-func timeToNullInt64(t *time.Time) sql.NullInt64 {
+func TimeToNullInt64(t *time.Time) sql.NullInt64 {
 	if t == nil {
 		return sql.NullInt64{Valid: false}
 	}
@@ -994,7 +1005,7 @@ func timeToNullInt64(t *time.Time) sql.NullInt64 {
 }
 
 // timeValueToNullInt64 converts time.Time (non-pointer) to sql.NullInt64
-func timeValueToNullInt64(t time.Time) sql.NullInt64 {
+func TimeValueToNullInt64(t time.Time) sql.NullInt64 {
 	if t.IsZero() {
 		return sql.NullInt64{Valid: false}
 	}

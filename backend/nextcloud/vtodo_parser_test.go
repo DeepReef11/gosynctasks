@@ -1,6 +1,7 @@
-package backend
+package nextcloud
 
 import (
+	"gosynctasks/backend"
 	"strings"
 	"testing"
 	"time"
@@ -179,20 +180,20 @@ func TestExtractVTODOBlocks(t *testing.T) {
 			name: "single VTODO block",
 			input: `BEGIN:VTODO
 UID:task-1
-SUMMARY:Test Task
+SUMMARY:Test backend.Task
 END:VTODO`,
 			expected: 1,
-			contains: []string{"UID:task-1", "SUMMARY:Test Task"},
+			contains: []string{"UID:task-1", "SUMMARY:Test backend.Task"},
 		},
 		{
 			name: "multiple VTODO blocks",
 			input: `BEGIN:VTODO
 UID:task-1
-SUMMARY:Task 1
+SUMMARY:backend.Task 1
 END:VTODO
 BEGIN:VTODO
 UID:task-2
-SUMMARY:Task 2
+SUMMARY:backend.Task 2
 END:VTODO`,
 			expected: 2,
 			contains: []string{"UID:task-1", "UID:task-2"},
@@ -202,7 +203,7 @@ END:VTODO`,
 			input: `
   BEGIN:VTODO
     UID:task-1
-    SUMMARY:Test Task
+    SUMMARY:Test backend.Task
   END:VTODO
 `,
 			expected: 1,
@@ -214,7 +215,7 @@ END:VTODO`,
 VERSION:2.0
 BEGIN:VTODO
 UID:task-1
-SUMMARY:Test Task
+SUMMARY:Test backend.Task
 END:VTODO
 END:VCALENDAR`,
 			expected: 1,
@@ -261,7 +262,7 @@ func TestParseVTODO(t *testing.T) {
 		name      string
 		input     string
 		wantError bool
-		checkFunc func(*testing.T, Task)
+		checkFunc func(*testing.T, backend.Task)
 	}{
 		{
 			name: "complete VTODO",
@@ -276,7 +277,7 @@ LAST-MODIFIED:20240315T130000Z
 DUE:20240320T180000Z
 END:VTODO`,
 			wantError: false,
-			checkFunc: func(t *testing.T, task Task) {
+			checkFunc: func(t *testing.T, task backend.Task) {
 				if task.UID != "task-123" {
 					t.Errorf("UID = %q, want %q", task.UID, "task-123")
 				}
@@ -304,7 +305,7 @@ UID:minimal-task
 SUMMARY:Minimal
 END:VTODO`,
 			wantError: false,
-			checkFunc: func(t *testing.T, task Task) {
+			checkFunc: func(t *testing.T, task backend.Task) {
 				if task.UID != "minimal-task" {
 					t.Errorf("UID = %q, want %q", task.UID, "minimal-task")
 				}
@@ -320,11 +321,11 @@ END:VTODO`,
 			name: "VTODO with escaped text",
 			input: `BEGIN:VTODO
 UID:escaped-task
-SUMMARY:Task\\nwith\\, escapes
+SUMMARY:backend.Task\\nwith\\, escapes
 DESCRIPTION:Line 1\\nLine 2\\; etc
 END:VTODO`,
 			wantError: false,
-			checkFunc: func(t *testing.T, task Task) {
+			checkFunc: func(t *testing.T, task backend.Task) {
 				if !strings.Contains(task.Summary, "\n") {
 					t.Errorf("Summary should contain newline, got %q", task.Summary)
 				}
@@ -337,12 +338,12 @@ END:VTODO`,
 			name: "VTODO with parameters",
 			input: `BEGIN:VTODO
 UID:param-task
-SUMMARY:Task with params
+SUMMARY:backend.Task with params
 DTSTART;VALUE=DATE:20240315
 DUE;VALUE=DATE:20240320
 END:VTODO`,
 			wantError: false,
-			checkFunc: func(t *testing.T, task Task) {
+			checkFunc: func(t *testing.T, task backend.Task) {
 				if task.StartDate == nil {
 					t.Error("StartDate is nil, want non-nil")
 				}
@@ -359,7 +360,7 @@ SUMMARY:Categorized task
 CATEGORIES:Work,Important
 END:VTODO`,
 			wantError: false,
-			checkFunc: func(t *testing.T, task Task) {
+			checkFunc: func(t *testing.T, task backend.Task) {
 				if len(task.Categories) != 2 {
 					t.Errorf("len(Categories) = %d, want 2", len(task.Categories))
 				}
@@ -373,7 +374,7 @@ SUMMARY:Subtask
 RELATED-TO:parent-task
 END:VTODO`,
 			wantError: false,
-			checkFunc: func(t *testing.T, task Task) {
+			checkFunc: func(t *testing.T, task backend.Task) {
 				if task.ParentUID != "parent-task" {
 					t.Errorf("ParentUID = %q, want %q", task.ParentUID, "parent-task")
 				}
@@ -539,7 +540,7 @@ func TestParseTaskListResponse(t *testing.T) {
 		name      string
 		response  string
 		baseURL   string
-		checkFunc func(*testing.T, TaskList)
+		checkFunc func(*testing.T, backend.TaskList)
 	}{
 		{
 			name: "complete task list response",
@@ -554,7 +555,7 @@ func TestParseTaskListResponse(t *testing.T) {
 				</d:propstat>
 			</d:response>`,
 			baseURL: "https://example.com",
-			checkFunc: func(t *testing.T, tl TaskList) {
+			checkFunc: func(t *testing.T, tl backend.TaskList) {
 				if tl.ID != "work-tasks" {
 					t.Errorf("ID = %q, want %q", tl.ID, "work-tasks")
 				}
@@ -580,7 +581,7 @@ func TestParseTaskListResponse(t *testing.T) {
 				</d:propstat>
 			</d:response>`,
 			baseURL: "https://example.com",
-			checkFunc: func(t *testing.T, tl TaskList) {
+			checkFunc: func(t *testing.T, tl backend.TaskList) {
 				if tl.ID != "simple" {
 					t.Errorf("ID = %q, want %q", tl.ID, "simple")
 				}

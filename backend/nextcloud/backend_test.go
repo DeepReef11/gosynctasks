@@ -1,6 +1,7 @@
-package backend
+package nextcloud
 
 import (
+	"gosynctasks/backend"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -22,8 +23,8 @@ func createTestURL(t *testing.T, serverURL string) *url.URL {
 }
 
 // Helper function to create test connector config with InsecureSkipVerify
-func createTestConnector(t *testing.T, serverURL string) ConnectorConfig {
-	return ConnectorConfig{
+func createTestConnector(t *testing.T, serverURL string) backend.ConnectorConfig {
+	return backend.ConnectorConfig{
 		URL:                createTestURL(t, serverURL),
 		InsecureSkipVerify: true, // Allow HTTP connections for testing
 		SuppressSSLWarning: true,
@@ -193,10 +194,10 @@ func TestNextcloudBackend_GetTaskLists_AuthenticationError(t *testing.T) {
 		t.Fatal("Expected error for 401 response, got nil")
 	}
 
-	// Verify it's a BackendError
+	// Verify it's a backend.BackendError
 	backendErr, ok := err.(*BackendError)
 	if !ok {
-		t.Fatalf("Expected BackendError, got %T", err)
+		t.Fatalf("Expected backend.BackendError, got %T", err)
 	}
 
 	// Verify it's recognized as unauthorized
@@ -299,7 +300,7 @@ func TestNextcloudBackend_GetTasks_WithFilter(t *testing.T) {
 
 	// Test with status filter (use CalDAV status name, not app status name)
 	needsActionStatus := "NEEDS-ACTION"
-	filter := &TaskFilter{
+	filter := &backend.TaskFilter{
 		Statuses: &[]string{needsActionStatus},
 	}
 
@@ -398,9 +399,9 @@ func TestNextcloudBackend_AddTask(t *testing.T) {
 	backend := createTestBackend(t, server.URL)
 
 	// Create test task
-	task := Task{
+	task := backend.Task{
 		Summary:     "New test task",
-		Description: "Task description",
+		Description: "backend.Task description",
 		Status:      "NEEDS-ACTION",
 		Priority:    3,
 	}
@@ -425,7 +426,7 @@ func TestNextcloudBackend_AddTask(t *testing.T) {
 	if !strings.Contains(capturedBody, "SUMMARY:New test task") {
 		t.Error("Expected iCalendar content to contain task summary")
 	}
-	if !strings.Contains(capturedBody, "DESCRIPTION:Task description") {
+	if !strings.Contains(capturedBody, "DESCRIPTION:backend.Task description") {
 		t.Error("Expected iCalendar content to contain task description")
 	}
 	if !strings.Contains(capturedBody, "STATUS:NEEDS-ACTION") {
@@ -454,7 +455,7 @@ func TestNextcloudBackend_UpdateTask(t *testing.T) {
 	backend := createTestBackend(t, server.URL)
 
 	// Create test task with UID (required for update)
-	task := Task{
+	task := backend.Task{
 		UID:         "existing-task-123",
 		Summary:     "Updated task",
 		Description: "Updated description",
@@ -487,12 +488,12 @@ func TestNextcloudBackend_UpdateTask(t *testing.T) {
 func TestNextcloudBackend_SortTasks(t *testing.T) {
 	backend := &NextcloudBackend{}
 
-	tasks := []Task{
-		{Summary: "Task A", Priority: 0}, // Undefined (should be last)
-		{Summary: "Task B", Priority: 5}, // Medium
-		{Summary: "Task C", Priority: 1}, // Highest
-		{Summary: "Task D", Priority: 9}, // Lowest
-		{Summary: "Task E", Priority: 3}, // High
+	tasks := []backend.Task{
+		{Summary: "backend.Task A", Priority: 0}, // Undefined (should be last)
+		{Summary: "backend.Task B", Priority: 5}, // Medium
+		{Summary: "backend.Task C", Priority: 1}, // Highest
+		{Summary: "backend.Task D", Priority: 9}, // Lowest
+		{Summary: "backend.Task E", Priority: 3}, // High
 	}
 
 	backend.SortTasks(tasks)
@@ -1059,7 +1060,7 @@ func TestHTTPSEnforcement(t *testing.T) {
 			}
 
 			// Create connector config
-			config := ConnectorConfig{
+			config := backend.ConnectorConfig{
 				URL:                u,
 				AllowHTTP:          tt.allowHTTP,
 				InsecureSkipVerify: true,
@@ -1092,7 +1093,7 @@ func TestHTTPSEnforcementDefault(t *testing.T) {
 	// Create URL without AllowHTTP (defaults to false)
 	u, _ := url.Parse("nextcloud://user:pass@localhost:8080")
 
-	config := ConnectorConfig{
+	config := backend.ConnectorConfig{
 		URL:                u,
 		InsecureSkipVerify: true,
 		SuppressSSLWarning: true,
