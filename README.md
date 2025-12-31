@@ -5,15 +5,17 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/DeepReef11/gosynctasks)](https://goreportcard.com/report/github.com/DeepReef11/gosynctasks)
 [![License: BSD-2](https://img.shields.io/badge/License-BSD--2--Clause-darkred)](https://opensource.org/license/bsd-2-clause)
 
-A fast, flexible, multi-backend task synchronization tool written in Go. Manage your tasks across different storage backends including Nextcloud CalDAV, Git repositories with Markdown files, and local database.
+A fast, flexible, multi-backend task synchronization tool written in Go. Manage your tasks across different storage backends including Nextcloud CalDAV, Todoist, Git repositories with Markdown files, and local database.
 
 ## Features
 
 - **Multi-Backend Support**: Work with multiple task storage backends simultaneously
+- **Todoist Integration**: Full REST API v2 support with secure credential storage
 - **Offline Sync**: Local SQLite cache with bidirectional synchronization to remote backends
 - **Git/Markdown Backend**: Manage tasks directly in markdown files within git repositories
 - **Nextcloud CalDAV**: Full CRUD support for Nextcloud Tasks
 - **Auto-Detection**: Automatically detect and use the appropriate backend based on context
+- **Secure Credentials**: Keyring, environment variables, or config file support
 - **Flexible CLI**: Intuitive command-line interface with completion support
 - **Hierarchical Tasks**: Support for subtasks and parent-child relationships
 - **Custom Views**: Create custom task views with filtering, sorting, and custom formatting
@@ -91,6 +93,10 @@ backends:
     enabled: true
     url: nextcloud://admin:admin123@localhost:8080
     insecure_skip_verify: false
+  # Todoist use token as username in keyring credentials
+  todoist:
+    type: todoist
+    enabled: true
   git:
     type: git
     enabled: true
@@ -118,12 +124,13 @@ backend_priority:
 ui: cli
 ```
 
-## Credentials storage
+## Credentials Storage
 
-###  System Keyring
+###  System Keyring (Recommended)
 
 Store credentials securely in your OS keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service):
 
+**For Username/Password backends (Nextcloud):**
 ```bash
 # Store credentials securely (interactive password prompt)
 gosynctasks credentials set nextcloud myuser --prompt
@@ -142,18 +149,44 @@ nextcloud:
   # Password retrieved from keyring automatically
 ```
 
+**For API Token backends (Todoist):**
+```bash
+# Store API token as "password" with "token" as username hint
+gosynctasks credentials set todoist token --prompt
+# Enter your API token when prompted
+
+# Verify
+gosynctasks credentials get todoist token
+```
+
+**Config example:**
+```yaml
+todoist:
+  type: todoist
+  enabled: true
+  username: "token"  # Username hint for keyring lookup
+  # API token retrieved from keyring automatically
+```
+
 ### Environment Variables
 
 For CI/CD or containerized environments:
 
+**Nextcloud:**
 ```bash
 export GOSYNCTASKS_NEXTCLOUD_USERNAME=myuser
 export GOSYNCTASKS_NEXTCLOUD_PASSWORD=secret
 export GOSYNCTASKS_NEXTCLOUD_HOST=nextcloud.example.com
 ```
 
-### Credentials in URL (Not Recommended)
+**Todoist:**
+```bash
+export GOSYNCTASKS_TODOIST_PASSWORD="your-api-token-here"
+```
 
+### Credentials in Config (Not Recommended)
+
+**Nextcloud URL format:**
 ```yaml
 nextcloud:
   type: nextcloud
@@ -161,9 +194,17 @@ nextcloud:
   url: "nextcloud://username:password@nextcloud.example.com"
 ```
 
+**Todoist api_token field:**
+```yaml
+todoist:
+  type: todoist
+  enabled: true
+  api_token: "your-api-token-here"
+```
+
 ⚠️ **Warning:** Plain text credentials in config files are not recommended for production use.
 
-**Priority:** Keyring > Environment Variables > Config URL
+**Credential Priority:** Keyring > Environment Variables > Config File
 
 For more details, see [SECURITY.md](SECURITY.md).
 
@@ -265,8 +306,60 @@ backend_priority:
 
 **Note:** When `sync.enabled = true`, the CLI automatically uses `sqlite` for all operations and the `backend_priority` only applies when sync is disabled.
 
-### File Backend
+### Todoist Backend
 
+Cloud-based task management service with full API integration. Perfect for cross-platform sync and mobile access.
+
+**Features:**
+- ✅ Full CRUD operations via Todoist REST API v2
+- ✅ Projects (mapped to task lists)
+- ✅ Tasks with priorities, due dates, and labels
+- ✅ Subtasks support (parent-child relationships)
+- ✅ Secure credential storage (keyring, environment, or config)
+- ✅ Smart priority mapping (Todoist 1-4 ↔ gosynctasks 0-9)
+
+**Configuration:**
+
+```yaml
+backends:
+  todoist:
+    type: todoist
+    enabled: true
+    username: "token"  # Username hint for keyring (use "token" for API keys)
+    # API token retrieved from keyring
+```
+
+**Credential Priority:** Keyring > Environment Variables > Config File
+
+**Option 1: Keyring (Recommended)**
+```bash
+# Get API token from https://todoist.com/app/settings/integrations
+gosynctasks credentials set todoist token --prompt
+# Enter your API token when prompted
+```
+
+**Option 2: Environment Variables**
+```bash
+export GOSYNCTASKS_TODOIST_PASSWORD="your-api-token-here"
+```
+
+**Option 3: Config File (Less Secure)**
+```yaml
+todoist:
+  type: todoist
+  enabled: true
+  api_token: "your-api-token-here"
+```
+
+**Data Mapping:**
+- **Priority**: Todoist 4 (urgent) → gosynctasks 1 (highest)
+- **Status**: is_completed → TODO/DONE (PROCESSING/CANCELLED via labels)
+- **Projects**: Todoist projects → gosynctasks task lists
+- **Subtasks**: parent_id → ParentUID
+
+**Get your API token:** https://todoist.com/app/settings/integrations
+
+### File Backend
 
 Local file-based storage (work in progress).
 
@@ -426,8 +519,9 @@ Contributions are welcome! Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md)
 
 ## Roadmap
 
-### Completed
-- Multi-backend support (Nextcloud, Git, SQLite)
+### Completed ✅
+- Multi-backend support (Nextcloud, Git, SQLite, Todoist)
+- **Todoist backend** - Full REST API v2 integration with secure credential storage
 - Git/Markdown backend with auto-detection
 - Backend auto-detection and priority selection
 - Automatic config migration
@@ -437,11 +531,11 @@ Contributions are welcome! Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md)
 - Conflict resolution (4 strategies: server_wins, local_wins, merge, keep_both)
 - Bidirectional synchronization with etag handling
 - **Auto-sync with background daemon** - instant operations
+- **Secure credential storage** - Keyring, environment variables, config file support
 - Path expansion (`$HOME`, `~`) in config files
 - Custom views with plugin formatters
 - Hierarchical tasks (subtasks)
 - Interactive list and task selection
-- Store credentials securely instead of plain text
 
 ### In Progress 🚧
 - File backend implementation
@@ -449,6 +543,7 @@ Contributions are welcome! Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md)
 
 ### Planned 📋
 - Cross-backend task migration
+- More cloud service backends (Google Tasks, Microsoft To Do)
 - Documentation website
 
 ## Support
