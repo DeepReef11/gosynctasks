@@ -71,6 +71,31 @@ backends:
     enabled: false
     url: "file://~/.config/gosynctasks/tasks.json"
 
+  # Todoist Backend - Cloud task management service
+  # Best for: Cross-platform sync, mobile apps, collaboration
+  #
+  # CREDENTIAL STORAGE (Priority: Keyring > Environment Variables > Config)
+  #
+  # Option 1: System Keyring (RECOMMENDED - Most Secure)
+  # Store API token in OS keyring
+  todoist:
+    type: todoist
+    enabled: false
+    username: "token"  # Username hint for keyring (use "token" for API keys)
+    # API token stored in keyring - set with:
+    #   gosynctasks credentials set todoist token --prompt
+    # Enter your API token when prompted (get from https://todoist.com/app/settings/integrations)
+
+    # Option 2: Environment Variables (Good for CI/CD)
+    # Set these environment variables instead:
+    #   export GOSYNCTASKS_TODOIST_PASSWORD="your-api-token-here"
+    # Config can be minimal (just type and enabled)
+
+    # Option 3: Config File (Simple but less secure)
+    # Store API token directly in config (plain text)
+    #   api_token: "your-todoist-api-token-here"
+    # Get your token from: https://todoist.com/app/settings/integrations
+
 # =============================================================================
 # BACKEND SELECTION
 # =============================================================================

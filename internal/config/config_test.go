@@ -12,6 +12,7 @@ import (
 	_ "gosynctasks/backend/git"
 	_ "gosynctasks/backend/nextcloud"
 	_ "gosynctasks/backend/sqlite"
+	_ "gosynctasks/backend/todoist"
 )
 
 // TestGetDefaultBackend tests the GetDefaultBackend method

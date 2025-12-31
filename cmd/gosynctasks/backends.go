@@ -10,4 +10,5 @@ import (
 	_ "gosynctasks/backend/git"       // Git backend
 	_ "gosynctasks/backend/nextcloud" // Nextcloud backend
 	_ "gosynctasks/backend/sqlite"    // SQLite backend
+	_ "gosynctasks/backend/todoist"   // Todoist backend
 )
