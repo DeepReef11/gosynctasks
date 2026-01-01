@@ -8,7 +8,7 @@ import (
 // ValidatePriority checks if priority is within valid range (0-9)
 func ValidatePriority(priority int) error {
 	if priority < 0 || priority > 9 {
-		return fmt.Errorf("priority must be between 0-9 (0=undefined, 1=highest, 9=lowest)")
+		return ErrInvalidPriority(priority)
 	}
 	return nil
 }
@@ -25,7 +25,7 @@ func ParseDateFlag(dateStr string) (*time.Time, error) {
 	// Parse ISO date format (YYYY-MM-DD) in local timezone
 	parsedDate, err := time.ParseInLocation("2006-01-02", dateStr, time.Local)
 	if err != nil {
-		return nil, fmt.Errorf("invalid date format '%s': expected YYYY-MM-DD (e.g., 2025-01-31)", dateStr)
+		return nil, ErrInvalidDate(dateStr)
 	}
 
 	return &parsedDate, nil
@@ -41,9 +41,12 @@ func ValidateDates(startDate, dueDate *time.Time) error {
 
 	// Start date must be before or equal to due date
 	if startDate.After(*dueDate) {
-		return fmt.Errorf("start date (%s) cannot be after due date (%s)",
-			startDate.Format("2006-01-02"),
-			dueDate.Format("2006-01-02"))
+		return WrapWithSuggestion(
+			fmt.Errorf("start date (%s) cannot be after due date (%s)",
+				startDate.Format("2006-01-02"),
+				dueDate.Format("2006-01-02")),
+			"Make sure the start date is before or on the same day as the due date",
+		)
 	}
 
 	return nil

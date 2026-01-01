@@ -70,7 +70,7 @@ func (ts *TaskSelector) Select(listID string, searchTerm string, opts SelectionO
 		if opts.AllowEmpty {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("no tasks found matching '%s'", searchTerm)
+		return nil, utils.ErrTaskNotFound(searchTerm)
 	}
 
 	// Handle exact and partial matches
@@ -90,7 +90,10 @@ func (ts *TaskSelector) selectFromAll(listID string, opts SelectionOptions) (*ba
 	}
 
 	if len(tasks) == 0 {
-		return nil, fmt.Errorf("no tasks in list")
+		return nil, utils.WrapWithSuggestion(
+			fmt.Errorf("no tasks in list"),
+			"Add a task with 'gosynctasks <list> add <task-summary>'",
+		)
 	}
 
 	// Always use tree format for interactive selection
