@@ -128,10 +128,12 @@ func TestFindTaskBySummary_NoMatches(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	_, err := FindTaskBySummary(mock, cfg, "list1", "nonexistent", nil)
+	selector := NewTaskSelector(mock, cfg)
+	opts := DefaultOptions()
+	_, err := selector.Select("list1", "nonexistent", opts)
 
 	if err == nil {
-		t.Error("FindTaskBySummary() should return error when no matches found")
+		t.Error("TaskSelector.Select() should return error when no matches found")
 	}
 	if !strings.Contains(err.Error(), "no tasks found") {
 		t.Errorf("Expected 'no tasks found' error, got: %v", err)
@@ -144,10 +146,12 @@ func TestFindTaskBySummary_BackendError(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	_, err := FindTaskBySummary(mock, cfg, "list1", "search", nil)
+	selector := NewTaskSelector(mock, cfg)
+	opts := DefaultOptions()
+	_, err := selector.Select("list1", "search", opts)
 
 	if err == nil {
-		t.Error("FindTaskBySummary() should return error when backend fails")
+		t.Error("TaskSelector.Select() should return error when backend fails")
 	}
 	if !strings.Contains(err.Error(), "error searching for tasks") {
 		t.Errorf("Expected search error, got: %v", err)
@@ -166,10 +170,12 @@ func TestFindTaskBySummary_SingleExactMatch(t *testing.T) {
 	}
 
 	cfg := &config.Config{}
-	result, err := FindTaskBySummary(mock, cfg, "list1", "Buy groceries", nil)
+	selector := NewTaskSelector(mock, cfg)
+	opts := DefaultOptions()
+	result, err := selector.Select("list1", "Buy groceries", opts)
 
 	if err != nil {
-		t.Fatalf("FindTaskBySummary() failed: %v", err)
+		t.Fatalf("TaskSelector.Select() failed: %v", err)
 	}
 	if result.UID != "task1" {
 		t.Errorf("Expected task1, got: %s", result.UID)
@@ -429,7 +435,9 @@ func TestSelectTask_ExactMatching(t *testing.T) {
 			}
 
 			cfg := &config.Config{}
-			result, err := FindTaskBySummary(mock, cfg, "list1", tt.searchTerm, nil)
+			selector := NewTaskSelector(mock, cfg)
+			opts := DefaultOptions()
+			result, err := selector.Select("list1", tt.searchTerm, opts)
 
 			if tt.expectError {
 				if err == nil {
@@ -707,15 +715,18 @@ func TestSelectTaskInteractively_EmptyList(t *testing.T) {
 
 	cfg := &config.Config{}
 
-	// Should return error for empty list
-	_, err := SelectTaskInteractively(mock, cfg, "list1", nil)
+	// Should return error for empty list using TaskSelector
+	selector := NewTaskSelector(mock, cfg)
+	opts := DefaultOptions()
+	opts.DisplayFormat = "tree"
+	_, err := selector.Select("list1", "", opts)
 
 	if err == nil {
 		t.Error("Expected error for empty list")
 	}
 
-	if !strings.Contains(err.Error(), "no tasks available") {
-		t.Errorf("Expected 'no tasks available' error, got: %v", err)
+	if !strings.Contains(err.Error(), "no tasks") {
+		t.Errorf("Expected 'no tasks' error, got: %v", err)
 	}
 }
 
@@ -728,8 +739,11 @@ func TestSelectTaskInteractively_BackendError(t *testing.T) {
 
 	cfg := &config.Config{}
 
-	// Should propagate backend error
-	_, err := SelectTaskInteractively(mock, cfg, "nonexistent", nil)
+	// Should propagate backend error using TaskSelector
+	selector := NewTaskSelector(mock, cfg)
+	opts := DefaultOptions()
+	opts.DisplayFormat = "tree"
+	_, err := selector.Select("nonexistent", "", opts)
 
 	if err == nil {
 		t.Error("Expected error for backend failure")
