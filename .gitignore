@@ -33,3 +33,7 @@ docker-compose.override.yml
 # Make sure coverage files are ignored
 coverage*.out
 *.coverprofile
+
+# Coverage reports
+coverage.html
+coverage*.html
