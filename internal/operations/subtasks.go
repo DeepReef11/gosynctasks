@@ -81,12 +81,16 @@ func ResolveParentTask(taskManager backend.TaskManager, cfg *config.Config, list
 		return resolveParentPath(taskManager, cfg, listID, parentRef, taskStatus)
 	}
 
-	// Simple reference - find the task by summary
-	// No filter needed - allow finding any task including completed ones as parent
-	task, err := FindTaskBySummary(taskManager, cfg, listID, parentRef, nil)
+	// Simple reference - find the task by summary using TaskSelector
+	selector := NewTaskSelector(taskManager, cfg)
+	opts := DefaultOptions()
+	// No filter - allow finding any task including completed ones as parent
+	opts.CancelText = "cancel"
+
+	task, err := selector.Select(listID, parentRef, opts)
 	if err != nil {
-		// If user chose to create new parent (entered 0), create it as root task
-		if strings.Contains(err.Error(), "operation cancelled") {
+		// If user chose to cancel (entered 0), create it as root task
+		if strings.Contains(err.Error(), "operation cancelled") || strings.Contains(err.Error(), "cancelled") {
 			fmt.Printf("Creating new parent task '%s'...\n", parentRef)
 			newUID := fmt.Sprintf("task-%d-parent", time.Now().Unix())
 			newTask := backend.Task{
@@ -186,9 +190,11 @@ func findTaskByParent(taskManager backend.TaskManager, cfg *config.Config, listI
 	}
 
 	// Multiple matches - let user select (or create new)
+	// Note: We use selectTaskWithPath here instead of TaskSelector because we're working
+	// with a pre-filtered subset of tasks (filtered by parent UID), which TaskSelector doesn't support
 	if len(exactMatches) > 1 {
 		task, err := selectTaskWithPath(exactMatches, summary, taskManager, cfg, listID)
-		if err != nil && strings.Contains(err.Error(), "operation cancelled") {
+		if err != nil && (strings.Contains(err.Error(), "operation cancelled") || strings.Contains(err.Error(), "cancelled")) {
 			// User chose to create new - create it with current parentUID
 			return createNewTask(taskManager, listID, summary, parentUID, taskStatus)
 		}
@@ -210,7 +216,7 @@ func findTaskByParent(taskManager backend.TaskManager, cfg *config.Config, listI
 
 	// Multiple matches (exact or partial) - let user select (or create new)
 	task, err := selectTaskWithPath(matches, summary, taskManager, cfg, listID)
-	if err != nil && strings.Contains(err.Error(), "operation cancelled") {
+	if err != nil && (strings.Contains(err.Error(), "operation cancelled") || strings.Contains(err.Error(), "cancelled")) {
 		// User chose to create new - create it with current parentUID
 		return createNewTask(taskManager, listID, summary, parentUID, taskStatus)
 	}

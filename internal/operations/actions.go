@@ -258,19 +258,24 @@ func HandleUpdateAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 	var taskToUpdate *backend.Task
 	var err error
 
-	// If no search summary provided, show interactive selection
+	// Create task selector
+	selector := NewTaskSelector(taskManager, cfg)
+
+	// Configure selection options
+	opts := DefaultOptions()
+	// No filter - allow updating any task including completed ones
+
+	// If no search summary provided, show interactive tree selection
 	if searchSummary == "" {
-		taskToUpdate, err = SelectTaskInteractively(taskManager, cfg, selectedList.ID, nil)
-		if err != nil {
-			return err
-		}
+		opts.DisplayFormat = "tree"
+		opts.CancelText = "cancel"
+		taskToUpdate, err = selector.Select(selectedList.ID, "", opts)
 	} else {
 		// Find the task by summary (handles exact/partial/multiple matches)
-		// No filter needed - allow updating any task including completed ones
-		taskToUpdate, err = FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary, nil)
-		if err != nil {
-			return err
-		}
+		taskToUpdate, err = selector.Select(selectedList.ID, searchSummary, opts)
+	}
+	if err != nil {
+		return err
 	}
 
 	// Get update flags (errors ignored as flags are always defined by the command)
@@ -346,28 +351,30 @@ func HandleCompleteAction(cmd *cobra.Command, taskManager backend.TaskManager, c
 	var taskToComplete *backend.Task
 	var err error
 
-	// If no search summary provided, show interactive selection
+	// Create task selector
+	selector := NewTaskSelector(taskManager, cfg)
+
+	// Exclude tasks that are already completed or cancelled
+	excludeStatuses := []string{"DONE", "COMPLETED", "CANCELLED"}
+	filter := &backend.TaskFilter{
+		ExcludeStatuses: &excludeStatuses,
+	}
+
+	// Configure selection options
+	opts := DefaultOptions()
+	opts.Filter = filter
+	opts.CancelText = "cancel"
+
+	// If no search summary provided, show interactive tree selection
 	if searchSummary == "" {
-		// Exclude tasks that are already completed or cancelled
-		excludeStatuses := []string{"DONE", "COMPLETED", "CANCELLED"}
-		filter := &backend.TaskFilter{
-			ExcludeStatuses: &excludeStatuses,
-		}
-		taskToComplete, err = SelectTaskInteractively(taskManager, cfg, selectedList.ID, filter)
-		if err != nil {
-			return err
-		}
+		opts.DisplayFormat = "tree"
+		taskToComplete, err = selector.Select(selectedList.ID, "", opts)
 	} else {
 		// Find the task by summary (handles exact/partial/multiple matches)
-		// Exclude tasks that are already completed or cancelled
-		excludeStatuses := []string{"DONE", "COMPLETED", "CANCELLED"}
-		filter := &backend.TaskFilter{
-			ExcludeStatuses: &excludeStatuses,
-		}
-		taskToComplete, err = FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary, filter)
-		if err != nil {
-			return err
-		}
+		taskToComplete, err = selector.Select(selectedList.ID, searchSummary, opts)
+	}
+	if err != nil {
+		return err
 	}
 
 	// Get status flag (errors ignored as flags are always defined by the command)
@@ -408,19 +415,24 @@ func HandleDeleteAction(cmd *cobra.Command, taskManager backend.TaskManager, cfg
 	var taskToDelete *backend.Task
 	var err error
 
-	// If no search summary provided, show interactive selection
+	// Create task selector
+	selector := NewTaskSelector(taskManager, cfg)
+
+	// Configure selection options
+	opts := DefaultOptions()
+	opts.CancelText = "cancel"
+	// No filter - allow deleting any task including completed ones
+
+	// If no search summary provided, show interactive tree selection
 	if searchSummary == "" {
-		taskToDelete, err = SelectTaskInteractively(taskManager, cfg, selectedList.ID, nil)
-		if err != nil {
-			return err
-		}
+		opts.DisplayFormat = "tree"
+		taskToDelete, err = selector.Select(selectedList.ID, "", opts)
 	} else {
 		// Find the task by summary (handles exact/partial/multiple matches)
-		// No filter needed - allow deleting any task including completed ones
-		taskToDelete, err = FindTaskBySummary(taskManager, cfg, selectedList.ID, searchSummary, nil)
-		if err != nil {
-			return err
-		}
+		taskToDelete, err = selector.Select(selectedList.ID, searchSummary, opts)
+	}
+	if err != nil {
+		return err
 	}
 
 	// Show a final confirmation before deletion

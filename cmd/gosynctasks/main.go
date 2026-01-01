@@ -4,6 +4,7 @@ import (
 	"gosynctasks/internal/app"
 	"gosynctasks/internal/cli"
 	"gosynctasks/internal/config"
+	"gosynctasks/internal/utils"
 	"log"
 	"os"
 	"os/signal"
@@ -17,6 +18,7 @@ var (
 	backendName    string
 	listBackends   bool
 	detectBackends bool
+	verbose        bool
 	application    *app.App
 )
 
@@ -66,9 +68,16 @@ Config:
   --config /path/to/dir                 # Use /path/to/dir/config.json
 `,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			// Set verbose mode first
+			if verbose {
+				utils.SetVerboseMode(true)
+				utils.Debugf("Verbose mode enabled")
+			}
+
 			// Set custom config path if specified
 			if configPath != "" {
 				config.SetCustomConfigPath(configPath)
+				utils.Debugf("Using custom config path: %s", configPath)
 			}
 
 			// Initialize app after config path is set
@@ -76,6 +85,9 @@ Config:
 			application, err = app.NewApp(backendName)
 			if err != nil {
 				return err
+			}
+			if backendName != "" {
+				utils.Debugf("Application initialized with backend argument: %s", backendName)
 			}
 
 			// Handle --list-backends flag
@@ -107,6 +119,7 @@ Config:
 	rootCmd.PersistentFlags().StringVar(&backendName, "backend", "", "backend to use (overrides config default and auto-detection)")
 	rootCmd.PersistentFlags().BoolVar(&listBackends, "list-backends", false, "list all configured backends and exit")
 	rootCmd.PersistentFlags().BoolVar(&detectBackends, "detect-backend", false, "show auto-detected backends and exit")
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "V", false, "enable verbose/debug logging")
 
 	// Command flags
 	rootCmd.Flags().StringArrayP("status", "s", []string{}, "filter by status (for get) or set status (for update): [T]ODO, [D]ONE, [P]ROCESSING, [C]ANCELLED")

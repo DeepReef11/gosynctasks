@@ -25,6 +25,8 @@ go.work.sum
 .env
 
 tmp/**
+/gosynctasks*
+!gosynctasks/
 
 # Docker test server volumes and data
 .env.local
@@ -33,3 +35,7 @@ docker-compose.override.yml
 # Make sure coverage files are ignored
 coverage*.out
 *.coverprofile
+
+# Coverage reports
+coverage.html
+coverage*.html

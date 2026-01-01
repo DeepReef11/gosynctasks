@@ -6,6 +6,7 @@ import (
 	"gosynctasks/backend/sqlite"
 	"gosynctasks/backend/sync"
 	"gosynctasks/internal/config"
+	"gosynctasks/internal/utils"
 	"net"
 	"net/url"
 	"time"
@@ -45,7 +46,7 @@ Examples:
 			// Get sync configuration
 			cfg := config.GetConfig()
 			if cfg.Sync == nil || !cfg.Sync.Enabled {
-				return fmt.Errorf("sync is not enabled in configuration")
+				return utils.ErrSyncNotEnabled()
 			}
 
 			// Get backends for sync
