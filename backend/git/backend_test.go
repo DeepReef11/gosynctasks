@@ -435,3 +435,162 @@ func TestGitBackendFilterTasks(t *testing.T) {
 		})
 	}
 }
+
+// TestGitBackendGetBackendType tests backend type identifier
+func TestGitBackendGetBackendType(t *testing.T) {
+	gb := &GitBackend{}
+
+	got := gb.GetBackendType()
+	want := "git"
+
+	if got != want {
+		t.Errorf("GetBackendType() = %q, want %q", got, want)
+	}
+}
+
+// TestGitBackendGetBackendDisplayName tests display name formatting
+func TestGitBackendGetBackendDisplayName(t *testing.T) {
+	tests := []struct {
+		name     string
+		repoPath string
+		filePath string
+		want     string
+	}{
+		{
+			name:     "simple paths",
+			repoPath: "/home/user/myrepo",
+			filePath: "/home/user/myrepo/tasks.md",
+			want:     "[git:myrepo/tasks.md]",
+		},
+		{
+			name:     "nested repo",
+			repoPath: "/projects/work/awesome-project",
+			filePath: "/projects/work/awesome-project/docs/TODO.md",
+			want:     "[git:awesome-project/TODO.md]",
+		},
+		{
+			name:     "single char names",
+			repoPath: "/a",
+			filePath: "/a/b.md",
+			want:     "[git:a/b.md]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gb := &GitBackend{
+				RepoPath: tt.repoPath,
+				FilePath: tt.filePath,
+			}
+
+			got := gb.GetBackendDisplayName()
+			if got != tt.want {
+				t.Errorf("GetBackendDisplayName() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestGitBackendGetBackendContext tests context string formatting
+func TestGitBackendGetBackendContext(t *testing.T) {
+	tests := []struct {
+		name     string
+		repoPath string
+		filePath string
+		want     string
+	}{
+		{
+			name:     "standard paths",
+			repoPath: "/home/user/project",
+			filePath: "/home/user/project/tasks.md",
+			want:     "project/tasks.md",
+		},
+		{
+			name:     "different file",
+			repoPath: "/repos/myapp",
+			filePath: "/repos/myapp/TODO.md",
+			want:     "myapp/TODO.md",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gb := &GitBackend{
+				RepoPath: tt.repoPath,
+				FilePath: tt.filePath,
+			}
+
+			got := gb.GetBackendContext()
+			if got != tt.want {
+				t.Errorf("GetBackendContext() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestGitBackendGetDeletedTaskLists tests deleted lists (not supported)
+func TestGitBackendGetDeletedTaskLists(t *testing.T) {
+	gb := &GitBackend{}
+
+	lists, err := gb.GetDeletedTaskLists()
+	if err != nil {
+		t.Errorf("GetDeletedTaskLists() unexpected error = %v", err)
+	}
+
+	if len(lists) != 0 {
+		t.Errorf("GetDeletedTaskLists() returned %d lists, want 0 (not supported)", len(lists))
+	}
+}
+
+// TestGitBackendRestoreTaskList tests restore (not supported)
+func TestGitBackendRestoreTaskList(t *testing.T) {
+	gb := &GitBackend{}
+
+	err := gb.RestoreTaskList("some-list")
+	if err == nil {
+		t.Error("RestoreTaskList() expected error (not supported), got nil")
+	}
+
+	if !strings.Contains(err.Error(), "not supported") {
+		t.Errorf("RestoreTaskList() error = %q, want error containing 'not supported'", err.Error())
+	}
+}
+
+// TestGitBackendPermanentlyDeleteTaskList tests permanent delete (not supported)
+func TestGitBackendPermanentlyDeleteTaskList(t *testing.T) {
+	gb := &GitBackend{}
+
+	err := gb.PermanentlyDeleteTaskList("some-list")
+	if err == nil {
+		t.Error("PermanentlyDeleteTaskList() expected error (not supported), got nil")
+	}
+
+	if !strings.Contains(err.Error(), "not supported") {
+		t.Errorf("PermanentlyDeleteTaskList() error = %q, want error containing 'not supported'", err.Error())
+	}
+}
+
+// TestGitBackendStatusToDisplayName tests status display name conversion
+func TestGitBackendStatusToDisplayName(t *testing.T) {
+	gb := &GitBackend{}
+
+	tests := []struct {
+		status string
+		want   string
+	}{
+		{"TODO", "TODO"},
+		{"DONE", "DONE"},
+		{"PROCESSING", "PROCESSING"},
+		{"CANCELLED", "CANCELLED"},
+		{"UNKNOWN", "UNKNOWN"}, // Should pass through unknown statuses
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.status, func(t *testing.T) {
+			got := gb.StatusToDisplayName(tt.status)
+			if got != tt.want {
+				t.Errorf("StatusToDisplayName(%q) = %q, want %q", tt.status, got, tt.want)
+			}
+		})
+	}
+}

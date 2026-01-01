@@ -29,3 +29,7 @@ tmp/**
 # Docker test server volumes and data
 .env.local
 docker-compose.override.yml
+
+# Make sure coverage files are ignored
+coverage*.out
+*.coverprofile

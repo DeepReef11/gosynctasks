@@ -3,6 +3,7 @@ package formatters
 import (
 	"gosynctasks/backend"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -10,6 +11,11 @@ import (
 )
 
 func TestPluginFormatter_Format(t *testing.T) {
+	// Check if jq is available (required for most tests)
+	if _, err := exec.LookPath("jq"); err != nil {
+		t.Skip("jq not found - skipping plugin tests that require jq")
+	}
+
 	ctx := NewFormatContext(nil, "2006-01-02")
 
 	// Create a temporary test script
