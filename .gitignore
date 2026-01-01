@@ -25,7 +25,8 @@ go.work.sum
 .env
 
 tmp/**
-/gosynctasks*
+gosynctasks
+!gosynctasks/
 
 # Docker test server volumes and data
 .env.local
