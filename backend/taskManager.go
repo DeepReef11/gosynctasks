@@ -28,25 +28,37 @@ type ConnectorConfig struct {
 	//  Timeout  int    `yaml:"timeout,omitempty"`
 }
 
+// BackendSyncConfig represents sync configuration for a single backend.
+// This allows each backend to have its own sync settings and remote target.
+type BackendSyncConfig struct {
+	Enabled            bool   `yaml:"enabled"`                       // Enable sync for this backend
+	RemoteBackend      string `yaml:"remote_backend,omitempty"`      // Name of remote backend to sync with
+	ConflictResolution string `yaml:"conflict_resolution,omitempty"` // Strategy: server_wins, local_wins, merge, keep_both
+	AutoSync           bool   `yaml:"auto_sync,omitempty"`           // Auto-sync on command execution
+	SyncInterval       int    `yaml:"sync_interval,omitempty"`       // Minutes between auto-syncs (0=disabled)
+	OfflineMode        string `yaml:"offline_mode,omitempty"`        // Mode: auto, online, offline
+}
+
 // BackendConfig represents configuration for a single backend in the multi-backend system.
 // Each backend has a type (nextcloud, git, file, sqlite, todoist) and type-specific configuration.
 type BackendConfig struct {
-	Name                string   `yaml:"-"`                               // Backend name (set during config loading from map key)
-	Type                string   `yaml:"type" validate:"required,oneof=nextcloud git file sqlite todoist"`
-	Enabled             bool     `yaml:"enabled"`
-	URL                 string   `yaml:"url,omitempty"`                   // Used by: nextcloud, file
-	Host                string   `yaml:"host,omitempty"`                  // Alternative to URL (used with credentials from keyring/env)
-	Username            string   `yaml:"username,omitempty"`              // Username hint for keyring/env credential lookup
-	InsecureSkipVerify  bool     `yaml:"insecure_skip_verify,omitempty"`  // Used by: nextcloud
-	SuppressSSLWarning  bool     `yaml:"suppress_ssl_warning,omitempty"`  // Used by: nextcloud
-	AllowHTTP           bool     `yaml:"allow_http,omitempty"`            // Used by: nextcloud (allow insecure HTTP)
-	SuppressHTTPWarning bool     `yaml:"suppress_http_warning,omitempty"` // Used by: nextcloud (suppress HTTP warning)
-	File                string   `yaml:"file,omitempty"`                  // Used by: git (default: "TODO.md")
-	AutoDetect          bool     `yaml:"auto_detect,omitempty"`           // Used by: git
-	FallbackFiles       []string `yaml:"fallback_files,omitempty"`        // Used by: git
-	AutoCommit          bool     `yaml:"auto_commit,omitempty"`           // Used by: git
-	DBPath              string   `yaml:"db_path,omitempty"`               // Used by: sqlite
-	APIToken            string   `yaml:"api_token,omitempty"`             // Used by: todoist (can also be stored in keyring)
+	Name                string              `yaml:"-"`                               // Backend name (set during config loading from map key)
+	Type                string              `yaml:"type" validate:"required,oneof=nextcloud git file sqlite todoist"`
+	Enabled             bool                `yaml:"enabled"`
+	URL                 string              `yaml:"url,omitempty"`                   // Used by: nextcloud, file
+	Host                string              `yaml:"host,omitempty"`                  // Alternative to URL (used with credentials from keyring/env)
+	Username            string              `yaml:"username,omitempty"`              // Username hint for keyring/env credential lookup
+	InsecureSkipVerify  bool                `yaml:"insecure_skip_verify,omitempty"`  // Used by: nextcloud
+	SuppressSSLWarning  bool                `yaml:"suppress_ssl_warning,omitempty"`  // Used by: nextcloud
+	AllowHTTP           bool                `yaml:"allow_http,omitempty"`            // Used by: nextcloud (allow insecure HTTP)
+	SuppressHTTPWarning bool                `yaml:"suppress_http_warning,omitempty"` // Used by: nextcloud (suppress HTTP warning)
+	File                string              `yaml:"file,omitempty"`                  // Used by: git (default: "TODO.md")
+	AutoDetect          bool                `yaml:"auto_detect,omitempty"`           // Used by: git
+	FallbackFiles       []string            `yaml:"fallback_files,omitempty"`        // Used by: git
+	AutoCommit          bool                `yaml:"auto_commit,omitempty"`           // Used by: git
+	DBPath              string              `yaml:"db_path,omitempty"`               // Used by: sqlite
+	APIToken            string              `yaml:"api_token,omitempty"`             // Used by: todoist (can also be stored in keyring)
+	Sync                *BackendSyncConfig  `yaml:"sync,omitempty"`                  // Per-backend sync configuration
 }
 
 func (c *ConnectorConfig) UnmarshalYAML(value *yaml.Node) error {

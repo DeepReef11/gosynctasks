@@ -190,6 +190,46 @@ func (c Config) Validate() error {
 			// db_path is optional - empty string means use XDG default
 			// No validation needed
 		}
+
+		// Validate per-backend sync configuration
+		if backendConfig.Sync != nil && backendConfig.Sync.Enabled {
+			// Validate remote_backend is specified
+			if backendConfig.Sync.RemoteBackend == "" {
+				return fmt.Errorf("backend %q: remote_backend is required when sync is enabled", name)
+			}
+
+			// Validate conflict resolution strategy
+			if backendConfig.Sync.ConflictResolution != "" {
+				validStrategies := map[string]bool{
+					"server_wins": true,
+					"local_wins":  true,
+					"merge":       true,
+					"keep_both":   true,
+				}
+				if !validStrategies[backendConfig.Sync.ConflictResolution] {
+					return fmt.Errorf("backend %q: invalid conflict_resolution %q (must be server_wins, local_wins, merge, or keep_both)",
+						name, backendConfig.Sync.ConflictResolution)
+				}
+			}
+
+			// Validate offline mode
+			if backendConfig.Sync.OfflineMode != "" {
+				validModes := map[string]bool{
+					"auto":    true,
+					"online":  true,
+					"offline": true,
+				}
+				if !validModes[backendConfig.Sync.OfflineMode] {
+					return fmt.Errorf("backend %q: invalid offline_mode %q (must be auto, online, or offline)",
+						name, backendConfig.Sync.OfflineMode)
+				}
+			}
+
+			// Validate sync interval
+			if backendConfig.Sync.SyncInterval < 0 {
+				return fmt.Errorf("backend %q: sync_interval cannot be negative", name)
+			}
+		}
 	}
 
 	// Validate default backend exists and is enabled
@@ -210,7 +250,93 @@ func (c Config) Validate() error {
 		}
 	}
 
+	// Validate per-backend sync remote references
+	for name, backendConfig := range c.Backends {
+		if backendConfig.Sync != nil && backendConfig.Sync.Enabled {
+			remoteName := backendConfig.Sync.RemoteBackend
+
+			// Check if remote backend exists
+			remoteBackend, exists := c.Backends[remoteName]
+			if !exists {
+				return fmt.Errorf("backend %q sync references non-existent remote backend %q", name, remoteName)
+			}
+
+			// Check if remote backend is enabled
+			if !remoteBackend.Enabled {
+				return fmt.Errorf("backend %q sync references disabled remote backend %q", name, remoteName)
+			}
+
+			// Prevent self-referencing sync
+			if name == remoteName {
+				return fmt.Errorf("backend %q cannot sync with itself", name)
+			}
+
+			// Warn about potential circular sync (A->B, B->A)
+			if remoteBackend.Sync != nil && remoteBackend.Sync.Enabled && remoteBackend.Sync.RemoteBackend == name {
+				utils.Warnf("Circular sync detected: %s <-> %s (this may cause sync loops)", name, remoteName)
+			}
+		}
+	}
+
 	return nil
+}
+
+// GetSyncEnabledBackends returns all backends that have sync enabled
+func (c *Config) GetSyncEnabledBackends() map[string]backend.BackendConfig {
+	syncEnabled := make(map[string]backend.BackendConfig)
+
+	for name, backendConfig := range c.Backends {
+		if backendConfig.Enabled && backendConfig.Sync != nil && backendConfig.Sync.Enabled {
+			syncEnabled[name] = backendConfig
+		}
+	}
+
+	return syncEnabled
+}
+
+// GetSyncPairs returns all valid sync pairs (local backend -> remote backend)
+func (c *Config) GetSyncPairs() []SyncPair {
+	var pairs []SyncPair
+
+	for name, backendConfig := range c.Backends {
+		if !backendConfig.Enabled || backendConfig.Sync == nil || !backendConfig.Sync.Enabled {
+			continue
+		}
+
+		if backendConfig.Sync.RemoteBackend == "" {
+			utils.Warnf("Backend %s has sync enabled but no remote_backend specified", name)
+			continue
+		}
+
+		// Verify remote backend exists and is enabled
+		remoteCfg, exists := c.Backends[backendConfig.Sync.RemoteBackend]
+		if !exists {
+			utils.Warnf("Backend %s references non-existent remote backend %s", name, backendConfig.Sync.RemoteBackend)
+			continue
+		}
+
+		if !remoteCfg.Enabled {
+			utils.Warnf("Backend %s references disabled remote backend %s", name, backendConfig.Sync.RemoteBackend)
+			continue
+		}
+
+		pairs = append(pairs, SyncPair{
+			LocalBackend:       name,
+			RemoteBackend:      backendConfig.Sync.RemoteBackend,
+			ConflictResolution: backendConfig.Sync.ConflictResolution,
+			AutoSync:           backendConfig.Sync.AutoSync,
+		})
+	}
+
+	return pairs
+}
+
+// SyncPair represents a sync relationship between two backends
+type SyncPair struct {
+	LocalBackend       string
+	RemoteBackend      string
+	ConflictResolution string
+	AutoSync           bool
 }
 
 func (c *Config) GetDateFormat() string {
@@ -346,6 +472,51 @@ func WriteConfigFile(configPath string, data []byte) error {
 	return os.WriteFile(configPath, data, CONFIG_FILE_PERM)
 }
 
+// migrateGlobalSyncConfig migrates the old global sync configuration to per-backend sync.
+// This provides backward compatibility for existing configs.
+func (c *Config) migrateGlobalSyncConfig() {
+	// Skip if no global sync config or if it's disabled
+	if c.Sync == nil || !c.Sync.Enabled {
+		return
+	}
+
+	// Skip if local backend is not specified
+	if c.Sync.LocalBackend == "" {
+		return
+	}
+
+	// Check if the local backend exists
+	localBackend, exists := c.Backends[c.Sync.LocalBackend]
+	if !exists {
+		utils.Warnf("Global sync config references non-existent local backend %q - skipping migration", c.Sync.LocalBackend)
+		return
+	}
+
+	// Skip if the local backend already has per-backend sync configured
+	if localBackend.Sync != nil && localBackend.Sync.Enabled {
+		utils.Debugf("Backend %q already has per-backend sync configured - skipping migration", c.Sync.LocalBackend)
+		return
+	}
+
+	// Perform migration
+	utils.Infof("Migrating global sync configuration to per-backend sync for backend %q", c.Sync.LocalBackend)
+
+	// Create per-backend sync config from global config
+	localBackend.Sync = &backend.BackendSyncConfig{
+		Enabled:            true,
+		RemoteBackend:      c.Sync.RemoteBackend,
+		ConflictResolution: c.Sync.ConflictResolution,
+		AutoSync:           c.Sync.AutoSync,
+		SyncInterval:       c.Sync.SyncInterval,
+		OfflineMode:        c.Sync.OfflineMode,
+	}
+
+	// Update the backend in the map
+	c.Backends[c.Sync.LocalBackend] = localBackend
+
+	utils.Infof("Migration complete. Consider updating your config file to use per-backend sync and removing the global 'sync:' section")
+}
+
 func createConfigFromSample(configPath string) []byte {
 	var (
 		configData []byte
@@ -389,6 +560,9 @@ func parseConfig(configData []byte, configPath string) (*Config, error) {
 
 	// Expand ~ and $HOME in all path fields
 	configObj.expandAllPaths()
+
+	// Migrate old global sync config to per-backend sync (if needed)
+	configObj.migrateGlobalSyncConfig()
 
 	if err = configObj.Validate(); err != nil {
 		log.Fatalf("Missing field(s) in YAML config file %s: %v", configPath, err)

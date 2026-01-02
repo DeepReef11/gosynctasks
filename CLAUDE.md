@@ -284,7 +284,41 @@ CLI → SQLiteBackend (CRUD, queueing) → SyncManager (pull/push) ↔ Remote Ba
 - XDG-compliant path: `$XDG_DATA_HOME/gosynctasks/tasks.db`
 - Methods: `InitDatabase()`, `GetStats()`, `Vacuum()`
 
-### Configuration Example
+### Configuration
+
+**NEW: Per-Backend Sync Configuration (Recommended)**
+
+Each backend can now have its own sync configuration, allowing multiple sync relationships:
+
+```yaml
+backends:
+  # Local cache that syncs with Nextcloud
+  local-cache:
+    type: sqlite
+    enabled: true
+    db_path: ~/.local/share/gosynctasks/cache.db
+    sync:
+      enabled: true
+      remote_backend: nextcloud
+      conflict_resolution: server_wins
+      auto_sync: true
+      sync_interval: 5
+      offline_mode: auto
+
+  # Remote Nextcloud backend
+  nextcloud:
+    type: nextcloud
+    enabled: true
+    url: nextcloud://user:pass@host
+
+backend_priority:
+  - nextcloud
+```
+
+**LEGACY: Global Sync Configuration (Backward Compatible)**
+
+The old global sync config is still supported and automatically migrated:
+
 ```yaml
 backends:
   sqlite:
@@ -295,21 +329,29 @@ backends:
     enabled: true
     url: nextcloud://user:pass@host
 
+# This will be automatically migrated to per-backend sync
 sync:
   enabled: true
   local_backend: sqlite
   remote_backend: nextcloud
   conflict_resolution: server_wins
+  auto_sync: true
 
 backend_priority:
   - nextcloud
 ```
 
 **Backend Selection Logic:**
-- When `sync.enabled = true`: CLI automatically uses `sync.local_backend` (sqlite) for all operations
+- When per-backend sync is configured: CLI uses the sync-enabled backend for operations
+- When global `sync.enabled = true`: CLI automatically uses `sync.local_backend` (sqlite) for all operations
 - When `sync.enabled = false`: CLI uses `backend_priority` or `default_backend`
 - Explicit `--backend` flag always overrides sync selection
 - You don't need to include the local backend in `backend_priority` when sync is enabled
+
+**Migration:**
+- Old global sync configs are automatically migrated to per-backend sync at runtime
+- The migration creates a `sync:` section on the `local_backend` specified in global config
+- After migration, you can remove the global `sync:` section from your config file
 
 **Auto-Sync Behavior:**
 - When `sync.auto_sync = true`: Write operations (add/update/complete/delete) trigger background sync

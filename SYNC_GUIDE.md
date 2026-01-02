@@ -180,6 +180,35 @@ CREATE TABLE sync_queue (
 
 1. **Configure your remote backend** in `config.yaml`:
 
+**RECOMMENDED: Per-Backend Sync Configuration**
+
+```yaml
+backends:
+  # Local SQLite cache with sync enabled
+  local:
+    type: sqlite
+    enabled: true
+    db_path: ""  # Uses XDG default: ~/.local/share/gosynctasks/tasks.db
+    sync:
+      enabled: true
+      remote_backend: nextcloud
+      conflict_resolution: server_wins
+      auto_sync: false
+      sync_interval: 5
+      offline_mode: auto
+
+  # Remote Nextcloud backend
+  nextcloud:
+    type: nextcloud
+    enabled: true
+    url: nextcloud://username:password@nextcloud.example.com
+    insecure_skip_verify: false
+
+default_backend: local
+```
+
+**LEGACY: Global Sync Configuration (Still Supported)**
+
 ```yaml
 backends:
   nextcloud:
@@ -192,6 +221,7 @@ backends:
     enabled: true
     db_path: ""
 
+# Global sync config - automatically migrated to per-backend
 sync:
   enabled: true
   local_backend: local
@@ -202,6 +232,8 @@ sync:
 
 default_backend: local
 ```
+
+**Note:** The global sync configuration is still supported but deprecated. It will be automatically migrated to per-backend sync at runtime. After migration, you can update your config file to use the new per-backend sync format.
 
 2. **Perform initial sync** to download existing tasks:
 
@@ -237,18 +269,38 @@ Last sync: 1 minute ago
 
 ### Sync Settings
 
-Configure sync behavior in `config.yaml` under the `sync` section:
+**NEW: Per-Backend Sync Configuration (Recommended)**
+
+Configure sync behavior directly on each backend in `config.yaml`:
 
 **Available Options:**
 
-- `enabled` (boolean): Enable sync functionality
-- `local_backend` (string): SQLite backend name for local storage
-- `remote_backend` (string): Remote backend name (e.g., Nextcloud)
+- `enabled` (boolean): Enable sync for this backend
+- `remote_backend` (string): Remote backend name to sync with (e.g., Nextcloud)
 - `conflict_resolution` (string): server_wins (default), local_wins, merge, or keep_both
 - `auto_sync` (boolean): Enable background daemon sync for instant operations
-- `sync_interval` (integer): Minutes before data considered stale (default: 5)
+- `sync_interval` (integer): Minutes between auto-syncs (0 = manual only)
+- `offline_mode` (string): auto (default), online, or offline
 
 **Example Configuration:**
+
+```yaml
+backends:
+  local:
+    type: sqlite
+    enabled: true
+    sync:
+      enabled: true
+      remote_backend: nextcloud
+      conflict_resolution: server_wins
+      auto_sync: true
+      sync_interval: 5
+      offline_mode: auto
+```
+
+**LEGACY: Global Sync Configuration (Deprecated)**
+
+The old global sync config is still supported for backward compatibility:
 
 ```yaml
 sync:
@@ -259,6 +311,8 @@ sync:
   auto_sync: true
   sync_interval: 5
 ```
+
+This will be automatically migrated to per-backend sync at runtime.
 
 **Auto-Sync Behavior:**
 
@@ -316,12 +370,24 @@ Duration: 1.2s
 
 Enable automatic background synchronization for instant operations:
 
-**Setup:**
+**Setup (Per-Backend Sync):**
+```yaml
+backends:
+  local:
+    type: sqlite
+    enabled: true
+    sync:
+      enabled: true
+      auto_sync: true
+      remote_backend: nextcloud
+```
+
+**Setup (Legacy Global Sync):**
 ```yaml
 sync:
   enabled: true
   auto_sync: true
-  local_backend: sqlite
+  local_backend: local
   remote_backend: nextcloud
 ```
 

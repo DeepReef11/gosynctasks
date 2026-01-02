@@ -45,7 +45,13 @@ Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Get sync configuration
 			cfg := config.GetConfig()
-			if cfg.Sync == nil || !cfg.Sync.Enabled {
+
+			// Check if sync is enabled (either per-backend or global)
+			syncPairs := cfg.GetSyncPairs()
+			hasPerBackendSync := len(syncPairs) > 0
+			hasGlobalSync := cfg.Sync != nil && cfg.Sync.Enabled
+
+			if !hasPerBackendSync && !hasGlobalSync {
 				return utils.ErrSyncNotEnabled()
 			}
 
@@ -65,8 +71,15 @@ Examples:
 				return nil
 			}
 
-			// Create sync manager
-			strategy := sync.ConflictResolutionStrategy(cfg.Sync.ConflictResolution)
+			// Determine conflict resolution strategy
+			var strategy sync.ConflictResolutionStrategy
+			if hasPerBackendSync {
+				// Use per-backend sync strategy
+				strategy = sync.ConflictResolutionStrategy(syncPairs[0].ConflictResolution)
+			} else {
+				// Use global sync strategy
+				strategy = sync.ConflictResolutionStrategy(cfg.Sync.ConflictResolution)
+			}
 			if strategy == "" {
 				strategy = sync.ServerWins // Default
 			}
@@ -132,7 +145,13 @@ func newSyncStatusCmd() *cobra.Command {
 - Offline/online status`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := config.GetConfig()
-			if cfg.Sync == nil || !cfg.Sync.Enabled {
+
+			// Check if sync is enabled (either per-backend or global)
+			syncPairs := cfg.GetSyncPairs()
+			hasPerBackendSync := len(syncPairs) > 0
+			hasGlobalSync := cfg.Sync != nil && cfg.Sync.Enabled
+
+			if !hasPerBackendSync && !hasGlobalSync {
 				fmt.Println("Sync is not enabled in configuration")
 				return nil
 			}
@@ -153,6 +172,17 @@ func newSyncStatusCmd() *cobra.Command {
 				return fmt.Errorf("failed to get sync stats: %w", err)
 			}
 
+			// Determine conflict resolution strategy for display
+			var strategyStr string
+			if hasPerBackendSync {
+				strategyStr = syncPairs[0].ConflictResolution
+			} else {
+				strategyStr = cfg.Sync.ConflictResolution
+			}
+			if strategyStr == "" {
+				strategyStr = "server_wins (default)"
+			}
+
 			// Display status
 			fmt.Println("\n=== Sync Status ===")
 			if isOffline {
@@ -165,7 +195,7 @@ func newSyncStatusCmd() *cobra.Command {
 			fmt.Printf("Local lists: %d\n", stats.LocalLists)
 			fmt.Printf("Pending operations: %d\n", stats.PendingOperations)
 			fmt.Printf("Locally modified: %d\n", stats.LocallyModified)
-			fmt.Printf("Strategy: %s\n", cfg.Sync.ConflictResolution)
+			fmt.Printf("Strategy: %s\n", strategyStr)
 
 			// Get last sync time
 			lastSync, err := getLastSyncTime(localBackend)
@@ -190,7 +220,13 @@ func newSyncQueueCmd() *cobra.Command {
 		Long:  `Display and manage pending sync operations.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := config.GetConfig()
-			if cfg.Sync == nil || !cfg.Sync.Enabled {
+
+			// Check if sync is enabled (either per-backend or global)
+			syncPairs := cfg.GetSyncPairs()
+			hasPerBackendSync := len(syncPairs) > 0
+			hasGlobalSync := cfg.Sync != nil && cfg.Sync.Enabled
+
+			if !hasPerBackendSync && !hasGlobalSync {
 				return fmt.Errorf("sync is not enabled")
 			}
 
@@ -243,7 +279,13 @@ func newSyncQueueClearCmd() *cobra.Command {
 		Long:  `Clear pending sync operations. Use --failed to clear only failed operations.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := config.GetConfig()
-			if cfg.Sync == nil || !cfg.Sync.Enabled {
+
+			// Check if sync is enabled (either per-backend or global)
+			syncPairs := cfg.GetSyncPairs()
+			hasPerBackendSync := len(syncPairs) > 0
+			hasGlobalSync := cfg.Sync != nil && cfg.Sync.Enabled
+
+			if !hasPerBackendSync && !hasGlobalSync {
 				return fmt.Errorf("sync is not enabled")
 			}
 
@@ -289,7 +331,13 @@ func newSyncQueueRetryCmd() *cobra.Command {
 		Long:  `Retry all failed sync operations by resetting their retry count.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := config.GetConfig()
-			if cfg.Sync == nil || !cfg.Sync.Enabled {
+
+			// Check if sync is enabled (either per-backend or global)
+			syncPairs := cfg.GetSyncPairs()
+			hasPerBackendSync := len(syncPairs) > 0
+			hasGlobalSync := cfg.Sync != nil && cfg.Sync.Enabled
+
+			if !hasPerBackendSync && !hasGlobalSync {
 				return fmt.Errorf("sync is not enabled")
 			}
 
@@ -332,8 +380,55 @@ func newSyncQueueRetryCmd() *cobra.Command {
 
 // Helper functions
 
-// getSyncBackends returns the local and remote backends for sync
+// getSyncBackends returns the local and remote backends for sync.
+// It supports both per-backend sync (NEW) and global sync config (LEGACY).
+// Returns the first available sync pair, or the legacy global sync if no per-backend sync is configured.
 func getSyncBackends(cfg *config.Config) (*sqlite.SQLiteBackend, backend.TaskManager, error) {
+	// NEW APPROACH: Check for per-backend sync configurations first
+	syncPairs := cfg.GetSyncPairs()
+	if len(syncPairs) > 0 {
+		// Use the first sync pair
+		// TODO: In the future, allow specifying which sync pair to use
+		pair := syncPairs[0]
+
+		utils.Debugf("Using per-backend sync: %s -> %s", pair.LocalBackend, pair.RemoteBackend)
+
+		// Get local backend
+		localCfg, err := cfg.GetBackend(pair.LocalBackend)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get local backend config: %w", err)
+		}
+
+		if localCfg.Type != "sqlite" {
+			return nil, nil, fmt.Errorf("local backend must be SQLite, got %s", localCfg.Type)
+		}
+
+		local, err := sqlite.NewSQLiteBackend(*localCfg)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create local backend: %w", err)
+		}
+
+		// Get remote backend
+		remoteCfg, err := cfg.GetBackend(pair.RemoteBackend)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get remote backend config: %w", err)
+		}
+
+		remote, err := remoteCfg.TaskManager()
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create remote backend: %w", err)
+		}
+
+		return local, remote, nil
+	}
+
+	// LEGACY APPROACH: Fall back to global sync config
+	if cfg.Sync == nil || !cfg.Sync.Enabled {
+		return nil, nil, fmt.Errorf("no sync configuration found (neither per-backend nor global)")
+	}
+
+	utils.Warnf("Using legacy global sync configuration (deprecated - consider migrating to per-backend sync)")
+
 	if cfg.Sync.LocalBackend == "" {
 		return nil, nil, fmt.Errorf("local_backend not configured for sync")
 	}
