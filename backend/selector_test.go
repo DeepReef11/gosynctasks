@@ -220,7 +220,7 @@ func TestBackendSelector(t *testing.T) {
 			defaultBackend:   "nextcloud",
 			syncEnabled:      true,
 			syncLocalBackend: "sqlite",
-			wantName:         "sqlite", // Should select sqlite when sync is enabled
+			wantName:         "nextcloud", // Falls back to default backend when cache path not provided
 			wantErr:          false,
 		},
 		{
@@ -271,6 +271,7 @@ func TestBackendSelector(t *testing.T) {
 				tt.priority,
 				tt.syncEnabled,
 				tt.syncLocalBackend,
+				"", // cachePath
 			)
 
 			if (err != nil) != tt.wantErr {

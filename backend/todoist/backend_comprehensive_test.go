@@ -393,7 +393,7 @@ func TestTodoistBackend_AddTask_Mock(t *testing.T) {
 		DueDate:     &dueDate,
 	}
 
-	err := tb.AddTask("project1", newTask)
+	_, err := tb.AddTask("project1", newTask)
 	if err != nil {
 		t.Fatalf("AddTask() error = %v", err)
 	}
@@ -718,7 +718,7 @@ func TestTodoistBackend_Integration_RealAPI(t *testing.T) {
 			DueDate:     &dueDate,
 		}
 
-		if err := tb.AddTask(projectID, newTask); err != nil {
+		if _, err := tb.AddTask(projectID, newTask); err != nil {
 			t.Fatalf("AddTask() error = %v", err)
 		}
 		t.Log("Created test task")

@@ -250,6 +250,7 @@ fields:
 ## SQLite Sync System
 
 **Bidirectional synchronization** with offline support (local SQLite ↔ remote Nextcloud).
+When working on sync features, avoid migrating db and prompt user to delete sqlite db since backends will only need to be synced with remotes.
 
 ### Architecture
 ```
@@ -286,89 +287,69 @@ CLI → SQLiteBackend (CRUD, queueing) → SyncManager (pull/push) ↔ Remote Ba
 
 ### Configuration
 
-**NEW: Per-Backend Sync Configuration (Recommended)**
+**Global Sync Configuration** (Automatic Caching for All Remote Backends)
 
-Each backend can now have its own sync configuration, allowing multiple sync relationships:
-
-```yaml
-backends:
-  # Local cache that syncs with Nextcloud
-  local-cache:
-    type: sqlite
-    enabled: true
-    db_path: ~/.local/share/gosynctasks/cache.db
-    sync:
-      enabled: true
-      remote_backend: nextcloud
-      conflict_resolution: server_wins
-      auto_sync: true
-      sync_interval: 5
-      offline_mode: auto
-
-  # Remote Nextcloud backend
-  nextcloud:
-    type: nextcloud
-    enabled: true
-    url: nextcloud://user:pass@host
-
-backend_priority:
-  - nextcloud
-```
-
-**LEGACY: Global Sync Configuration (Backward Compatible)**
-
-The old global sync config is still supported and automatically migrated:
+When sync is enabled, each remote backend gets its own automatic cache database:
 
 ```yaml
-backends:
-  sqlite:
-    type: sqlite
-    enabled: true
-  nextcloud:
-    type: nextcloud
-    enabled: true
-    url: nextcloud://user:pass@host
-
-# This will be automatically migrated to per-backend sync
 sync:
   enabled: true
-  local_backend: sqlite
-  remote_backend: nextcloud
+  local_backend: sqlite       # Cache type: sqlite (only supported currently)
   conflict_resolution: server_wins
-  auto_sync: true
+  sync_interval: 5
+  offline_mode: auto
+
+backends:
+  nextcloud:
+    type: nextcloud
+    enabled: true
+    url: nextcloud://user:pass@host
+    # Automatically cached at: ~/.local/share/gosynctasks/caches/nextcloud.db
+
+  todoist:
+    type: todoist
+    enabled: true
+    # Automatically cached at: ~/.local/share/gosynctasks/caches/todoist.db
 
 backend_priority:
   - nextcloud
 ```
 
+**Opt-Out of Caching:**
+
+Remote backends can opt-out of automatic caching:
+
+```yaml
+backends:
+  nextcloud:
+    type: nextcloud
+    enabled: true
+    sync: {enabled: false}  # Don't cache this backend
+```
+
+**How It Works:**
+1. **Global sync enabled**: Each remote backend (nextcloud, todoist) gets auto-cached
+2. **Separate databases**: Each remote has its own cache (e.g., `nextcloud.db`, `todoist.db`)
+3. **Automatic isolation**: Tasks from different backends never mix
+4. **Manual sync**: Use `gosynctasks sync` to sync all cached remotes
+
 **Backend Selection Logic:**
-- When per-backend sync is configured: CLI uses the sync-enabled backend for operations
-- When global `sync.enabled = true`: CLI automatically uses `sync.local_backend` (sqlite) for all operations
-- When `sync.enabled = false`: CLI uses `backend_priority` or `default_backend`
-- Explicit `--backend` flag always overrides sync selection
-- You don't need to include the local backend in `backend_priority` when sync is enabled
+- When `sync.enabled = false`: CLI uses `backend_priority` or `default_backend` directly
+- When `sync.enabled = true`: CLI uses the cache database for each remote backend
+- Explicit `--backend` flag always overrides automatic selection
+- Use `gosynctasks sync` to manually sync cache databases with remotes
 
-**Migration:**
-- Old global sync configs are automatically migrated to per-backend sync at runtime
-- The migration creates a `sync:` section on the `local_backend` specified in global config
-- After migration, you can remove the global `sync:` section from your config file
+**Auto-Sync Status:**
+- **Currently disabled** - The auto-sync feature is being redesigned for the new multi-remote architecture
+- For now, use manual sync: `gosynctasks sync`
+- Operations are still queued in the `sync_queue` table and persist between runs
+- Future versions will re-enable automatic background sync
 
-**Auto-Sync Behavior:**
-- When `sync.auto_sync = true`: Write operations (add/update/complete/delete) trigger background sync
-- **Operations return immediately** after writing to sqlite (truly instant)
-- **Detached daemon process** spawned to run `gosynctasks sync --quiet` in background
-- Daemon process runs independently and completes after parent exits
-- Operations are queued in sqlite `sync_queue` table and persist between runs
-- Background sync processes the queue automatically
-- User experiences instant operations with no waiting
-- Background sync is automatic - no manual `sync` command needed for normal operations
-
-**Troubleshooting Auto-Sync:**
-- Check startup logs for `Auto-sync initialized successfully` message
-- Ensure both `local_backend` and `remote_backend` are configured and enabled
-- SQLite `db_path` can be empty (uses XDG default: `~/.local/share/gosynctasks/tasks.db`)
-- If sync fails silently, check stderr for `[AutoSync]` log messages
-- Background sync errors are logged to stderr but don't interrupt CLI operations
+**Manual Sync Workflow:**
+1. Make changes: `gosynctasks MyList add "Task"`
+2. Sync to remote: `gosynctasks sync`
+3. Changes are pushed to the remote backend
+4. Check status: `gosynctasks sync status`
 
 ### Testing
 - **Unit**: `backend/schema_test.go`, `sqliteBackend_test.go`, `syncManager_test.go`

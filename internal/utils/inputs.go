@@ -53,7 +53,7 @@ func PromptYesNo(question string) bool {
 			return false
 		default:
 			fmt.Println("Please enter y or n")
-			return PromptYesNo(question)
+			// Continue the loop instead of recursive call
 		}
 	}
 }

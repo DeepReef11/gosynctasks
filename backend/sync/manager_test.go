@@ -170,21 +170,26 @@ func TestConflictResolutionServerWins(t *testing.T) {
 	// Add task to both
 	now := time.Now()
 	task := backend.Task{
-		UID:      "task-1",
 		Summary:  "Original",
 		Status:   "NEEDS-ACTION",
 		Priority: 5,
 		Created:  now,
 		Modified: now,
 	}
-	local.AddTask(listID, task)
 
-	// Modify locally
+	// Capture the actual UID assigned by SQLite
+	taskUID, err := local.AddTask(listID, task)
+	if err != nil {
+		t.Fatalf("Failed to add task: %v", err)
+	}
+
+	// Modify locally using the actual UID
+	task.UID = taskUID
 	task.Summary = "Local Modification"
 	task.Priority = 1
 	local.UpdateTask(listID, task)
 
-	// Modify remotely
+	// Modify remotely with the same UID
 	remoteTask := task
 	remoteTask.Summary = "Remote Modification"
 	remoteTask.Priority = 9
@@ -234,21 +239,26 @@ func TestConflictResolutionLocalWins(t *testing.T) {
 	// Add task to both
 	now := time.Now()
 	task := backend.Task{
-		UID:      "task-1",
 		Summary:  "Original",
 		Status:   "NEEDS-ACTION",
 		Priority: 5,
 		Created:  now,
 		Modified: now,
 	}
-	local.AddTask(listID, task)
 
-	// Modify locally
+	// Capture the actual UID assigned by SQLite
+	taskUID, err := local.AddTask(listID, task)
+	if err != nil {
+		t.Fatalf("Failed to add task: %v", err)
+	}
+
+	// Modify locally using the actual UID
+	task.UID = taskUID
 	task.Summary = "Local Modification"
 	task.Priority = 1
 	local.UpdateTask(listID, task)
 
-	// Modify remotely
+	// Modify remotely with the same UID
 	remoteTask := task
 	remoteTask.Summary = "Remote Modification"
 	remoteTask.Priority = 9
@@ -291,20 +301,25 @@ func TestConflictResolutionKeepBoth(t *testing.T) {
 	// Add task to both
 	now := time.Now()
 	task := backend.Task{
-		UID:      "task-1",
 		Summary:  "Original",
 		Status:   "NEEDS-ACTION",
 		Priority: 5,
 		Created:  now,
 		Modified: now,
 	}
-	local.AddTask(listID, task)
 
-	// Modify locally
+	// Capture the actual UID assigned by SQLite
+	taskUID, err := local.AddTask(listID, task)
+	if err != nil {
+		t.Fatalf("Failed to add task: %v", err)
+	}
+
+	// Modify locally using the actual UID
+	task.UID = taskUID
 	task.Summary = "Local Modification"
 	local.UpdateTask(listID, task)
 
-	// Modify remotely
+	// Modify remotely with the same UID
 	remoteTask := task
 	remoteTask.Summary = "Remote Modification"
 	remote.AddTask(listID, remoteTask)
@@ -404,16 +419,23 @@ func TestPushUpdateOperation(t *testing.T) {
 	// Add task to both
 	now := time.Now()
 	task := backend.Task{
-		UID:      "task-1",
 		Summary:  "Original",
 		Status:   "NEEDS-ACTION",
 		Priority: 5,
 		Created:  now,
 		Modified: now,
 	}
-	local.AddTask(listID, task)
-	local.ClearSyncFlagsAndQueue("task-1") // Clear create flag and queue entry
 
+	// Capture the actual UID assigned by SQLite
+	taskUID, err := local.AddTask(listID, task)
+	if err != nil {
+		t.Fatalf("Failed to add task: %v", err)
+	}
+
+	local.ClearSyncFlagsAndQueue(taskUID) // Clear create flag and queue entry
+
+	// Add to remote with the same UID
+	task.UID = taskUID
 	remote.AddTask(listID, task)
 
 	// Update locally
@@ -454,19 +476,26 @@ func TestPushDeleteOperation(t *testing.T) {
 	// Add task to both
 	now := time.Now()
 	task := backend.Task{
-		UID:      "task-1",
 		Summary:  "To Delete",
 		Status:   "NEEDS-ACTION",
 		Created:  now,
 		Modified: now,
 	}
-	local.AddTask(listID, task)
-	local.ClearSyncFlagsAndQueue("task-1") // Clear create flag and queue entry
 
+	// Capture the actual UID assigned by SQLite
+	taskUID, err := local.AddTask(listID, task)
+	if err != nil {
+		t.Fatalf("Failed to add task: %v", err)
+	}
+
+	local.ClearSyncFlagsAndQueue(taskUID) // Clear create flag and queue entry
+
+	// Add to remote with the same UID
+	task.UID = taskUID
 	remote.AddTask(listID, task)
 
-	// Delete locally
-	local.DeleteTask(listID, "task-1")
+	// Delete locally using the actual UID
+	local.DeleteTask(listID, taskUID)
 
 	// Sync (should push the delete)
 	result, err := sm.Sync()

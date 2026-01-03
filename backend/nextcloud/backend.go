@@ -429,7 +429,7 @@ func (nB *NextcloudBackend) GetDeletedTaskLists() ([]backend.TaskList, error) {
 	return nB.parseDeletedTaskLists(string(respBody), calendarURL)
 }
 
-func (nB *NextcloudBackend) AddTask(listID string, task backend.Task) error {
+func (nB *NextcloudBackend) AddTask(listID string, task backend.Task) (string, error) {
 	// Set defaults
 	if task.UID == "" {
 		task.UID = fmt.Sprintf("task-%d", time.Now().Unix())
@@ -450,19 +450,19 @@ func (nB *NextcloudBackend) AddTask(listID string, task backend.Task) error {
 	}
 	resp, err := nB.makeAuthenticatedRequest("PUT", nB.buildTaskURL(listID, task.UID), bytes.NewBufferString(icalContent), headers)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	// Check response status
 	if err := nB.checkHTTPResponse(resp, "AddTask"); err != nil {
 		if backendErr, ok := err.(*backend.BackendError); ok {
-			return backendErr.WithTaskUID(task.UID).WithListID(listID)
+			return "", backendErr.WithTaskUID(task.UID).WithListID(listID)
 		}
-		return err
+		return "", err
 	}
 
-	return nil
+	return task.UID, nil
 }
 
 func (nB *NextcloudBackend) UpdateTask(listID string, task backend.Task) error {

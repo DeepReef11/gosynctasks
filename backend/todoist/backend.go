@@ -1,10 +1,12 @@
 package todoist
 
 import (
-	"gosynctasks/backend"
-	"gosynctasks/internal/credentials"
 	"fmt"
 	"strings"
+
+	"gosynctasks/backend"
+	"gosynctasks/internal/credentials"
+	"gosynctasks/internal/utils"
 )
 
 func init() {
@@ -185,37 +187,68 @@ func (tb *TodoistBackend) FindTasksBySummary(listID string, summary string) ([]b
 }
 
 // AddTask creates a new task in Todoist
-func (tb *TodoistBackend) AddTask(listID string, task backend.Task) error {
+func (tb *TodoistBackend) AddTask(listID string, task backend.Task) (string, error) {
 	req := toCreateTaskRequest(task, listID)
 
-	_, err := tb.apiClient.CreateTask(req)
+	createdTask, err := tb.apiClient.CreateTask(req)
 	if err != nil {
-		return fmt.Errorf("failed to create task: %w", err)
+		return "", fmt.Errorf("failed to create task: %w", err)
 	}
 
-	return nil
+	// Return the Todoist-assigned task ID
+	return createdTask.ID, nil
 }
 
 // UpdateTask modifies an existing task
 func (tb *TodoistBackend) UpdateTask(listID string, task backend.Task) error {
-	// Handle status changes separately
-	if task.Status == "DONE" {
-		// Close the task
-		if err := tb.apiClient.CloseTask(task.UID); err != nil {
-			return fmt.Errorf("failed to close task: %w", err)
-		}
-	} else if task.Status == "TODO" {
-		// Reopen if it was completed
-		// We'll try to update first, and if needed reopen
-		if err := tb.apiClient.ReopenTask(task.UID); err != nil {
-			// It might not be closed, so we'll continue with update
-		}
-	}
-
-	// Update other task properties
+	// Update other task properties FIRST (before closing/reopening)
+	// Todoist API doesn't allow updating closed tasks
 	req := toUpdateTaskRequest(task)
+
+	// Debug: Log the request being sent
+	contentStr := ""
+	if req.Content != nil {
+		contentStr = *req.Content
+	}
+	descStr := ""
+	if req.Description != nil {
+		descStr = *req.Description
+	}
+	priorityInt := 0
+	if req.Priority != nil {
+		priorityInt = *req.Priority
+	}
+	dueDateStr := ""
+	if req.DueDate != nil {
+		dueDateStr = *req.DueDate
+	}
+	dueDatetimeStr := ""
+	if req.DueDatetime != nil {
+		dueDatetimeStr = *req.DueDatetime
+	}
+	utils.Debugf("Todoist UpdateTask: ID=%s, Content=%q, Description=%q, Labels=%v, Priority=%d, DueDate=%q, DueDatetime=%q",
+		task.UID, contentStr, descStr, req.Labels, priorityInt, dueDateStr, dueDatetimeStr)
+
 	if err := tb.apiClient.UpdateTask(task.UID, req); err != nil {
 		return fmt.Errorf("failed to update task: %w", err)
+	}
+
+	// Handle status changes AFTER updating properties
+	if task.Status == "DONE" {
+		// Close the task after updating
+		utils.Debugf("Todoist: Closing task %s", task.UID)
+		if err := tb.apiClient.CloseTask(task.UID); err != nil {
+			utils.Debugf("Todoist: Failed to close task: %v", err)
+			return fmt.Errorf("failed to close task: %w", err)
+		}
+		utils.Debugf("Todoist: Task %s closed successfully", task.UID)
+	} else if task.Status == "TODO" {
+		// Reopen if it was completed
+		utils.Debugf("Todoist: Reopening task %s", task.UID)
+		if err := tb.apiClient.ReopenTask(task.UID); err != nil {
+			// It might not be closed, so we'll continue
+			utils.Debugf("Todoist: Failed to reopen task (might not be closed): %v", err)
+		}
 	}
 
 	return nil

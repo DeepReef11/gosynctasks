@@ -152,9 +152,21 @@ func NewBackendSelector(registry *BackendRegistry) *BackendSelector {
 // 3. Auto-detection (if enabled)
 // 4. Default backend
 // 5. First enabled backend
-func (s *BackendSelector) Select(explicitBackend string, autoDetect bool, defaultBackend string, priority []string, syncEnabled bool, syncLocalBackend string) (string, TaskManager, error) {
+func (s *BackendSelector) Select(explicitBackend string, autoDetect bool, defaultBackend string, priority []string, syncEnabled bool, syncLocalBackend string, cachePath string) (string, TaskManager, error) {
 	// Priority 1: Explicit backend name
+	// If sync is enabled and explicit backend is a remote, use cache for it
 	if explicitBackend != "" {
+		// Check if sync is enabled and this is a remote backend
+		if syncEnabled && syncLocalBackend != "" && cachePath != "" && s.isRemoteBackend(explicitBackend) {
+			// Use cache for this explicit remote backend
+			cacheBackend, err := s.createCacheBackend(syncLocalBackend, explicitBackend, cachePath)
+			if err == nil {
+				return syncLocalBackend + "-cache", cacheBackend, nil
+			}
+			// If cache creation fails, fall through to use explicit backend directly
+		}
+
+		// Use explicit backend directly (no sync or cache creation failed)
 		backend, err := s.registry.GetBackend(explicitBackend)
 		if err != nil {
 			return "", nil, fmt.Errorf("explicitly specified backend %q: %w", explicitBackend, err)
@@ -163,14 +175,25 @@ func (s *BackendSelector) Select(explicitBackend string, autoDetect bool, defaul
 	}
 
 	// Priority 2: Sync local backend (when sync is enabled)
-	// This ensures that when sync is active, operations use the local backend
+	// This ensures that when sync is active, operations use the local cache backend
 	// and sync happens in the background to the remote backend
 	if syncEnabled && syncLocalBackend != "" {
-		backend, err := s.registry.GetBackend(syncLocalBackend)
-		if err == nil {
-			return syncLocalBackend, backend, nil
+		// Determine which remote backend to cache
+		var remoteBackendName string
+		if defaultBackend != "" {
+			remoteBackendName = defaultBackend
+		} else if len(priority) > 0 {
+			remoteBackendName = priority[0]
 		}
-		// If sync local backend fails, fall through to next priority
+
+		if remoteBackendName != "" && cachePath != "" {
+			// Create a cache backend for this remote backend
+			cacheBackend, err := s.createCacheBackend(syncLocalBackend, remoteBackendName, cachePath)
+			if err == nil {
+				return syncLocalBackend + "-cache", cacheBackend, nil
+			}
+		}
+		// If sync cache creation fails, fall through to next priority
 	}
 
 	// Priority 3: Auto-detection
@@ -259,4 +282,41 @@ func (s *BackendSelector) DetectAll() []BackendInfo {
 	}
 
 	return detected
+}
+
+// isRemoteBackend checks if a backend is a remote backend (nextcloud, todoist)
+func (s *BackendSelector) isRemoteBackend(backendName string) bool {
+	config, exists := s.registry.configs[backendName]
+	if !exists {
+		return false
+	}
+	remoteTypes := map[string]bool{
+		"nextcloud": true,
+		"todoist":   true,
+	}
+	return remoteTypes[config.Type]
+}
+
+// createCacheBackend creates a cache backend instance for a remote backend
+func (s *BackendSelector) createCacheBackend(cacheType string, remoteBackendName string, cachePath string) (TaskManager, error) {
+	if cacheType != "sqlite" {
+		return nil, fmt.Errorf("only sqlite cache backend is currently supported, got %s", cacheType)
+	}
+
+	// Create cache backend configuration
+	// Important: Name must match remote backend name for backend_name filtering
+	cacheConfig := BackendConfig{
+		Name:    remoteBackendName, // Use remote backend name for backend_name column
+		Type:    "sqlite",
+		Enabled: true,
+		DBPath:  cachePath, // Shared database for all backends
+	}
+
+	// Create cache backend using TaskManager() method which calls registered constructor
+	cacheBackend, err := cacheConfig.TaskManager()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cache backend: %w", err)
+	}
+
+	return cacheBackend, nil
 }

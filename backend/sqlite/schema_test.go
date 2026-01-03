@@ -80,12 +80,12 @@ func TestTasksTableSchema(t *testing.T) {
 	now := time.Now().Unix()
 	_, err = db.Exec(`
 		INSERT INTO tasks (
-			id, list_id, summary, description, status, priority,
+			uid, backend_name, list_id, summary, description, status, priority,
 			created_at, modified_at, due_date, start_date, completed_at,
 			parent_uid, categories
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
-		"task-1", "list-1", "Test backend.Task", "Description", "NEEDS-ACTION", 5,
+		"task-1", "test-backend", "list-1", "Test Task", "Description", "NEEDS-ACTION", 5,
 		now, now, now+86400, now, nil,
 		nil, "work,urgent",
 	)
@@ -95,12 +95,12 @@ func TestTasksTableSchema(t *testing.T) {
 
 	// Verify task was inserted
 	var summary string
-	err = db.QueryRow("SELECT summary FROM tasks WHERE id = ?", "task-1").Scan(&summary)
+	err = db.QueryRow("SELECT summary FROM tasks WHERE uid = ?", "task-1").Scan(&summary)
 	if err != nil {
 		t.Errorf("Failed to query task: %v", err)
 	}
-	if summary != "Test backend.Task" {
-		t.Errorf("Expected summary 'Test backend.Task', got '%s'", summary)
+	if summary != "Test Task" {
+		t.Errorf("Expected summary 'Test Task', got '%s'", summary)
 	}
 }
 
@@ -117,29 +117,35 @@ func TestSyncMetadataTableSchema(t *testing.T) {
 
 	// First create a task (foreign key dependency)
 	now := time.Now().Unix()
-	_, err = db.Exec(`
-		INSERT INTO tasks (id, list_id, summary, status, created_at)
-		VALUES (?, ?, ?, ?, ?)
-	`, "task-1", "list-1", "Test backend.Task", "NEEDS-ACTION", now)
+	result, err := db.Exec(`
+		INSERT INTO tasks (uid, backend_name, list_id, summary, status, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, "task-1", "test-backend", "list-1", "Test backend.Task", "NEEDS-ACTION", now)
 	if err != nil {
 		t.Fatalf("Failed to create task: %v", err)
+	}
+
+	// Get internal_id
+	internalID, err := result.LastInsertId()
+	if err != nil {
+		t.Fatalf("Failed to get internal ID: %v", err)
 	}
 
 	// Insert sync metadata
 	_, err = db.Exec(`
 		INSERT INTO sync_metadata (
-			task_uid, list_id, remote_etag, last_synced_at,
+			task_internal_id, backend_name, list_id, remote_etag, last_synced_at,
 			locally_modified, locally_deleted,
 			remote_modified_at, local_modified_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, "task-1", "list-1", "etag-123", now, 0, 0, now, now)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, internalID, "test-backend", "list-1", "etag-123", now, 0, 0, now, now)
 	if err != nil {
 		t.Errorf("Failed to insert sync metadata: %v", err)
 	}
 
 	// Verify metadata was inserted
 	var etag string
-	err = db.QueryRow("SELECT remote_etag FROM sync_metadata WHERE task_uid = ?", "task-1").Scan(&etag)
+	err = db.QueryRow("SELECT remote_etag FROM sync_metadata WHERE task_internal_id = ?", internalID).Scan(&etag)
 	if err != nil {
 		t.Errorf("Failed to query sync metadata: %v", err)
 	}
@@ -193,18 +199,33 @@ func TestSyncQueueTableSchema(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	now := time.Now().Unix()
+
+	// First create a task to get internal_id
+	result, err := db.Exec(`
+		INSERT INTO tasks (uid, backend_name, list_id, summary, status, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, "task-1", "test-backend", "list-1", "Test Task", "NEEDS-ACTION", now)
+	if err != nil {
+		t.Fatalf("Failed to create task: %v", err)
+	}
+
+	internalID, err := result.LastInsertId()
+	if err != nil {
+		t.Fatalf("Failed to get internal ID: %v", err)
+	}
+
 	_, err = db.Exec(`
 		INSERT INTO sync_queue (
-			task_uid, list_id, operation, created_at, retry_count, last_error
-		) VALUES (?, ?, ?, ?, ?, ?)
-	`, "task-1", "list-1", "create", now, 0, nil)
+			backend_name, task_internal_id, list_id, operation, created_at, retry_count, last_error
+		) VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, "test-backend", internalID, "list-1", "create", now, 0, nil)
 	if err != nil {
 		t.Errorf("Failed to insert sync queue entry: %v", err)
 	}
 
 	// Verify queue entry was inserted
 	var operation string
-	err = db.QueryRow("SELECT operation FROM sync_queue WHERE task_uid = ?", "task-1").Scan(&operation)
+	err = db.QueryRow("SELECT operation FROM sync_queue WHERE task_internal_id = ?", internalID).Scan(&operation)
 	if err != nil {
 		t.Errorf("Failed to query sync queue: %v", err)
 	}
@@ -245,19 +266,21 @@ func TestForeignKeyConstraints(t *testing.T) {
 	}
 
 	// Create parent task
-	_, err = db.Exec(`
-		INSERT INTO tasks (id, list_id, summary, status, created_at)
-		VALUES (?, ?, ?, ?, ?)
-	`, "task-1", "list-1", "Test backend.Task", "NEEDS-ACTION", now)
+	result, err := db.Exec(`
+		INSERT INTO tasks (uid, backend_name, list_id, summary, status, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, "task-1", "test-backend", "list-1", "Test backend.Task", "NEEDS-ACTION", now)
 	if err != nil {
 		t.Fatalf("Failed to create task: %v", err)
 	}
 
+	internalID, _ := result.LastInsertId()
+
 	// Now sync_metadata insert should work
 	_, err = db.Exec(`
-		INSERT INTO sync_metadata (task_uid, list_id, last_synced_at)
-		VALUES (?, ?, ?)
-	`, "task-1", "list-1", now)
+		INSERT INTO sync_metadata (task_internal_id, backend_name, list_id, last_synced_at)
+		VALUES (?, ?, ?, ?)
+	`, internalID, "test-backend", "list-1", now)
 	if err != nil {
 		t.Errorf("Failed to insert sync metadata with valid foreign key: %v", err)
 	}
@@ -277,31 +300,33 @@ func TestCascadeDelete(t *testing.T) {
 	now := time.Now().Unix()
 
 	// Create task and sync metadata
-	_, err = db.Exec(`
-		INSERT INTO tasks (id, list_id, summary, status, created_at)
-		VALUES (?, ?, ?, ?, ?)
-	`, "task-1", "list-1", "Test backend.Task", "NEEDS-ACTION", now)
+	result, err := db.Exec(`
+		INSERT INTO tasks (uid, backend_name, list_id, summary, status, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, "task-1", "test-backend", "list-1", "Test backend.Task", "NEEDS-ACTION", now)
 	if err != nil {
 		t.Fatalf("Failed to create task: %v", err)
 	}
 
+	internalID, _ := result.LastInsertId()
+
 	_, err = db.Exec(`
-		INSERT INTO sync_metadata (task_uid, list_id, last_synced_at)
-		VALUES (?, ?, ?)
-	`, "task-1", "list-1", now)
+		INSERT INTO sync_metadata (task_internal_id, backend_name, list_id, last_synced_at)
+		VALUES (?, ?, ?, ?)
+	`, internalID, "test-backend", "list-1", now)
 	if err != nil {
 		t.Fatalf("Failed to create sync metadata: %v", err)
 	}
 
 	// Delete task
-	_, err = db.Exec("DELETE FROM tasks WHERE id = ?", "task-1")
+	_, err = db.Exec("DELETE FROM tasks WHERE uid = ?", "task-1")
 	if err != nil {
 		t.Fatalf("Failed to delete task: %v", err)
 	}
 
 	// Verify sync_metadata was also deleted (cascade)
 	var count int
-	err = db.QueryRow("SELECT COUNT(*) FROM sync_metadata WHERE task_uid = ?", "task-1").Scan(&count)
+	err = db.QueryRow("SELECT COUNT(*) FROM sync_metadata WHERE task_internal_id = ?", internalID).Scan(&count)
 	if err != nil {
 		t.Fatalf("Failed to query sync metadata: %v", err)
 	}
@@ -395,12 +420,17 @@ func TestDatabaseStats(t *testing.T) {
 	now := time.Now().Unix()
 
 	// Add test data
-	_, err = db.Exec(`
-		INSERT INTO tasks (id, list_id, summary, status, created_at)
-		VALUES (?, ?, ?, ?, ?)
-	`, "task-1", "list-1", "Test backend.Task", "NEEDS-ACTION", now)
+	result, err := db.Exec(`
+		INSERT INTO tasks (uid, backend_name, list_id, summary, status, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, "task-1", "test-backend", "list-1", "Test Task", "NEEDS-ACTION", now)
 	if err != nil {
 		t.Fatalf("Failed to create task: %v", err)
+	}
+
+	internalID, err := result.LastInsertId()
+	if err != nil {
+		t.Fatalf("Failed to get internal_id: %v", err)
 	}
 
 	_, err = db.Exec(`
@@ -412,17 +442,17 @@ func TestDatabaseStats(t *testing.T) {
 	}
 
 	_, err = db.Exec(`
-		INSERT INTO sync_metadata (task_uid, list_id, locally_modified, last_synced_at)
-		VALUES (?, ?, ?, ?)
-	`, "task-1", "list-1", 1, now)
+		INSERT INTO sync_metadata (task_internal_id, backend_name, list_id, locally_modified, last_synced_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, internalID, "test-backend", "list-1", 1, now)
 	if err != nil {
 		t.Fatalf("Failed to create sync metadata: %v", err)
 	}
 
 	_, err = db.Exec(`
-		INSERT INTO sync_queue (task_uid, list_id, operation, created_at)
-		VALUES (?, ?, ?, ?)
-	`, "task-1", "list-1", "update", now)
+		INSERT INTO sync_queue (backend_name, task_internal_id, list_id, operation, created_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, "test-backend", internalID, "list-1", "update", now)
 	if err != nil {
 		t.Fatalf("Failed to create sync queue entry: %v", err)
 	}
@@ -521,20 +551,50 @@ func TestSyncQueueOperationConstraint(t *testing.T) {
 	// Valid operations should succeed
 	validOps := []string{"create", "update", "delete"}
 	for _, op := range validOps {
+		// Create a task first to get internal_id
+		result, err := db.Exec(`
+			INSERT INTO tasks (uid, backend_name, list_id, summary, status, created_at)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, "task-"+op, "test-backend", "list-1", "Test Task", "NEEDS-ACTION", now)
+		if err != nil {
+			t.Errorf("Failed to create task for operation %s: %v", op, err)
+			continue
+		}
+
+		internalID, err := result.LastInsertId()
+		if err != nil {
+			t.Errorf("Failed to get internal_id for operation %s: %v", op, err)
+			continue
+		}
+
 		_, err = db.Exec(`
-			INSERT INTO sync_queue (task_uid, list_id, operation, created_at)
-			VALUES (?, ?, ?, ?)
-		`, "task-"+op, "list-1", op, now)
+			INSERT INTO sync_queue (backend_name, task_internal_id, list_id, operation, created_at)
+			VALUES (?, ?, ?, ?, ?)
+		`, "test-backend", internalID, "list-1", op, now)
 		if err != nil {
 			t.Errorf("Failed to insert valid operation %s: %v", op, err)
 		}
 	}
 
 	// Invalid operation should fail
+	// Create a task for the invalid operation test
+	result, err := db.Exec(`
+		INSERT INTO tasks (uid, backend_name, list_id, summary, status, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, "task-invalid", "test-backend", "list-1", "Test Task", "NEEDS-ACTION", now)
+	if err != nil {
+		t.Fatalf("Failed to create task for invalid operation test: %v", err)
+	}
+
+	internalID, err := result.LastInsertId()
+	if err != nil {
+		t.Fatalf("Failed to get internal_id for invalid operation test: %v", err)
+	}
+
 	_, err = db.Exec(`
-		INSERT INTO sync_queue (task_uid, list_id, operation, created_at)
-		VALUES (?, ?, ?, ?)
-	`, "task-invalid", "list-1", "invalid_op", now)
+		INSERT INTO sync_queue (backend_name, task_internal_id, list_id, operation, created_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, "test-backend", internalID, "list-1", "invalid_op", now)
 	if err == nil {
 		t.Error("Expected CHECK constraint error for invalid operation, but insert succeeded")
 	}
@@ -555,25 +615,25 @@ func TestParentTaskReference(t *testing.T) {
 
 	// Create parent task
 	_, err = db.Exec(`
-		INSERT INTO tasks (id, list_id, summary, status, created_at)
-		VALUES (?, ?, ?, ?, ?)
-	`, "parent-1", "list-1", "Parent backend.Task", "NEEDS-ACTION", now)
+		INSERT INTO tasks (uid, backend_name, list_id, summary, status, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, "parent-1", "test-backend", "list-1", "Parent Task", "NEEDS-ACTION", now)
 	if err != nil {
 		t.Fatalf("Failed to create parent task: %v", err)
 	}
 
 	// Create child task referencing parent
 	_, err = db.Exec(`
-		INSERT INTO tasks (id, list_id, summary, status, created_at, parent_uid)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, "child-1", "list-1", "Child backend.Task", "NEEDS-ACTION", now, "parent-1")
+		INSERT INTO tasks (uid, backend_name, list_id, summary, status, created_at, parent_uid)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, "child-1", "test-backend", "list-1", "Child Task", "NEEDS-ACTION", now, "parent-1")
 	if err != nil {
 		t.Errorf("Failed to create child task: %v", err)
 	}
 
 	// Verify parent reference
 	var parentUID sql.NullString
-	err = db.QueryRow("SELECT parent_uid FROM tasks WHERE id = ?", "child-1").Scan(&parentUID)
+	err = db.QueryRow("SELECT parent_uid FROM tasks WHERE uid = ?", "child-1").Scan(&parentUID)
 	if err != nil {
 		t.Errorf("Failed to query child task: %v", err)
 	}
@@ -582,13 +642,13 @@ func TestParentTaskReference(t *testing.T) {
 	}
 
 	// Delete parent task - child's parent_uid should be set to NULL
-	_, err = db.Exec("DELETE FROM tasks WHERE id = ?", "parent-1")
+	_, err = db.Exec("DELETE FROM tasks WHERE uid = ?", "parent-1")
 	if err != nil {
 		t.Fatalf("Failed to delete parent task: %v", err)
 	}
 
 	// Verify child's parent_uid is NULL
-	err = db.QueryRow("SELECT parent_uid FROM tasks WHERE id = ?", "child-1").Scan(&parentUID)
+	err = db.QueryRow("SELECT parent_uid FROM tasks WHERE uid = ?", "child-1").Scan(&parentUID)
 	if err != nil {
 		t.Errorf("Failed to query child task after parent deletion: %v", err)
 	}

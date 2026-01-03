@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gosynctasks/backend"
 	"gosynctasks/internal/cli"
+	"gosynctasks/internal/config"
 	"strings"
 )
 
@@ -66,6 +67,11 @@ func GetSelectedList(taskLists []backend.TaskList, taskManager backend.TaskManag
 
 	// No list name provided, use interactive selection
 	if len(taskLists) == 0 {
+		// Check if sync is enabled - if so, suggest running sync first
+		cfg := config.GetConfig()
+		if cfg.Sync != nil && cfg.Sync.Enabled {
+			return nil, fmt.Errorf("no task lists in cache. Run 'gosynctasks sync' first to populate the cache from your remote backend")
+		}
 		return nil, fmt.Errorf("no task lists available - failed to connect to backend. Please check your connection URL, username, and password in the config file")
 	}
 	return SelectListInteractively(taskLists, taskManager)

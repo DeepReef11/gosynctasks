@@ -4,6 +4,7 @@ import (
 	"gosynctasks/backend"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -141,7 +142,7 @@ func TestAddTask(t *testing.T) {
 		Priority:    5,
 	}
 
-	err = sb.AddTask(listID, task)
+	_, err = sb.AddTask(listID, task)
 	if err != nil {
 		t.Fatalf("Failed to add task: %v", err)
 	}
@@ -170,6 +171,7 @@ func TestAddTask(t *testing.T) {
 }
 
 // TestAddTaskWithUID tests task creation with explicit UID
+// Note: With the new schema design, SQLite always generates pending UIDs and ignores provided UIDs
 func TestAddTaskWithUID(t *testing.T) {
 	sb, cleanup := createTestSQLiteBackend(t)
 	defer cleanup()
@@ -178,18 +180,24 @@ func TestAddTaskWithUID(t *testing.T) {
 
 	task := backend.Task{
 		UID:     "custom-uid-123",
-		Summary: "sb.Task with UID",
+		Summary: "Task with UID",
 		Status:  "NEEDS-ACTION",
 	}
 
-	err := sb.AddTask(listID, task)
+	returnedUID, err := sb.AddTask(listID, task)
 	if err != nil {
 		t.Fatalf("Failed to add task: %v", err)
 	}
 
+	// With the new schema, SQLite generates a pending UID, not the provided UID
 	tasks, _ := sb.GetTasks(listID, nil)
-	if tasks[0].UID != "custom-uid-123" {
-		t.Errorf("Expected UID 'custom-uid-123', got '%s'", tasks[0].UID)
+	if tasks[0].UID != returnedUID {
+		t.Errorf("Expected UID '%s', got '%s'", returnedUID, tasks[0].UID)
+	}
+
+	// Verify the UID follows the pending format
+	if !strings.HasPrefix(returnedUID, "pending-") {
+		t.Errorf("Expected UID to start with 'pending-', got '%s'", returnedUID)
 	}
 }
 
@@ -201,20 +209,24 @@ func TestUpdateTask(t *testing.T) {
 	listID, _ := sb.CreateTaskList("Test List", "", "")
 
 	task := backend.Task{
-		UID:      "task-1",
 		Summary:  "Original",
 		Status:   "NEEDS-ACTION",
 		Priority: 5,
 	}
 
-	sb.AddTask(listID, task)
+	// Capture the returned UID
+	taskUID, err := sb.AddTask(listID, task)
+	if err != nil {
+		t.Fatalf("Failed to add task: %v", err)
+	}
 
-	// Update task
+	// Update task using the actual UID
+	task.UID = taskUID
 	task.Summary = "Updated"
 	task.Priority = 1
 	task.Status = "COMPLETED"
 
-	err := sb.UpdateTask(listID, task)
+	err = sb.UpdateTask(listID, task)
 	if err != nil {
 		t.Fatalf("Failed to update task: %v", err)
 	}
@@ -268,12 +280,15 @@ func TestDeleteTask(t *testing.T) {
 	listID, _ := sb.CreateTaskList("Test List", "", "")
 
 	task := backend.Task{
-		UID:     "task-to-delete",
 		Summary: "Delete me",
 		Status:  "NEEDS-ACTION",
 	}
 
-	sb.AddTask(listID, task)
+	// Capture the returned UID
+	taskUID, err := sb.AddTask(listID, task)
+	if err != nil {
+		t.Fatalf("Failed to add task: %v", err)
+	}
 
 	// Verify task exists
 	tasks, _ := sb.GetTasks(listID, nil)
@@ -281,8 +296,8 @@ func TestDeleteTask(t *testing.T) {
 		t.Fatalf("Expected 1 task before delete, got %d", len(tasks))
 	}
 
-	// Delete task
-	err := sb.DeleteTask(listID, "task-to-delete")
+	// Delete task using the actual UID
+	err = sb.DeleteTask(listID, taskUID)
 	if err != nil {
 		t.Fatalf("Failed to delete task: %v", err)
 	}
@@ -612,14 +627,19 @@ func TestMarkLocallyModified(t *testing.T) {
 	defer cleanup()
 
 	listID, _ := sb.CreateTaskList("Test List", "", "")
-	task := backend.Task{UID: "task-1", Summary: "Test", Status: "NEEDS-ACTION"}
-	sb.AddTask(listID, task)
+	task := backend.Task{Summary: "Test", Status: "NEEDS-ACTION"}
+
+	// Capture the returned UID
+	taskUID, err := sb.AddTask(listID, task)
+	if err != nil {
+		t.Fatalf("Failed to add task: %v", err)
+	}
 
 	// Clear the flag and queue entry (AddTask sets it to 1 and adds to queue)
-	sb.ClearSyncFlagsAndQueue("task-1")
+	sb.ClearSyncFlagsAndQueue(taskUID)
 
 	// Mark as modified
-	err := sb.MarkLocallyModified("task-1")
+	err = sb.MarkLocallyModified(taskUID)
 	if err != nil {
 		t.Fatalf("Failed to mark task as locally modified: %v", err)
 	}
@@ -634,8 +654,8 @@ func TestMarkLocallyModified(t *testing.T) {
 		t.Errorf("Expected 1 locally modified task, got %d", len(modifiedTasks))
 	}
 
-	if modifiedTasks[0].UID != "task-1" {
-		t.Errorf("Expected task UID 'task-1', got '%s'", modifiedTasks[0].UID)
+	if modifiedTasks[0].UID != taskUID {
+		t.Errorf("Expected task UID '%s', got '%s'", taskUID, modifiedTasks[0].UID)
 	}
 }
 
@@ -647,8 +667,13 @@ func TestGetPendingSyncOperations(t *testing.T) {
 	listID, _ := sb.CreateTaskList("Test List", "", "")
 
 	// Add a task (this queues a 'create' operation)
-	task := backend.Task{UID: "task-1", Summary: "Test", Status: "NEEDS-ACTION"}
-	sb.AddTask(listID, task)
+	task := backend.Task{Summary: "Test", Status: "NEEDS-ACTION"}
+
+	// Capture the returned UID
+	taskUID, err := sb.AddTask(listID, task)
+	if err != nil {
+		t.Fatalf("Failed to add task: %v", err)
+	}
 
 	// Get pending operations
 	ops, err := sb.GetPendingSyncOperations()
@@ -664,8 +689,8 @@ func TestGetPendingSyncOperations(t *testing.T) {
 		t.Errorf("Expected operation 'create', got '%s'", ops[0].Operation)
 	}
 
-	if ops[0].TaskUID != "task-1" {
-		t.Errorf("Expected task UID 'task-1', got '%s'", ops[0].TaskUID)
+	if ops[0].TaskUID != taskUID {
+		t.Errorf("Expected task UID '%s', got '%s'", taskUID, ops[0].TaskUID)
 	}
 }
 
@@ -675,17 +700,22 @@ func TestClearSyncFlags(t *testing.T) {
 	defer cleanup()
 
 	listID, _ := sb.CreateTaskList("Test List", "", "")
-	task := backend.Task{UID: "task-1", Summary: "Test", Status: "NEEDS-ACTION"}
-	sb.AddTask(listID, task)
+	task := backend.Task{Summary: "Test", Status: "NEEDS-ACTION"}
 
-	// sb.Task should be locally modified after creation
+	// Capture the returned UID
+	taskUID, err := sb.AddTask(listID, task)
+	if err != nil {
+		t.Fatalf("Failed to add task: %v", err)
+	}
+
+	// Task should be locally modified after creation
 	modifiedTasks, _ := sb.GetLocallyModifiedTasks()
 	if len(modifiedTasks) != 1 {
 		t.Fatalf("Expected 1 locally modified task, got %d", len(modifiedTasks))
 	}
 
 	// Clear flags
-	err := sb.ClearSyncFlags("task-1")
+	err = sb.ClearSyncFlags(taskUID)
 	if err != nil {
 		t.Fatalf("Failed to clear sync flags: %v", err)
 	}
@@ -703,11 +733,16 @@ func TestUpdateSyncMetadata(t *testing.T) {
 	defer cleanup()
 
 	listID, _ := sb.CreateTaskList("Test List", "", "")
-	task := backend.Task{UID: "task-1", Summary: "Test", Status: "NEEDS-ACTION"}
-	sb.AddTask(listID, task)
+	task := backend.Task{Summary: "Test", Status: "NEEDS-ACTION"}
+
+	// Capture the returned UID
+	taskUID, err := sb.AddTask(listID, task)
+	if err != nil {
+		t.Fatalf("Failed to add task: %v", err)
+	}
 
 	now := time.Now()
-	err := sb.UpdateSyncMetadata("task-1", listID, "etag-123", now)
+	err = sb.UpdateSyncMetadata(taskUID, listID, "etag-123", now)
 	if err != nil {
 		t.Fatalf("Failed to update sync metadata: %v", err)
 	}
@@ -722,8 +757,13 @@ func TestRemoveSyncOperation(t *testing.T) {
 	defer cleanup()
 
 	listID, _ := sb.CreateTaskList("Test List", "", "")
-	task := backend.Task{UID: "task-1", Summary: "Test", Status: "NEEDS-ACTION"}
-	sb.AddTask(listID, task)
+	task := backend.Task{Summary: "Test", Status: "NEEDS-ACTION"}
+
+	// Capture the returned UID
+	taskUID, err := sb.AddTask(listID, task)
+	if err != nil {
+		t.Fatalf("Failed to add task: %v", err)
+	}
 
 	// Verify operation exists
 	ops, _ := sb.GetPendingSyncOperations()
@@ -732,7 +772,7 @@ func TestRemoveSyncOperation(t *testing.T) {
 	}
 
 	// Remove operation
-	err := sb.RemoveSyncOperation("task-1", "create")
+	err = sb.RemoveSyncOperation(taskUID, "create")
 	if err != nil {
 		t.Fatalf("Failed to remove sync operation: %v", err)
 	}
@@ -752,19 +792,25 @@ func TestTaskWithParent(t *testing.T) {
 	listID, _ := sb.CreateTaskList("Test List", "", "")
 
 	// Create parent task
-	parentTask := backend.Task{UID: "parent-1", Summary: "Parent", Status: "NEEDS-ACTION"}
-	sb.AddTask(listID, parentTask)
+	parentTask := backend.Task{Summary: "Parent", Status: "NEEDS-ACTION"}
+	parentUID, err := sb.AddTask(listID, parentTask)
+	if err != nil {
+		t.Fatalf("Failed to add parent task: %v", err)
+	}
 
-	// Create child task
-	childTask := backend.Task{UID: "child-1", Summary: "Child", Status: "NEEDS-ACTION", ParentUID: "parent-1"}
-	sb.AddTask(listID, childTask)
+	// Create child task referencing the actual parent UID
+	childTask := backend.Task{Summary: "Child", Status: "NEEDS-ACTION", ParentUID: parentUID}
+	childUID, err := sb.AddTask(listID, childTask)
+	if err != nil {
+		t.Fatalf("Failed to add child task: %v", err)
+	}
 
 	// Retrieve tasks
 	tasks, _ := sb.GetTasks(listID, nil)
 
 	var child *backend.Task
 	for i := range tasks {
-		if tasks[i].UID == "child-1" {
+		if tasks[i].UID == childUID {
 			child = &tasks[i]
 			break
 		}
@@ -774,8 +820,8 @@ func TestTaskWithParent(t *testing.T) {
 		t.Fatal("Child task not found")
 	}
 
-	if child.ParentUID != "parent-1" {
-		t.Errorf("Expected parent UID 'parent-1', got '%s'", child.ParentUID)
+	if child.ParentUID != parentUID {
+		t.Errorf("Expected parent UID '%s', got '%s'", parentUID, child.ParentUID)
 	}
 }
 
@@ -907,7 +953,7 @@ func TestTransactionRollback(t *testing.T) {
 	}
 
 	// This should succeed even with nonexistent parent
-	err := sb.AddTask(listID, task)
+	_, err := sb.AddTask(listID, task)
 	if err != nil {
 		t.Logf("AddTask with nonexistent parent: %v", err)
 	}

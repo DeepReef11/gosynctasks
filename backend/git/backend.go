@@ -365,10 +365,10 @@ func (gb *GitBackend) FindTasksBySummary(listID string, summary string) ([]backe
 }
 
 // AddTask creates a new task in the specified list.
-func (gb *GitBackend) AddTask(listID string, task backend.Task) error {
+func (gb *GitBackend) AddTask(listID string, task backend.Task) (string, error) {
 	// Reload file to get latest changes
 	if err := gb.loadFile(); err != nil {
-		return err
+		return "", err
 	}
 
 	// Generate UID if not provided
@@ -386,7 +386,11 @@ func (gb *GitBackend) AddTask(listID string, task backend.Task) error {
 	gb.taskLists[listID] = append(gb.taskLists[listID], task)
 
 	// Save file
-	return gb.saveFile()
+	if err := gb.saveFile(); err != nil {
+		return "", err
+	}
+
+	return task.UID, nil
 }
 
 // UpdateTask modifies an existing task.

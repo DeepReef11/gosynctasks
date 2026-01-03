@@ -44,7 +44,7 @@ func TestBasicSyncWorkflow(t *testing.T) {
 
 	now := time.Now()
 	for i := 1; i <= 5; i++ {
-		err := remoteBackend.AddTask(listID, backend.Task{
+		_, err := remoteBackend.AddTask(listID, backend.Task{
 			UID:      fmt.Sprintf("task-%d", i),
 			Summary:  fmt.Sprintf("Remote backend.Task %d", i),
 			Status:   "NEEDS-ACTION",
@@ -149,7 +149,7 @@ func TestOfflineModeWorkflow(t *testing.T) {
 			Created:  now,
 			Modified: now,
 		}
-		err := localBackend.AddTask(listID, task)
+		_, err := localBackend.AddTask(listID, task)
 		if err != nil {
 			t.Fatalf("Failed to add offline task %d: %v", i, err)
 		}
@@ -259,21 +259,26 @@ func TestConflictResolutionScenarios(t *testing.T) {
 			// Add task to both
 			now := time.Now()
 			task := backend.Task{
-				UID:      "conflict-task",
 				Summary:  "Original",
 				Status:   "NEEDS-ACTION",
 				Priority: 5,
 				Created:  now,
 				Modified: now,
 			}
-			localBackend.AddTask(listID, task)
 
-			// Modify locally
+			// Capture the actual UID assigned by SQLite
+			taskUID, err := localBackend.AddTask(listID, task)
+			if err != nil {
+				t.Fatalf("Failed to add task: %v", err)
+			}
+
+			// Modify locally using the actual UID
+			task.UID = taskUID
 			task.Summary = "Local Modification"
 			task.Priority = 1
 			localBackend.UpdateTask(listID, task)
 
-			// Modify remotely
+			// Modify remotely with the same UID
 			remoteTask := task
 			remoteTask.Summary = "Remote Modification"
 			remoteTask.Priority = 9
@@ -369,7 +374,7 @@ func TestLargeDatasetPerformance(t *testing.T) {
 
 	t.Logf("Creating %d tasks on remote...", taskCount)
 	for i := 1; i <= taskCount; i++ {
-		err := remoteBackend.AddTask(listID, backend.Task{
+		_, err := remoteBackend.AddTask(listID, backend.Task{
 			UID:      fmt.Sprintf("large-task-%d", i),
 			Summary:  fmt.Sprintf("backend.Task %d of %d", i, taskCount),
 			Status:   "NEEDS-ACTION",
@@ -457,7 +462,7 @@ func TestErrorRecoveryWithRetry(t *testing.T) {
 		Created:  now,
 		Modified: now,
 	}
-	err = localBackend.AddTask(listID, task)
+	_, err = localBackend.AddTask(listID, task)
 	if err != nil {
 		t.Fatalf("Failed to add task: %v", err)
 	}

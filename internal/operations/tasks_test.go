@@ -36,8 +36,8 @@ func (m *mockTaskManagerForOperations) FindTasksBySummary(listID string, summary
 	return m.findResults, nil
 }
 
-func (m *mockTaskManagerForOperations) AddTask(listID string, task backend.Task) error {
-	return nil
+func (m *mockTaskManagerForOperations) AddTask(listID string, task backend.Task) (string, error) {
+	return "mock-task-id", nil
 }
 
 func (m *mockTaskManagerForOperations) UpdateTask(listID string, task backend.Task) error {

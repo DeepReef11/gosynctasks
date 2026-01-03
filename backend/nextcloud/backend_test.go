@@ -406,7 +406,7 @@ func TestNextcloudBackend_AddTask(t *testing.T) {
 		Priority:    3,
 	}
 
-	err := nb.AddTask("/calendars/testuser/tasks/", task)
+	_, err := nb.AddTask("/calendars/testuser/tasks/", task)
 	if err != nil {
 		t.Fatalf("AddTask failed: %v", err)
 	}

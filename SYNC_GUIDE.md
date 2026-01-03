@@ -180,60 +180,41 @@ CREATE TABLE sync_queue (
 
 1. **Configure your remote backend** in `config.yaml`:
 
-**RECOMMENDED: Per-Backend Sync Configuration**
+**Global Sync Configuration** (Automatic Caching for All Remote Backends)
 
 ```yaml
-backends:
-  # Local SQLite cache with sync enabled
-  local:
-    type: sqlite
-    enabled: true
-    db_path: ""  # Uses XDG default: ~/.local/share/gosynctasks/tasks.db
-    sync:
-      enabled: true
-      remote_backend: nextcloud
-      conflict_resolution: server_wins
-      auto_sync: false
-      sync_interval: 5
-      offline_mode: auto
-
-  # Remote Nextcloud backend
-  nextcloud:
-    type: nextcloud
-    enabled: true
-    url: nextcloud://username:password@nextcloud.example.com
-    insecure_skip_verify: false
-
-default_backend: local
-```
-
-**LEGACY: Global Sync Configuration (Still Supported)**
-
-```yaml
-backends:
-  nextcloud:
-    type: nextcloud
-    enabled: true
-    url: nextcloud://username:password@nextcloud.example.com
-    insecure_skip_verify: false
-  local:
-    type: sqlite
-    enabled: true
-    db_path: ""
-
-# Global sync config - automatically migrated to per-backend
 sync:
   enabled: true
-  local_backend: local
-  remote_backend: nextcloud
+  local_backend: sqlite       # Cache type (currently only sqlite supported)
   conflict_resolution: server_wins
-  auto_sync: false
-  sync_interval: 300
+  sync_interval: 5
+  offline_mode: auto
 
-default_backend: local
+backends:
+  nextcloud:
+    type: nextcloud
+    enabled: true
+    url: nextcloud://username:password@nextcloud.example.com
+    insecure_skip_verify: false
+    # Automatically cached at: ~/.local/share/gosynctasks/caches/nextcloud.db
+
+default_backend: nextcloud
 ```
 
-**Note:** The global sync configuration is still supported but deprecated. It will be automatically migrated to per-backend sync at runtime. After migration, you can update your config file to use the new per-backend sync format.
+**How It Works:**
+- When `sync.enabled = true`, each remote backend gets its own automatic cache database
+- Cache databases are stored at: `~/.local/share/gosynctasks/caches/{backend-name}.db`
+- Each remote backend has complete isolation - tasks never mix between backends
+- Use `gosynctasks sync` to manually sync cache databases with their remote backends
+
+**Opt-Out:** Remote backends can opt-out of automatic caching:
+```yaml
+backends:
+  nextcloud:
+    type: nextcloud
+    enabled: true
+    sync: {enabled: false}  # Don't cache this backend
+```
 
 2. **Perform initial sync** to download existing tasks:
 

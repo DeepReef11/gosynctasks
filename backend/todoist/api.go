@@ -108,15 +108,15 @@ type CreateTaskRequest struct {
 
 // UpdateTaskRequest represents request body for updating a task
 type UpdateTaskRequest struct {
-	Content     string   `json:"content,omitempty"`
-	Description string   `json:"description,omitempty"`
+	Content     *string  `json:"content,omitempty"`
+	Description *string  `json:"description,omitempty"`
 	Labels      []string `json:"labels,omitempty"`
-	Priority    int      `json:"priority,omitempty"`
-	DueString   string   `json:"due_string,omitempty"`
-	DueDate     string   `json:"due_date,omitempty"`
-	DueDatetime string   `json:"due_datetime,omitempty"`
-	DueLang     string   `json:"due_lang,omitempty"`
-	AssigneeID  string   `json:"assignee_id,omitempty"`
+	Priority    *int     `json:"priority,omitempty"`
+	DueString   *string  `json:"due_string,omitempty"`
+	DueDate     *string  `json:"due_date,omitempty"`
+	DueDatetime *string  `json:"due_datetime,omitempty"`
+	DueLang     *string  `json:"due_lang,omitempty"`
+	AssigneeID  *string  `json:"assignee_id,omitempty"`
 }
 
 // CreateProjectRequest represents request body for creating a project
