@@ -13,6 +13,7 @@
 backends:
   # SQLite Backend - Local database storage
   # Best for: Offline-first workflow, fast operations, sync with remote
+  # NOTE: When global sync is enabled, SQLite is used for automatic caching of remote backends
   sqlite:
     type: sqlite
     enabled: false
@@ -116,61 +117,48 @@ backend_priority:
   - git        # Check for git repo with TODO.md first
 
 # =============================================================================
-# SYNCHRONIZATION - Bidirectional sync between local and remote
+# SYNCHRONIZATION - Automatic caching for remote backends
 # =============================================================================
 
-# Example Configuration #1: Nextcloud-only (no sync, direct remote access)
-# sync:
-#   enabled: false
-# backend_priority:
-#   - nextcloud
+# Global sync configuration applies to ALL remote backends.
+# When enabled, all remote backends (nextcloud, todoist, etc.) share a single
+# cache database at: ~/.local/share/gosynctasks/cache.db
+# Backends are isolated by the backend_name column in the database.
+#
+# Remote backends can opt-out by setting: sync: {enabled: false}
 
-# Example Configuration #2: SQLite + Nextcloud with Auto-Sync (RECOMMENDED)
-# This gives you fast local operations with automatic background sync
-# When sync is enabled, all CLI operations automatically use the local_backend (sqlite)
-# and sync to the remote_backend (nextcloud) in the background
 sync:
-  enabled: false              # Set to true to enable sync
-  auto_sync: false            # Set to true to enable automatic background sync
-                              # When true: write operations (add/update/complete/delete)
-                              # return immediately after writing to sqlite, then sync to
-                              # remote in a background goroutine (daemon-like behavior)
+  enabled: false              # Enable automatic caching for all remote backends
+  local_backend: sqlite       # Cache backend type: sqlite, file, git (default: sqlite)
+  conflict_resolution: server_wins  # server_wins, local_wins, merge, keep_both
+  auto_sync: true             # Auto-sync in background after write operations (default: true)
+                              # When true: operations (add/update/delete) return instantly, sync happens in background
+                              # When false: use manual 'gosynctasks sync' command
+  sync_interval: 5            # Minutes between syncs (default: 5)
+  offline_mode: auto          # auto, online, offline
 
-  # Backend Configuration
-  # When sync.enabled = true, the CLI automatically uses local_backend for operations
-  # You don't need to include local_backend in backend_priority
-  local_backend: sqlite       # Local backend (must be SQLite type)
-  remote_backend: nextcloud-prod   # Remote backend (nextcloud, git, or file)
-
-  # Sync Behavior
-  sync_interval: 5            # Minutes before local data is considered stale
-                              # When listing tasks:
-                              #   - If last sync > sync_interval: trigger pull in background
-                              #   - If last sync < sync_interval: use cached data (fast!)
-                              # Set to 0 to always use cache (manual sync only)
-
-  # Conflict Resolution
-  conflict_resolution: server_wins  # How to handle sync conflicts:
-                                    # - server_wins: Remote overrides local (safest, recommended)
-                                    # - local_wins: Local overrides remote (use with caution)
-                                    # - merge: Intelligently merge non-conflicting fields
-                                    # - keep_both: Create duplicate with " (local copy)" suffix
-
-  # Offline Mode
-  offline_mode: auto          # Offline detection mode:
-                              # - auto: Automatically detect online/offline (recommended)
-                              # - online: Assume always online (fail if offline)
-                              # - offline: Assume always offline (queue all operations)
-
-# Example Configuration #3: SQLite + Git with Auto-Sync
+# Example: Enable caching for Nextcloud and Todoist
 # sync:
 #   enabled: true
-#   auto_sync: true
 #   local_backend: sqlite
-#   remote_backend: git
-#   sync_interval: 1           # Pull more frequently for git
-#   conflict_resolution: local_wins  # Local takes precedence for developer workflow
-#   offline_mode: auto
+#   conflict_resolution: server_wins
+#
+# backends:
+#   nextcloud:
+#     type: nextcloud
+#     enabled: true
+#     # Automatically cached in shared database: ~/.local/share/gosynctasks/cache.db
+#
+#   todoist:
+#     type: todoist
+#     enabled: true
+#     # Also cached in same database, isolated by backend_name column
+#     sync: {enabled: false}  # Or opt-out of caching
+
+# How to use:
+#   gosynctasks sync          # Manual sync (recommended)
+#   gosynctasks sync status   # Check sync status
+#   gosynctasks sync queue    # View pending operations
 
 # =============================================================================
 # UI & DISPLAY

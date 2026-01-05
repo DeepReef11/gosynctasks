@@ -98,15 +98,17 @@ type Config struct {
 	Sync       *SyncConfig `yaml:"sync,omitempty"`        // Sync configuration
 }
 
-// SyncConfig represents sync-related settings
+// SyncConfig represents global sync settings that apply to ALL remote backends.
+// When enabled, each remote backend (nextcloud, todoist, etc.) gets its own
+// automatic cache database (e.g., ~/.local/share/gosynctasks/caches/nextcloud.db).
+// Remote backends can opt-out by setting sync: false in their backend config.
 type SyncConfig struct {
-	Enabled            bool   `yaml:"enabled"`                       // Enable sync functionality
-	ConflictResolution string `yaml:"conflict_resolution,omitempty"` // Strategy: server_wins, local_wins, merge, keep_both
-	AutoSync           bool   `yaml:"auto_sync,omitempty"`           // Auto-sync on command execution
-	SyncInterval       int    `yaml:"sync_interval,omitempty"`       // Minutes between auto-syncs (0=disabled)
-	OfflineMode        string `yaml:"offline_mode,omitempty"`        // Mode: auto, online, offline
-	LocalBackend       string `yaml:"local_backend,omitempty"`       // Name of local SQLite backend for sync
-	RemoteBackend      string `yaml:"remote_backend,omitempty"`      // Name of remote backend to sync with
+	Enabled            bool   `yaml:"enabled"`                       // Enable automatic caching for all remote backends
+	LocalBackend       string `yaml:"local_backend,omitempty"`       // Type of cache backend: "sqlite" (default), "file", "git"
+	ConflictResolution string `yaml:"conflict_resolution,omitempty"` // Conflict strategy: server_wins (default), local_wins, merge, keep_both
+	AutoSync           bool   `yaml:"auto_sync,omitempty"`           // Auto-sync after write operations
+	SyncInterval       int    `yaml:"sync_interval,omitempty"`       // Minutes between syncs (default: 5, 0=manual only)
+	OfflineMode        string `yaml:"offline_mode,omitempty"`        // Offline mode: auto (default), online, offline
 }
 
 // GetBackend returns the backend configuration for the given name
@@ -190,13 +192,29 @@ func (c Config) Validate() error {
 			// db_path is optional - empty string means use XDG default
 			// No validation needed
 		}
+
+		// Per-backend sync validation is minimal now - just a boolean opt-out
+		// No additional validation needed
 	}
 
 	// Validate default backend exists and is enabled
 	if c.DefaultBackend != "" {
 		backend, exists := c.Backends[c.DefaultBackend]
 		if !exists {
-			return fmt.Errorf("default backend %q not found in configured backends", c.DefaultBackend)
+			// Auto-fix: If default_backend ends with "-cache" (old architecture), strip it
+			if strings.HasSuffix(c.DefaultBackend, "-cache") {
+				baseBackend := strings.TrimSuffix(c.DefaultBackend, "-cache")
+				if _, baseExists := c.Backends[baseBackend]; baseExists {
+					utils.Warnf("Auto-fixing config: changing default_backend from %q to %q (cache backends are now automatic)", c.DefaultBackend, baseBackend)
+					c.DefaultBackend = baseBackend
+					backend = c.Backends[c.DefaultBackend]
+					exists = true
+				}
+			}
+
+			if !exists {
+				return fmt.Errorf("default backend %q not found in configured backends", c.DefaultBackend)
+			}
 		}
 		if !backend.Enabled {
 			return fmt.Errorf("default backend %q is disabled", c.DefaultBackend)
@@ -210,7 +228,149 @@ func (c Config) Validate() error {
 		}
 	}
 
+	// Validate global sync configuration
+	if c.Sync != nil && c.Sync.Enabled {
+		// Validate local backend type
+		if c.Sync.LocalBackend == "" {
+			c.Sync.LocalBackend = "sqlite" // Default to sqlite
+		}
+
+		validLocalBackends := map[string]bool{
+			"sqlite": true,
+			"file":   true,
+			"git":    true,
+		}
+		if !validLocalBackends[c.Sync.LocalBackend] {
+			return fmt.Errorf("sync.local_backend must be sqlite, file, or git, got %q", c.Sync.LocalBackend)
+		}
+
+		// Validate conflict resolution
+		if c.Sync.ConflictResolution != "" {
+			validStrategies := map[string]bool{
+				"server_wins": true,
+				"local_wins":  true,
+				"merge":       true,
+				"keep_both":   true,
+			}
+			if !validStrategies[c.Sync.ConflictResolution] {
+				return fmt.Errorf("sync.conflict_resolution must be server_wins, local_wins, merge, or keep_both, got %q", c.Sync.ConflictResolution)
+			}
+		} else {
+			c.Sync.ConflictResolution = "server_wins" // Default
+		}
+
+		// Validate offline mode
+		if c.Sync.OfflineMode != "" {
+			validModes := map[string]bool{
+				"auto":    true,
+				"online":  true,
+				"offline": true,
+			}
+			if !validModes[c.Sync.OfflineMode] {
+				return fmt.Errorf("sync.offline_mode must be auto, online, or offline, got %q", c.Sync.OfflineMode)
+			}
+		} else {
+			c.Sync.OfflineMode = "auto" // Default
+		}
+
+		// Validate sync interval
+		if c.Sync.SyncInterval < 0 {
+			return fmt.Errorf("sync.sync_interval cannot be negative")
+		}
+		if c.Sync.SyncInterval == 0 {
+			c.Sync.SyncInterval = 5 // Default to 5 minutes
+		}
+	}
+
 	return nil
+}
+
+// GetSyncEnabledBackends returns all backends that have sync enabled
+// GetBackendsToBeCached returns all backends that should be cached based on global sync settings.
+// This includes:
+//   - Remote backends (nextcloud, todoist) when global sync is enabled, unless they opt-out
+//   - Local backends (sqlite, file, git) that explicitly opt-in with sync: true
+func (c *Config) GetBackendsToBeCached() map[string]backend.BackendConfig {
+	cached := make(map[string]backend.BackendConfig)
+
+	globalSyncEnabled := c.Sync != nil && c.Sync.Enabled
+
+	for name, backendConfig := range c.Backends {
+		if !backendConfig.Enabled {
+			continue
+		}
+
+		if backendConfig.ShouldBeCached(globalSyncEnabled) {
+			cached[name] = backendConfig
+		}
+	}
+
+	return cached
+}
+
+// GetCacheDatabasePath returns the shared cache database path for all remote backends.
+// Format: ~/.local/share/gosynctasks/cache.db
+// All backends are stored in the same database with backend_name column for separation.
+func (c *Config) GetCacheDatabasePath() (string, error) {
+	// Get XDG data dir or default
+	var dataDir string
+	if xdgDataHome := os.Getenv("XDG_DATA_HOME"); xdgDataHome != "" {
+		dataDir = xdgDataHome
+	} else {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		dataDir = filepath.Join(homeDir, ".local", "share")
+	}
+
+	// Single shared cache database for all backends
+	cachePath := filepath.Join(dataDir, "gosynctasks", "cache.db")
+	return cachePath, nil
+}
+
+// GetSyncPairs returns all sync pairs for remote backends that should be cached.
+// Each remote backend (nextcloud, todoist, etc.) gets its own automatic cache database.
+func (c *Config) GetSyncPairs() []SyncPair {
+	var pairs []SyncPair
+
+	globalSyncEnabled := c.Sync != nil && c.Sync.Enabled
+	if !globalSyncEnabled {
+		return pairs
+	}
+
+	for name, backendConfig := range c.Backends {
+		if !backendConfig.Enabled {
+			continue
+		}
+
+		// Only cache remote backends
+		if !backendConfig.ShouldBeCached(globalSyncEnabled) {
+			continue
+		}
+
+		pairs = append(pairs, SyncPair{
+			RemoteBackendName:  name,                          // The remote backend to cache
+			CacheDatabasePath:  "",                            // Will be set by GetCacheDatabasePath
+			ConflictResolution: c.Sync.ConflictResolution,     // From global config
+			AutoSync:           c.Sync.AutoSync,               // From global config
+			SyncInterval:       c.Sync.SyncInterval,           // From global config
+			OfflineMode:        c.Sync.OfflineMode,            // From global config
+		})
+	}
+
+	return pairs
+}
+
+// SyncPair represents an automatic cache for a remote backend.
+// Each remote backend gets its own SQLite cache database.
+type SyncPair struct {
+	RemoteBackendName  string // Name of the remote backend to cache (e.g., "nextcloud", "todoist")
+	CacheDatabasePath  string // Path to the cache database (e.g., ~/.local/share/gosynctasks/caches/nextcloud.db)
+	ConflictResolution string // Conflict resolution strategy
+	AutoSync           bool   // Whether to auto-sync after write operations
+	SyncInterval       int    // Minutes between syncs
+	OfflineMode        string // Offline mode: auto, online, offline
 }
 
 func (c *Config) GetDateFormat() string {
@@ -303,6 +463,12 @@ func GetConfig() *Config {
 	return globalConfig
 }
 
+// SetConfigForTest allows tests to override the global config
+// This should only be used in tests to set up test-specific configuration
+func SetConfigForTest(cfg *Config) {
+	globalConfig = cfg
+}
+
 func loadUserOrSampleConfig() (*Config, error) {
 
 	configPath, err := GetConfigPath()
@@ -344,6 +510,12 @@ func createConfigDir(configPath string) error {
 }
 func WriteConfigFile(configPath string, data []byte) error {
 	return os.WriteFile(configPath, data, CONFIG_FILE_PERM)
+}
+
+// migrateGlobalSyncConfig is no longer needed - global sync config is the primary approach now.
+// This function is kept as a placeholder for potential future migrations.
+func (c *Config) migrateGlobalSyncConfig() {
+	// No migration needed - global sync config is the standard approach
 }
 
 func createConfigFromSample(configPath string) []byte {
@@ -389,6 +561,9 @@ func parseConfig(configData []byte, configPath string) (*Config, error) {
 
 	// Expand ~ and $HOME in all path fields
 	configObj.expandAllPaths()
+
+	// Migrate old global sync config to per-backend sync (if needed)
+	configObj.migrateGlobalSyncConfig()
 
 	if err = configObj.Validate(); err != nil {
 		log.Fatalf("Missing field(s) in YAML config file %s: %v", configPath, err)

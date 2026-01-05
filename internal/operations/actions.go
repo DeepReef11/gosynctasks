@@ -241,7 +241,7 @@ func HandleAddAction(cmd *cobra.Command, taskManager backend.TaskManager, select
 		ParentUID:   parentUID,
 	}
 
-	if err := taskManager.AddTask(selectedList.ID, task); err != nil {
+	if _, err := taskManager.AddTask(selectedList.ID, task); err != nil {
 		return fmt.Errorf("error adding task: %w", err)
 	}
 
@@ -564,16 +564,10 @@ func applyHierarchicalFormatting(taskOutput, nodePrefix, childPrefix string) str
 
 // triggerPushSync spawns a detached background process to sync
 func triggerPushSync(syncProvider SyncCoordinatorProvider) {
-	if syncProvider == nil {
-		return
-	}
-
-	// Get the sync coordinator to verify it's initialized
-	coord := syncProvider.GetSyncCoordinator()
-	// Safety check: use reflection to verify the interface contains a non-nil value
-	// In Go, an interface can be non-nil but contain a nil pointer
-	if coord == nil || reflect.ValueOf(coord).IsNil() {
-		return
+	// Check if sync is enabled in config
+	cfg := config.GetConfig()
+	if cfg.Sync == nil || !cfg.Sync.Enabled || !cfg.Sync.AutoSync {
+		return // Auto-sync not enabled
 	}
 
 	// Get config path to pass to spawned process
@@ -584,6 +578,7 @@ func triggerPushSync(syncProvider SyncCoordinatorProvider) {
 
 	// Spawn detached background process to run sync
 	// This process will outlive the parent CLI
+	// Note: spawnBackgroundSync will detect if we're in a test binary and skip spawning
 	spawnBackgroundSync(configPath)
 }
 

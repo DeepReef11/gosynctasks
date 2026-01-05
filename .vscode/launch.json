@@ -1,0 +1,112 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug gosynctasks CLI",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/cmd/gosynctasks",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "env": {},
+      "showLog": true
+    },
+    {
+      "name": "Debug gosynctasks with config",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/cmd/gosynctasks",
+      "args": [
+        "--config",
+        "./gosynctasks/config"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {},
+      "showLog": true
+    },
+    {
+      "name": "Debug gosynctasks interactive list",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/cmd/gosynctasks",
+      "args": [
+        "--config",
+        "./gosynctasks/config"
+      ],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "env": {},
+      "showLog": true
+    },
+    {
+      "name": "Debug gosynctasks add task",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/cmd/gosynctasks",
+      "args": [
+        "--config",
+        "./gosynctasks/config",
+        "MyList",
+        "add",
+        "Debug test task"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {},
+      "showLog": true
+    },
+    {
+      "name": "Debug gosynctasks sync",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/cmd/gosynctasks",
+      "args": [
+        "--config",
+        "./gosynctasks/config",
+        "sync"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {},
+      "showLog": true
+    },
+    {
+      "name": "Debug Current Test",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${fileDirname}",
+      "args": [
+        "-test.run",
+        "^${selectedText}$"
+      ],
+      "showLog": true
+    },
+    {
+      "name": "Debug All Tests in Current Package",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${fileDirname}",
+      "showLog": true
+    },
+    {
+      "name": "Debug Current File",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${file}",
+      "showLog": true
+    },
+    {
+      "name": "Attach to Process",
+      "type": "go",
+      "request": "attach",
+      "mode": "local",
+      "processId": "${command:pickProcess}"
+    }
+  ]
+}

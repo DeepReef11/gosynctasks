@@ -158,6 +158,7 @@ Config:
 	rootCmd.AddCommand(newListCmd())
 	rootCmd.AddCommand(newSyncCmd())
 	rootCmd.AddCommand(newCredentialsCmd())
+	rootCmd.AddCommand(newBackgroundSyncCmd()) // Hidden internal command for background sync
 
 	// Set up graceful shutdown on Ctrl+C / SIGTERM
 	sigChan := make(chan os.Signal, 1)

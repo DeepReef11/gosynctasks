@@ -1,14 +1,16 @@
 package sqlite
 
 // Schema version for migration management
-const SchemaVersion = 1
+const SchemaVersion = 3  // Incremented for internal_id/uid separation
 
 // SQL statements for database schema creation
 
 // TasksTableSQL creates the main tasks table following VTODO iCalendar format
 const TasksTableSQL = `
 CREATE TABLE IF NOT EXISTS tasks (
-    id TEXT PRIMARY KEY,
+    internal_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    uid TEXT NOT NULL UNIQUE,  -- Remote backend's UID (uses "pending-{internal_id}" until remote responds)
+    backend_name TEXT NOT NULL DEFAULT '',  -- Which backend this task belongs to
     list_id TEXT NOT NULL,
     summary TEXT NOT NULL,
     description TEXT,
@@ -22,14 +24,15 @@ CREATE TABLE IF NOT EXISTS tasks (
     parent_uid TEXT,
     categories TEXT,
 
-    FOREIGN KEY(parent_uid) REFERENCES tasks(id) ON DELETE SET NULL
+    FOREIGN KEY(parent_uid) REFERENCES tasks(uid) ON DELETE SET NULL
 );
 `
 
 // SyncMetadataTableSQL creates the sync metadata table for tracking sync state per task
 const SyncMetadataTableSQL = `
 CREATE TABLE IF NOT EXISTS sync_metadata (
-    task_uid TEXT PRIMARY KEY,
+    task_internal_id INTEGER PRIMARY KEY,
+    backend_name TEXT NOT NULL DEFAULT '',
     list_id TEXT NOT NULL,
 
     -- Server state tracking
@@ -44,14 +47,15 @@ CREATE TABLE IF NOT EXISTS sync_metadata (
     remote_modified_at INTEGER,
     local_modified_at INTEGER,
 
-    FOREIGN KEY(task_uid) REFERENCES tasks(id) ON DELETE CASCADE
+    FOREIGN KEY(task_internal_id) REFERENCES tasks(internal_id) ON DELETE CASCADE
 );
 `
 
 // ListSyncMetadataTableSQL creates the list sync metadata table for tracking sync state per list
 const ListSyncMetadataTableSQL = `
 CREATE TABLE IF NOT EXISTS list_sync_metadata (
-    list_id TEXT PRIMARY KEY,
+    list_id TEXT NOT NULL,
+    backend_name TEXT NOT NULL DEFAULT '',
     list_name TEXT NOT NULL,
     list_color TEXT,
 
@@ -62,7 +66,9 @@ CREATE TABLE IF NOT EXISTS list_sync_metadata (
 
     -- List metadata
     created_at INTEGER,
-    modified_at INTEGER
+    modified_at INTEGER,
+
+    PRIMARY KEY(list_id, backend_name)
 );
 `
 
@@ -70,15 +76,18 @@ CREATE TABLE IF NOT EXISTS list_sync_metadata (
 const SyncQueueTableSQL = `
 CREATE TABLE IF NOT EXISTS sync_queue (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_uid TEXT NOT NULL,
+    backend_name TEXT NOT NULL DEFAULT '',
+    task_internal_id INTEGER NOT NULL,  -- Reference to tasks.internal_id
     list_id TEXT NOT NULL,
     operation TEXT NOT NULL CHECK(operation IN ('create', 'update', 'delete')),
     created_at INTEGER NOT NULL,
     retry_count INTEGER DEFAULT 0,
     last_error TEXT,
 
-    -- Ensure we don't queue duplicate operations for the same task
-    UNIQUE(task_uid, operation)
+    -- Ensure we don't queue duplicate operations for the same task per backend
+    UNIQUE(backend_name, task_internal_id, operation),
+
+    FOREIGN KEY(task_internal_id) REFERENCES tasks(internal_id) ON DELETE CASCADE
 );
 `
 
@@ -94,6 +103,10 @@ CREATE TABLE IF NOT EXISTS schema_version (
 
 // TasksIndexesSQL creates indexes on tasks table for common queries
 const TasksIndexesSQL = `
+CREATE INDEX IF NOT EXISTS idx_tasks_uid ON tasks(uid);
+CREATE INDEX IF NOT EXISTS idx_tasks_backend_name ON tasks(backend_name);
+CREATE INDEX IF NOT EXISTS idx_tasks_backend_list ON tasks(backend_name, list_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_backend_uid ON tasks(backend_name, uid);
 CREATE INDEX IF NOT EXISTS idx_tasks_list_id ON tasks(list_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
@@ -103,6 +116,8 @@ CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority);
 
 // SyncMetadataIndexesSQL creates indexes on sync_metadata table
 const SyncMetadataIndexesSQL = `
+CREATE INDEX IF NOT EXISTS idx_sync_metadata_backend_name ON sync_metadata(backend_name);
+CREATE INDEX IF NOT EXISTS idx_sync_metadata_backend_list ON sync_metadata(backend_name, list_id);
 CREATE INDEX IF NOT EXISTS idx_sync_metadata_locally_modified ON sync_metadata(locally_modified);
 CREATE INDEX IF NOT EXISTS idx_sync_metadata_locally_deleted ON sync_metadata(locally_deleted);
 CREATE INDEX IF NOT EXISTS idx_sync_metadata_list_id ON sync_metadata(list_id);
@@ -110,6 +125,8 @@ CREATE INDEX IF NOT EXISTS idx_sync_metadata_list_id ON sync_metadata(list_id);
 
 // SyncQueueIndexesSQL creates indexes on sync_queue table
 const SyncQueueIndexesSQL = `
+CREATE INDEX IF NOT EXISTS idx_sync_queue_backend_name ON sync_queue(backend_name);
+CREATE INDEX IF NOT EXISTS idx_sync_queue_backend_operation ON sync_queue(backend_name, operation);
 CREATE INDEX IF NOT EXISTS idx_sync_queue_operation ON sync_queue(operation);
 CREATE INDEX IF NOT EXISTS idx_sync_queue_created_at ON sync_queue(created_at);
 CREATE INDEX IF NOT EXISTS idx_sync_queue_retry_count ON sync_queue(retry_count);

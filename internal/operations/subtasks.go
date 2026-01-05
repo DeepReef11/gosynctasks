@@ -53,7 +53,7 @@ func CreateOrFindTaskPath(taskManager backend.TaskManager, cfg *config.Config, l
 				Status:    taskStatus,
 				ParentUID: currentParentUID,
 			}
-			if err := taskManager.AddTask(listID, newTask); err != nil {
+			if _, err := taskManager.AddTask(listID, newTask); err != nil {
 				return "", "", fmt.Errorf("failed to create intermediate task '%s': %w", partName, err)
 			}
 
@@ -99,7 +99,7 @@ func ResolveParentTask(taskManager backend.TaskManager, cfg *config.Config, list
 				Status:    taskStatus,
 				ParentUID: "", // Root level
 			}
-			if err := taskManager.AddTask(listID, newTask); err != nil {
+			if _, err := taskManager.AddTask(listID, newTask); err != nil {
 				return "", fmt.Errorf("failed to create new parent task '%s': %w", parentRef, err)
 			}
 			return newUID, nil
@@ -233,7 +233,7 @@ func createNewTask(taskManager backend.TaskManager, listID string, summary strin
 		Status:    taskStatus,
 		ParentUID: parentUID,
 	}
-	if err := taskManager.AddTask(listID, newTask); err != nil {
+	if _, err := taskManager.AddTask(listID, newTask); err != nil {
 		return nil, fmt.Errorf("failed to create new task '%s': %w", summary, err)
 	}
 	return &newTask, nil

@@ -46,8 +46,8 @@ func (fB *FileBackend) FindTasksBySummary(listID string, summary string) ([]back
 	return nil, nil
 }
 
-func (fB *FileBackend) AddTask(listID string, task backend.Task) error {
-	return nil
+func (fB *FileBackend) AddTask(listID string, task backend.Task) (string, error) {
+	return "", nil
 }
 
 func (fB *FileBackend) UpdateTask(listID string, task backend.Task) error {

@@ -45,12 +45,21 @@ Examples:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Get sync configuration
 			cfg := config.GetConfig()
-			if cfg.Sync == nil || !cfg.Sync.Enabled {
+
+			// Check if sync is enabled (either per-backend or global)
+			syncPairs := cfg.GetSyncPairs()
+			hasPerBackendSync := len(syncPairs) > 0
+			hasGlobalSync := cfg.Sync != nil && cfg.Sync.Enabled
+
+			if !hasPerBackendSync && !hasGlobalSync {
 				return utils.ErrSyncNotEnabled()
 			}
 
-			// Get backends for sync
-			localBackend, remoteBackend, err := getSyncBackends(cfg)
+			// Get explicit backend from parent command's --backend flag
+			explicitBackend, _ := cmd.Root().PersistentFlags().GetString("backend")
+
+			// Get backends for sync (respects --backend flag)
+			localBackend, remoteBackend, err := getSyncBackends(cfg, explicitBackend)
 			if err != nil {
 				return err
 			}
@@ -65,8 +74,15 @@ Examples:
 				return nil
 			}
 
-			// Create sync manager
-			strategy := sync.ConflictResolutionStrategy(cfg.Sync.ConflictResolution)
+			// Determine conflict resolution strategy
+			var strategy sync.ConflictResolutionStrategy
+			if hasPerBackendSync {
+				// Use per-backend sync strategy
+				strategy = sync.ConflictResolutionStrategy(syncPairs[0].ConflictResolution)
+			} else {
+				// Use global sync strategy
+				strategy = sync.ConflictResolutionStrategy(cfg.Sync.ConflictResolution)
+			}
 			if strategy == "" {
 				strategy = sync.ServerWins // Default
 			}
@@ -132,13 +148,22 @@ func newSyncStatusCmd() *cobra.Command {
 - Offline/online status`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := config.GetConfig()
-			if cfg.Sync == nil || !cfg.Sync.Enabled {
+
+			// Check if sync is enabled (either per-backend or global)
+			syncPairs := cfg.GetSyncPairs()
+			hasPerBackendSync := len(syncPairs) > 0
+			hasGlobalSync := cfg.Sync != nil && cfg.Sync.Enabled
+
+			if !hasPerBackendSync && !hasGlobalSync {
 				fmt.Println("Sync is not enabled in configuration")
 				return nil
 			}
 
+			// Get explicit backend from parent command's --backend flag
+			explicitBackend, _ := cmd.Root().PersistentFlags().GetString("backend")
+
 			// Get backends
-			localBackend, remoteBackend, err := getSyncBackends(cfg)
+			localBackend, remoteBackend, err := getSyncBackends(cfg, explicitBackend)
 			if err != nil {
 				return err
 			}
@@ -153,6 +178,17 @@ func newSyncStatusCmd() *cobra.Command {
 				return fmt.Errorf("failed to get sync stats: %w", err)
 			}
 
+			// Determine conflict resolution strategy for display
+			var strategyStr string
+			if hasPerBackendSync {
+				strategyStr = syncPairs[0].ConflictResolution
+			} else {
+				strategyStr = cfg.Sync.ConflictResolution
+			}
+			if strategyStr == "" {
+				strategyStr = "server_wins (default)"
+			}
+
 			// Display status
 			fmt.Println("\n=== Sync Status ===")
 			if isOffline {
@@ -165,7 +201,7 @@ func newSyncStatusCmd() *cobra.Command {
 			fmt.Printf("Local lists: %d\n", stats.LocalLists)
 			fmt.Printf("Pending operations: %d\n", stats.PendingOperations)
 			fmt.Printf("Locally modified: %d\n", stats.LocallyModified)
-			fmt.Printf("Strategy: %s\n", cfg.Sync.ConflictResolution)
+			fmt.Printf("Strategy: %s\n", strategyStr)
 
 			// Get last sync time
 			lastSync, err := getLastSyncTime(localBackend)
@@ -190,11 +226,20 @@ func newSyncQueueCmd() *cobra.Command {
 		Long:  `Display and manage pending sync operations.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := config.GetConfig()
-			if cfg.Sync == nil || !cfg.Sync.Enabled {
+
+			// Check if sync is enabled (either per-backend or global)
+			syncPairs := cfg.GetSyncPairs()
+			hasPerBackendSync := len(syncPairs) > 0
+			hasGlobalSync := cfg.Sync != nil && cfg.Sync.Enabled
+
+			if !hasPerBackendSync && !hasGlobalSync {
 				return fmt.Errorf("sync is not enabled")
 			}
 
-			localBackend, _, err := getSyncBackends(cfg)
+			// Get explicit backend from parent command's --backend flag
+			explicitBackend, _ := cmd.Root().PersistentFlags().GetString("backend")
+
+			localBackend, _, err := getSyncBackends(cfg, explicitBackend)
 			if err != nil {
 				return err
 			}
@@ -243,11 +288,18 @@ func newSyncQueueClearCmd() *cobra.Command {
 		Long:  `Clear pending sync operations. Use --failed to clear only failed operations.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := config.GetConfig()
-			if cfg.Sync == nil || !cfg.Sync.Enabled {
+
+			// Check if sync is enabled (either per-backend or global)
+			syncPairs := cfg.GetSyncPairs()
+			hasPerBackendSync := len(syncPairs) > 0
+			hasGlobalSync := cfg.Sync != nil && cfg.Sync.Enabled
+
+			if !hasPerBackendSync && !hasGlobalSync {
 				return fmt.Errorf("sync is not enabled")
 			}
 
-			localBackend, _, err := getSyncBackends(cfg)
+			explicitBackend, _ := cmd.Root().PersistentFlags().GetString("backend")
+			localBackend, _, err := getSyncBackends(cfg, explicitBackend)
 			if err != nil {
 				return err
 			}
@@ -289,11 +341,18 @@ func newSyncQueueRetryCmd() *cobra.Command {
 		Long:  `Retry all failed sync operations by resetting their retry count.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := config.GetConfig()
-			if cfg.Sync == nil || !cfg.Sync.Enabled {
+
+			// Check if sync is enabled (either per-backend or global)
+			syncPairs := cfg.GetSyncPairs()
+			hasPerBackendSync := len(syncPairs) > 0
+			hasGlobalSync := cfg.Sync != nil && cfg.Sync.Enabled
+
+			if !hasPerBackendSync && !hasGlobalSync {
 				return fmt.Errorf("sync is not enabled")
 			}
 
-			localBackend, _, err := getSyncBackends(cfg)
+			explicitBackend, _ := cmd.Root().PersistentFlags().GetString("backend")
+			localBackend, _, err := getSyncBackends(cfg, explicitBackend)
 			if err != nil {
 				return err
 			}
@@ -332,42 +391,64 @@ func newSyncQueueRetryCmd() *cobra.Command {
 
 // Helper functions
 
-// getSyncBackends returns the local and remote backends for sync
-func getSyncBackends(cfg *config.Config) (*sqlite.SQLiteBackend, backend.TaskManager, error) {
-	if cfg.Sync.LocalBackend == "" {
-		return nil, nil, fmt.Errorf("local_backend not configured for sync")
-	}
-	if cfg.Sync.RemoteBackend == "" {
-		return nil, nil, fmt.Errorf("remote_backend not configured for sync")
+// getSyncBackends returns the cache and remote backends for a specific sync pair.
+// In the new architecture, each remote backend gets its own auto-cache database.
+// If explicitBackend is provided, it syncs that specific backend.
+// Otherwise, uses default_backend from config.
+func getSyncBackends(cfg *config.Config, explicitBackend string) (*sqlite.SQLiteBackend, backend.TaskManager, error) {
+	// Determine which remote backend to sync
+	var remoteBackendName string
+	if explicitBackend != "" {
+		// Use explicitly specified backend
+		remoteBackendName = explicitBackend
+	} else {
+		// Use default backend from config
+		syncPairs := cfg.GetSyncPairs()
+		if len(syncPairs) == 0 {
+			return nil, nil, fmt.Errorf("no sync configuration found - enable sync in config")
+		}
+		remoteBackendName = syncPairs[0].RemoteBackendName
 	}
 
-	// Get local backend
-	localCfg, err := cfg.GetBackend(cfg.Sync.LocalBackend)
+	utils.Debugf("Syncing remote backend: %s", remoteBackendName)
+
+	// Get the shared cache database path (all backends use the same database)
+	cachePath, err := cfg.GetCacheDatabasePath()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get local backend config: %w", err)
+		return nil, nil, fmt.Errorf("failed to get cache database path: %w", err)
 	}
 
-	if localCfg.Type != "sqlite" {
-		return nil, nil, fmt.Errorf("local backend must be SQLite, got %s", localCfg.Type)
+	// Create cache backend configuration
+	// Important: Name must match the remote backend name for backend_name column
+	cacheConfig := backend.BackendConfig{
+		Name:    remoteBackendName,     // Use remote backend name for backend_name column
+		Type:    cfg.Sync.LocalBackend, // sqlite, file, or git
+		Enabled: true,
+		DBPath:  cachePath,
 	}
 
-	local, err := sqlite.NewSQLiteBackend(*localCfg)
+	// Create cache backend (currently only SQLite supported)
+	if cacheConfig.Type != "sqlite" {
+		return nil, nil, fmt.Errorf("only sqlite cache backend is currently supported, got %s", cacheConfig.Type)
+	}
+
+	cacheBackend, err := sqlite.NewSQLiteBackend(cacheConfig)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create local backend: %w", err)
+		return nil, nil, fmt.Errorf("failed to create cache backend: %w", err)
 	}
 
 	// Get remote backend
-	remoteCfg, err := cfg.GetBackend(cfg.Sync.RemoteBackend)
+	remoteCfg, err := cfg.GetBackend(remoteBackendName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get remote backend config: %w", err)
 	}
 
-	remote, err := remoteCfg.TaskManager()
+	remoteBackend, err := remoteCfg.TaskManager()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create remote backend: %w", err)
 	}
 
-	return local, remote, nil
+	return cacheBackend, remoteBackend, nil
 }
 
 // isBackendOffline checks if the backend is reachable
@@ -538,7 +619,7 @@ func performAutoSync(cfg *config.Config) {
 
 	// Run sync in background (non-blocking)
 	go func() {
-		localBackend, remoteBackend, err := getSyncBackends(cfg)
+		localBackend, remoteBackend, err := getSyncBackends(cfg, "")
 		if err != nil {
 			return // Silently fail for auto-sync
 		}

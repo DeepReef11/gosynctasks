@@ -65,15 +65,19 @@ func (mb *MockBackend) FindTasksBySummary(listID string, summary string) ([]Task
 	return []Task{}, nil
 }
 
-func (mb *MockBackend) AddTask(listID string, task Task) error {
+func (mb *MockBackend) AddTask(listID string, task Task) (string, error) {
 	if mb.AddTaskErr != nil {
-		return mb.AddTaskErr
+		return "", mb.AddTaskErr
+	}
+
+	if task.UID == "" {
+		task.UID = "mock-task-id"
 	}
 
 	tasks := mb.Tasks[listID]
 	tasks = append(tasks, task)
 	mb.Tasks[listID] = tasks
-	return nil
+	return task.UID, nil
 }
 
 func (mb *MockBackend) UpdateTask(listID string, task Task) error {

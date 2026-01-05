@@ -1,12 +1,14 @@
 package sync
 
 import (
-	"gosynctasks/backend"
-	"gosynctasks/backend/sqlite"
 	"database/sql"
 	"fmt"
 	"strings"
 	"time"
+
+	"gosynctasks/backend"
+	"gosynctasks/backend/sqlite"
+	"gosynctasks/internal/utils"
 )
 
 // ConflictResolutionStrategy defines how to handle sync conflicts
@@ -125,9 +127,9 @@ func (sm *SyncManager) pull() (*pullResult, error) {
 
 			now := time.Now().Unix()
 			_, err = db.Exec(`
-				INSERT INTO list_sync_metadata (list_id, list_name, list_color, last_ctag, last_full_sync, created_at, modified_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?)
-			`, remoteList.ID, remoteList.Name, remoteList.Color, remoteList.CTags, now, now, now)
+				INSERT INTO list_sync_metadata (list_id, backend_name, list_name, list_color, last_ctag, last_full_sync, created_at, modified_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			`, remoteList.ID, sm.getBackendName(), remoteList.Name, remoteList.Color, remoteList.CTags, now, now, now)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create local list: %w", err)
 			}
@@ -141,8 +143,8 @@ func (sm *SyncManager) pull() (*pullResult, error) {
 			_, err = db.Exec(`
 				UPDATE list_sync_metadata
 				SET last_ctag = ?, last_full_sync = ?
-				WHERE list_id = ?
-			`, remoteList.CTags, time.Now().Unix(), remoteList.ID)
+				WHERE backend_name = ? AND list_id = ?
+			`, remoteList.CTags, time.Now().Unix(), sm.getBackendName(), remoteList.ID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to update list CTag: %w", err)
 			}
@@ -296,10 +298,13 @@ func (sm *SyncManager) push() (*pushResult, error) {
 			}
 			time.Sleep(time.Duration(backoffSeconds) * time.Second)
 		} else {
-			// Success - remove from queue and clear flags
-			err := sm.local.ClearSyncFlagsAndQueue(op.TaskUID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to clear sync flags and queue: %w", err)
+			// Success - pushCreate already handles clearing flags for create operations
+			// Only clear for update/delete operations
+			if op.Operation != "create" {
+				err := sm.local.ClearSyncFlagsAndQueue(op.TaskUID)
+				if err != nil {
+					return nil, fmt.Errorf("failed to clear sync flags and queue: %w", err)
+				}
 			}
 
 			result.PushedTasks++
@@ -326,14 +331,36 @@ func (sm *SyncManager) pushCreate(op sqlite.SyncOperation) error {
 	}
 
 	if task == nil {
-		// backend.Task was deleted locally, remove from queue
+		// Task was deleted locally, remove from queue
 		return nil
 	}
 
-	// Add to remote
-	err = sm.remote.AddTask(op.ListID, *task)
+	// Add to remote and get the remote-assigned UID
+	remoteUID, err := sm.remote.AddTask(op.ListID, *task)
 	if err != nil {
 		return fmt.Errorf("failed to create task on remote: %w", err)
+	}
+
+	// If the remote backend assigned a different UID, update local task
+	if remoteUID != task.UID {
+		// Update the local task's UID to match the remote
+		// This is critical for Todoist and other backends that generate their own IDs
+		err = sm.updateLocalTaskUID(op.ListID, task.UID, remoteUID)
+		if err != nil {
+			return fmt.Errorf("failed to update local task UID: %w", err)
+		}
+
+		// Clear sync flags and queue using the NEW UID (after update)
+		err = sm.local.ClearSyncFlagsAndQueue(remoteUID)
+		if err != nil {
+			return fmt.Errorf("failed to clear sync flags and queue: %w", err)
+		}
+	} else {
+		// UID didn't change, clear flags using existing UID
+		err = sm.local.ClearSyncFlagsAndQueue(task.UID)
+		if err != nil {
+			return fmt.Errorf("failed to clear sync flags and queue: %w", err)
+		}
 	}
 
 	return nil
@@ -341,9 +368,12 @@ func (sm *SyncManager) pushCreate(op sqlite.SyncOperation) error {
 
 // pushUpdate pushes an update operation to remote
 func (sm *SyncManager) pushUpdate(op sqlite.SyncOperation) error {
+	utils.Debugf("[SYNC] pushUpdate: task=%s, list=%s", op.TaskUID, op.ListID)
+
 	// Get task from local
 	tasks, err := sm.local.GetTasks(op.ListID, nil)
 	if err != nil {
+		utils.Debugf("[SYNC] ERROR getting tasks: %v", err)
 		return err
 	}
 
@@ -357,15 +387,21 @@ func (sm *SyncManager) pushUpdate(op sqlite.SyncOperation) error {
 
 	if task == nil {
 		// backend.Task was deleted locally, remove from queue
+		utils.Debugf("[SYNC] Task %s not found in local (deleted?), skipping update", op.TaskUID)
 		return nil
 	}
 
+	utils.Debugf("[SYNC] Found task: %s (status: %s)", task.Summary, task.Status)
+
 	// Update on remote
+	utils.Debugf("[SYNC] Calling remote.UpdateTask...")
 	err = sm.remote.UpdateTask(op.ListID, *task)
 	if err != nil {
+		utils.Debugf("[SYNC] ERROR updating remote: %v", err)
 		return fmt.Errorf("failed to update task on remote: %w", err)
 	}
 
+	utils.Debugf("[SYNC] ✅ Successfully updated task on remote")
 	return nil
 }
 
@@ -392,10 +428,11 @@ func (sm *SyncManager) isTaskLocallyModified(taskUID string) (bool, error) {
 
 	var locallyModified int
 	err = db.QueryRow(`
-		SELECT COALESCE(locally_modified, 0)
-		FROM sync_metadata
-		WHERE task_uid = ?
-	`, taskUID).Scan(&locallyModified)
+		SELECT COALESCE(sm.locally_modified, 0)
+		FROM sync_metadata sm
+		INNER JOIN tasks t ON sm.task_internal_id = t.internal_id
+		WHERE t.uid = ? AND t.backend_name = ?
+	`, taskUID, sm.getBackendName()).Scan(&locallyModified)
 	if err != nil {
 		// If no sync metadata, treat as not modified
 		return false, nil
@@ -413,10 +450,11 @@ func (sm *SyncManager) isTaskRemoteModified(remoteTask backend.Task) (bool, erro
 
 	var remoteModifiedAt sql.NullInt64
 	err = db.QueryRow(`
-		SELECT remote_modified_at
-		FROM sync_metadata
-		WHERE task_uid = ?
-	`, remoteTask.UID).Scan(&remoteModifiedAt)
+		SELECT sm.remote_modified_at
+		FROM sync_metadata sm
+		INNER JOIN tasks t ON sm.task_internal_id = t.internal_id
+		WHERE t.uid = ? AND t.backend_name = ?
+	`, remoteTask.UID, sm.getBackendName()).Scan(&remoteModifiedAt)
 	if err != nil {
 		// If no sync metadata exists, treat as modified (new from our perspective)
 		return true, nil
@@ -536,7 +574,7 @@ func (sm *SyncManager) resolveKeepBoth(listID string, localTask, remoteTask back
 	localCopy.Summary = localTask.Summary + " (local copy)"
 
 	// Insert the copy
-	err = sm.local.AddTask(listID, localCopy)
+	_, err = sm.local.AddTask(listID, localCopy)
 	if err != nil {
 		return err
 	}
@@ -560,14 +598,15 @@ func (sm *SyncManager) insertTaskLocally(listID string, task backend.Task) error
 	defer func() { _ = tx.Rollback() }()
 
 	// Insert task
-	_, err = tx.Exec(`
+	result, err := tx.Exec(`
 		INSERT INTO tasks (
-			id, list_id, summary, description, status, priority,
+			uid, backend_name, list_id, summary, description, status, priority,
 			created_at, modified_at, due_date, start_date, completed_at,
 			parent_uid, categories
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		task.UID,
+		sm.getBackendName(),
 		listID,
 		task.Summary,
 		sqlite.NullString(task.Description),
@@ -585,6 +624,12 @@ func (sm *SyncManager) insertTaskLocally(listID string, task backend.Task) error
 		return err
 	}
 
+	// Get the internal_id that was just created
+	internalID, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
+
 	// Insert sync metadata (not locally modified since it came from server)
 	now := time.Now().Unix()
 	remoteModifiedAt := int64(0)
@@ -594,10 +639,10 @@ func (sm *SyncManager) insertTaskLocally(listID string, task backend.Task) error
 
 	_, err = tx.Exec(`
 		INSERT INTO sync_metadata (
-			task_uid, list_id, last_synced_at, remote_modified_at,
+			task_internal_id, backend_name, list_id, last_synced_at, remote_modified_at,
 			locally_modified, locally_deleted
-		) VALUES (?, ?, ?, ?, 0, 0)
-	`, task.UID, listID, now, remoteModifiedAt)
+		) VALUES (?, ?, ?, ?, ?, 0, 0)
+	`, internalID, sm.getBackendName(), listID, now, remoteModifiedAt)
 	if err != nil {
 		return err
 	}
@@ -618,13 +663,21 @@ func (sm *SyncManager) updateTaskLocally(listID string, task backend.Task) error
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	// Get internal_id for this task
+	var internalID int64
+	err = tx.QueryRow("SELECT internal_id FROM tasks WHERE backend_name = ? AND uid = ? AND list_id = ?",
+		sm.getBackendName(), task.UID, listID).Scan(&internalID)
+	if err != nil {
+		return err
+	}
+
 	// Update task
 	_, err = tx.Exec(`
 		UPDATE tasks
 		SET summary = ?, description = ?, status = ?, priority = ?,
 		    modified_at = ?, due_date = ?, start_date = ?, completed_at = ?,
 		    parent_uid = ?, categories = ?
-		WHERE id = ? AND list_id = ?
+		WHERE uid = ? AND backend_name = ? AND list_id = ?
 	`,
 		task.Summary,
 		sqlite.NullString(task.Description),
@@ -637,6 +690,7 @@ func (sm *SyncManager) updateTaskLocally(listID string, task backend.Task) error
 		sqlite.NullString(task.ParentUID),
 		sqlite.NullString(strings.Join(task.Categories, ",")),
 		task.UID,
+		sm.getBackendName(),
 		listID,
 	)
 	if err != nil {
@@ -653,8 +707,8 @@ func (sm *SyncManager) updateTaskLocally(listID string, task backend.Task) error
 	_, err = tx.Exec(`
 		UPDATE sync_metadata
 		SET last_synced_at = ?, remote_modified_at = ?, locally_modified = 0, locally_deleted = 0
-		WHERE task_uid = ?
-	`, now, remoteModifiedAt, task.UID)
+		WHERE task_internal_id = ? AND backend_name = ?
+	`, now, remoteModifiedAt, internalID, sm.getBackendName())
 	if err != nil {
 		return err
 	}
@@ -669,8 +723,8 @@ func (sm *SyncManager) deleteTaskLocally(listID string, taskUID string) error {
 		return err
 	}
 
-	// Delete task (cascade will delete sync_metadata)
-	_, err = db.Exec("DELETE FROM tasks WHERE id = ? AND list_id = ?", taskUID, listID)
+	// Delete task (cascade will delete sync_metadata via internal_id foreign key)
+	_, err = db.Exec("DELETE FROM tasks WHERE uid = ? AND backend_name = ? AND list_id = ?", taskUID, sm.getBackendName(), listID)
 	return err
 }
 
@@ -785,7 +839,34 @@ func (sm *SyncManager) PushOnly() (*SyncResult, error) {
 	return result, nil
 }
 
+// updateLocalTaskUID updates a task's UID in the local cache
+// This is needed when remote backends (like Todoist) assign their own IDs
+func (sm *SyncManager) updateLocalTaskUID(listID string, oldUID string, newUID string) error {
+	db, err := sm.local.GetDB()
+	if err != nil {
+		return err
+	}
+
+	// Simply update the UID from "pending-{internal_id}" to the real remote UID
+	// The internal_id remains unchanged, so all foreign keys stay valid
+	_, err = db.Exec(`
+		UPDATE tasks
+		SET uid = ?
+		WHERE backend_name = ? AND uid = ? AND list_id = ?
+	`, newUID, sm.local.Config.Name, oldUID, listID)
+	if err != nil {
+		return fmt.Errorf("failed to update task UID: %w", err)
+	}
+
+	return nil
+}
+
 // GetRemote returns the remote backend.TaskManager
 func (sm *SyncManager) GetRemote() backend.TaskManager {
 	return sm.remote
+}
+
+// getBackendName returns the backend name from the local cache backend
+func (sm *SyncManager) getBackendName() string {
+	return sm.local.Config.Name
 }

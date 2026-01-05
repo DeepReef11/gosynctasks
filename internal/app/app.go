@@ -3,11 +3,9 @@ package app
 import (
 	"fmt"
 	"gosynctasks/backend"
-	"gosynctasks/backend/sqlite"
 	"gosynctasks/internal/cache"
 	"gosynctasks/internal/config"
 	"gosynctasks/internal/operations"
-	"gosynctasks/internal/sync"
 	"log"
 	"time"
 
@@ -22,7 +20,8 @@ type App struct {
 	registry        *backend.BackendRegistry
 	selector        *backend.BackendSelector
 	selectedBackend string
-	syncCoordinator *sync.SyncCoordinator
+	// syncCoordinator disabled - needs redesign for multi-remote architecture
+	// syncCoordinator *sync.SyncCoordinator
 }
 
 // NewApp creates and initializes a new App instance
@@ -42,8 +41,12 @@ func NewApp(explicitBackend string) (*App, error) {
 	// Prepare sync configuration
 	syncEnabled := cfg.Sync != nil && cfg.Sync.Enabled
 	syncLocalBackend := ""
+	cachePath := ""
 	if cfg.Sync != nil {
 		syncLocalBackend = cfg.Sync.LocalBackend
+		if syncEnabled {
+			cachePath, _ = cfg.GetCacheDatabasePath()
+		}
 	}
 
 	// Select backend based on priority
@@ -55,6 +58,7 @@ func NewApp(explicitBackend string) (*App, error) {
 		cfg.BackendPriority,
 		syncEnabled,
 		syncLocalBackend,
+		cachePath,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to select backend: %w", err)
@@ -72,19 +76,6 @@ func NewApp(explicitBackend string) (*App, error) {
 	app.taskLists, err = cache.LoadTaskListsWithFallback(taskManager)
 	if err != nil {
 		log.Printf("Warning: Could not load task lists: %v", err)
-	}
-
-	// Initialize sync coordinator if auto-sync is enabled
-	if cfg.Sync != nil && cfg.Sync.Enabled && cfg.Sync.AutoSync {
-		err := app.initializeSyncCoordinator()
-		if err != nil {
-			log.Printf("Warning: Could not initialize auto-sync: %v", err)
-			log.Printf("Auto-sync will be disabled. Check that both backends are configured and enabled.")
-			// Continue without auto-sync
-		} else {
-			log.Printf("Auto-sync initialized successfully (local: %s, remote: %s)",
-				cfg.Sync.LocalBackend, cfg.Sync.RemoteBackend)
-		}
 	}
 
 	return app, nil
@@ -185,54 +176,27 @@ func (a *App) Run(cmd *cobra.Command, args []string) error {
 	return operations.ExecuteAction(a.taskManager, a.config, a.taskLists, cmd, args, a)
 }
 
-// initializeSyncCoordinator sets up the sync coordinator with local and remote backends
+// initializeSyncCoordinator is currently disabled - needs redesign for multi-remote architecture
+// TODO: Implement multi-remote sync coordinator
 func (a *App) initializeSyncCoordinator() error {
-	cfg := a.config
-
-	// Get local backend (must be SQLite)
-	localBackend, err := a.registry.GetBackend(cfg.Sync.LocalBackend)
-	if err != nil {
-		return fmt.Errorf("failed to get local backend '%s': %w", cfg.Sync.LocalBackend, err)
-	}
-
-	sqliteBackend, ok := localBackend.(*sqlite.SQLiteBackend)
-	if !ok {
-		return fmt.Errorf("local backend must be SQLite, got %T", localBackend)
-	}
-
-	// Get remote backend
-	remoteBackend, err := a.registry.GetBackend(cfg.Sync.RemoteBackend)
-	if err != nil {
-		return fmt.Errorf("failed to get remote backend '%s': %w", cfg.Sync.RemoteBackend, err)
-	}
-
-	// Create sync coordinator
-	coordinator, err := sync.NewSyncCoordinator(cfg, sqliteBackend, remoteBackend)
-	if err != nil {
-		return fmt.Errorf("failed to create sync coordinator: %w", err)
-	}
-
-	a.syncCoordinator = coordinator
-	log.Printf("Auto-sync enabled: local=%s, remote=%s, interval=%dm",
-		cfg.Sync.LocalBackend, cfg.Sync.RemoteBackend, cfg.Sync.SyncInterval)
-
-	return nil
+	return fmt.Errorf("sync coordinator not yet implemented for multi-remote architecture")
 }
 
-// GetSyncCoordinator returns the sync coordinator (may be nil if auto-sync is disabled)
+// GetSyncCoordinator is disabled - needs redesign for multi-remote architecture
 // Returns interface{} to avoid circular dependencies
 func (a *App) GetSyncCoordinator() interface{} {
-	return a.syncCoordinator
+	return nil // Disabled for now
 }
 
-// Shutdown gracefully shuts down the application, waiting for pending syncs
+// Shutdown gracefully shuts down the application
 func (a *App) Shutdown() {
 	a.ShutdownWithTimeout(5 * time.Second)
 }
 
 // ShutdownWithTimeout gracefully shuts down with a custom timeout
 func (a *App) ShutdownWithTimeout(timeout time.Duration) {
-	if a.syncCoordinator != nil {
-		a.syncCoordinator.Shutdown(timeout)
-	}
+	// Sync coordinator disabled for now
+	// if a.syncCoordinator != nil {
+	// 	a.syncCoordinator.Shutdown(timeout)
+	// }
 }

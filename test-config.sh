@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # Test script to verify --config flag behavior
-
 echo "=== Building gosynctasks with debug output ==="
 go build -o gosynctasks-debug ./cmd/gosynctasks
 

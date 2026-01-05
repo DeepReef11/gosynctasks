@@ -28,25 +28,70 @@ type ConnectorConfig struct {
 	//  Timeout  int    `yaml:"timeout,omitempty"`
 }
 
+// BackendSyncConfig represents simple per-backend sync opt-out.
+// For remote backends: Set to false to disable automatic caching
+// Example: sync: false
+type BackendSyncConfig struct {
+	Enabled bool `yaml:"enabled"` // Set to false to opt-out of automatic caching
+}
+
+// IsRemoteBackend returns true if this backend is a remote backend (nextcloud, todoist).
+// Remote backends are automatically cached when global sync is enabled.
+func (bc *BackendConfig) IsRemoteBackend() bool {
+	remoteTypes := map[string]bool{
+		"nextcloud": true,
+		"todoist":   true,
+	}
+	return remoteTypes[bc.Type]
+}
+
+// IsLocalBackend returns true if this backend is a local backend (sqlite, file, git).
+// Local backends require explicit sync opt-in.
+func (bc *BackendConfig) IsLocalBackend() bool {
+	return !bc.IsRemoteBackend()
+}
+
+// ShouldBeCached returns true if this backend should be cached based on global sync settings.
+// Remote backends are auto-cached when global sync is enabled, unless they opt-out with sync: false.
+func (bc *BackendConfig) ShouldBeCached(globalSyncEnabled bool) bool {
+	if !globalSyncEnabled {
+		return false
+	}
+
+	// Only remote backends are auto-cached
+	if !bc.IsRemoteBackend() {
+		return false
+	}
+
+	// Check if backend explicitly opts out
+	if bc.Sync != nil && !bc.Sync.Enabled {
+		return false
+	}
+
+	// Remote backend with global sync enabled and no opt-out
+	return true
+}
+
 // BackendConfig represents configuration for a single backend in the multi-backend system.
 // Each backend has a type (nextcloud, git, file, sqlite, todoist) and type-specific configuration.
 type BackendConfig struct {
-	Name                string   `yaml:"-"`                               // Backend name (set during config loading from map key)
-	Type                string   `yaml:"type" validate:"required,oneof=nextcloud git file sqlite todoist"`
-	Enabled             bool     `yaml:"enabled"`
-	URL                 string   `yaml:"url,omitempty"`                   // Used by: nextcloud, file
-	Host                string   `yaml:"host,omitempty"`                  // Alternative to URL (used with credentials from keyring/env)
-	Username            string   `yaml:"username,omitempty"`              // Username hint for keyring/env credential lookup
-	InsecureSkipVerify  bool     `yaml:"insecure_skip_verify,omitempty"`  // Used by: nextcloud
-	SuppressSSLWarning  bool     `yaml:"suppress_ssl_warning,omitempty"`  // Used by: nextcloud
-	AllowHTTP           bool     `yaml:"allow_http,omitempty"`            // Used by: nextcloud (allow insecure HTTP)
-	SuppressHTTPWarning bool     `yaml:"suppress_http_warning,omitempty"` // Used by: nextcloud (suppress HTTP warning)
-	File                string   `yaml:"file,omitempty"`                  // Used by: git (default: "TODO.md")
-	AutoDetect          bool     `yaml:"auto_detect,omitempty"`           // Used by: git
-	FallbackFiles       []string `yaml:"fallback_files,omitempty"`        // Used by: git
-	AutoCommit          bool     `yaml:"auto_commit,omitempty"`           // Used by: git
-	DBPath              string   `yaml:"db_path,omitempty"`               // Used by: sqlite
-	APIToken            string   `yaml:"api_token,omitempty"`             // Used by: todoist (can also be stored in keyring)
+	Name                string              `yaml:"-"`                               // Backend name (set during config loading from map key)
+	Type                string              `yaml:"type" validate:"required,oneof=nextcloud git file sqlite todoist"`
+	Enabled             bool                `yaml:"enabled"`
+	URL                 string              `yaml:"url,omitempty"`                   // Used by: nextcloud, file
+	Host                string              `yaml:"host,omitempty"`                  // Alternative to URL (used with credentials from keyring/env)
+	Username            string              `yaml:"username,omitempty"`              // Username hint for keyring/env credential lookup
+	InsecureSkipVerify  bool                `yaml:"insecure_skip_verify,omitempty"`  // Used by: nextcloud
+	SuppressSSLWarning  bool                `yaml:"suppress_ssl_warning,omitempty"`  // Used by: nextcloud
+	AllowHTTP           bool                `yaml:"allow_http,omitempty"`            // Used by: nextcloud (allow insecure HTTP)
+	SuppressHTTPWarning bool                `yaml:"suppress_http_warning,omitempty"` // Used by: nextcloud (suppress HTTP warning)
+	File                string              `yaml:"file,omitempty"`                  // Used by: git (default: "TODO.md")
+	AutoDetect          bool                `yaml:"auto_detect,omitempty"`           // Used by: git
+	FallbackFiles       []string            `yaml:"fallback_files,omitempty"`        // Used by: git
+	AutoCommit          bool                `yaml:"auto_commit,omitempty"`           // Used by: git
+	DBPath              string              `yaml:"db_path,omitempty"`               // Used by: sqlite
+	APIToken            string              `yaml:"api_token,omitempty"`             // Used by: todoist (can also be stored in keyring)
+	Sync                *BackendSyncConfig  `yaml:"sync,omitempty"`                  // Per-backend sync configuration
 }
 
 func (c *ConnectorConfig) UnmarshalYAML(value *yaml.Node) error {
@@ -129,8 +174,9 @@ type TaskManager interface {
 
 	// AddTask creates a new task in the specified list.
 	// The task.UID may be generated by the backend if not provided.
+	// Returns the UID of the created task (which may differ from task.UID for remote backends).
 	// Returns an error if the task cannot be created.
-	AddTask(listID string, task Task) error
+	AddTask(listID string, task Task) (string, error)
 
 	// UpdateTask modifies an existing task identified by task.UID.
 	// All task fields will be updated to match the provided task.

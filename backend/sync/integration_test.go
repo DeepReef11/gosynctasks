@@ -141,7 +141,7 @@ func TestSyncPushToNextcloud(t *testing.T) {
 		Modified: now,
 	}
 
-	err = local.AddTask(testListID, localTask)
+	_, _, err = err = local.AddTask(testListID, localTask)
 	if err != nil {
 		t.Fatalf("Failed to add local task: %v", err)
 	}
@@ -240,7 +240,7 @@ func TestSyncPullFromNextcloud(t *testing.T) {
 		Modified: now,
 	}
 
-	err = remote.AddTask(testListID, remoteTask)
+	_, _, err = err = remote.AddTask(testListID, remoteTask)
 	if err != nil {
 		t.Fatalf("Failed to add remote task: %v", err)
 	}
@@ -340,7 +340,7 @@ func TestSyncBidirectional(t *testing.T) {
 		Created:  now,
 		Modified: now,
 	}
-	err = local.AddTask(testListID, localTask)
+	_, _, err = err = local.AddTask(testListID, localTask)
 	if err != nil {
 		t.Fatalf("Failed to add local task: %v", err)
 	}
@@ -358,7 +358,7 @@ func TestSyncBidirectional(t *testing.T) {
 		Created:  now,
 		Modified: now,
 	}
-	err = remote.AddTask(testListID, remoteTask)
+	_, _, err = err = remote.AddTask(testListID, remoteTask)
 	if err != nil {
 		t.Fatalf("Failed to add remote task: %v", err)
 	}
@@ -479,7 +479,7 @@ func TestSyncConflictResolution(t *testing.T) {
 				Created:     now,
 				Modified:    now,
 			}
-			err = remote.AddTask(testListID, remoteTask)
+			_, _, err = err = remote.AddTask(testListID, remoteTask)
 			if err != nil {
 				t.Fatalf("Failed to add remote task: %v", err)
 			}
@@ -623,7 +623,7 @@ func TestSyncDeleteTask(t *testing.T) {
 		Created:  now,
 		Modified: now,
 	}
-	err = local.AddTask(testListID, task)
+	_, _, err = err = local.AddTask(testListID, task)
 	if err != nil {
 		t.Fatalf("Failed to add task: %v", err)
 	}

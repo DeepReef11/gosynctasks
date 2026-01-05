@@ -334,20 +334,20 @@ func TestToUpdateTaskRequest(t *testing.T) {
 
 	result := toUpdateTaskRequest(task)
 
-	if result.Content != "Updated Task" {
-		t.Errorf("Content = %q, want %q", result.Content, "Updated Task")
+	if result.Content == nil || *result.Content != "Updated Task" {
+		t.Errorf("Content = %v, want %q", result.Content, "Updated Task")
 	}
-	if result.Description != "Updated Description" {
-		t.Errorf("Description = %q, want %q", result.Description, "Updated Description")
+	if result.Description == nil || *result.Description != "Updated Description" {
+		t.Errorf("Description = %v, want %q", result.Description, "Updated Description")
 	}
-	if result.Priority != 3 { // Priority 3 maps to Todoist 3
-		t.Errorf("Priority = %d, want 3", result.Priority)
+	if result.Priority == nil || *result.Priority != 3 { // Priority 3 maps to Todoist 3
+		t.Errorf("Priority = %v, want 3", result.Priority)
 	}
 	if len(result.Labels) != 1 || result.Labels[0] != "updated" {
 		t.Errorf("Labels = %v, want [updated]", result.Labels)
 	}
-	if result.DueDate != "2026-01-25" {
-		t.Errorf("DueDate = %q, want %q", result.DueDate, "2026-01-25")
+	if result.DueDate == nil || *result.DueDate != "2026-01-25" {
+		t.Errorf("DueDate = %v, want %q", result.DueDate, "2026-01-25")
 	}
 }
 

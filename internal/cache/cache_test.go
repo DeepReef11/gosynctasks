@@ -27,8 +27,8 @@ func (m *mockTaskManager) FindTasksBySummary(listID string, summary string) ([]b
 	return nil, nil
 }
 
-func (m *mockTaskManager) AddTask(listID string, task backend.Task) error {
-	return nil
+func (m *mockTaskManager) AddTask(listID string, task backend.Task) (string, error) {
+	return "mock-task-id", nil
 }
 
 func (m *mockTaskManager) UpdateTask(listID string, task backend.Task) error {

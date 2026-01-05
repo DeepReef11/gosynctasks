@@ -45,14 +45,16 @@ func (e *SQLiteError) Unwrap() error {
 
 // SQLiteBackend implements backend.TaskManager interface for local SQLite storage
 type SQLiteBackend struct {
-	Config backend.BackendConfig
-	db     *Database
+	Config      backend.BackendConfig
+	db          *Database
+	backendName string // Name of the backend this instance represents (for multi-backend support)
 }
 
 // NewSQLiteBackend creates a new SQLite backend instance
 func NewSQLiteBackend(config backend.BackendConfig) (*SQLiteBackend, error) {
 	sb := &SQLiteBackend{
-		Config: config,
+		Config:      config,
+		backendName: config.Name,
 	}
 
 	// Initialize database immediately
@@ -104,10 +106,11 @@ func (sb *SQLiteBackend) GetTaskLists() ([]backend.TaskList, error) {
 	query := `
 		SELECT list_id, list_name, list_color, last_ctag, created_at, modified_at
 		FROM list_sync_metadata
+		WHERE backend_name = ?
 		ORDER BY list_name ASC
 	`
 
-	rows, err := db.Query(query)
+	rows, err := db.Query(query, sb.backendName)
 	if err != nil {
 		return nil, &SQLiteError{Op: "GetTaskLists", Err: err}
 	}
@@ -153,17 +156,20 @@ func (sb *SQLiteBackend) GetTasks(listID string, taskFilter *backend.TaskFilter)
 	}
 
 	// Build query with filters
+	// LEFT JOIN with sync_metadata to filter out locally_deleted tasks
 	query := `
-		SELECT id, list_id, summary, description, status, priority,
-		       created_at, modified_at, due_date, start_date, completed_at,
-		       parent_uid, categories
-		FROM tasks
-		WHERE list_id = ?
+		SELECT t.internal_id, t.uid, t.list_id, t.summary, t.description, t.status, t.priority,
+		       t.created_at, t.modified_at, t.due_date, t.start_date, t.completed_at,
+		       t.parent_uid, t.categories
+		FROM tasks t
+		LEFT JOIN sync_metadata sm ON t.internal_id = sm.task_internal_id AND t.backend_name = sm.backend_name
+		WHERE t.backend_name = ? AND t.list_id = ?
+		  AND (sm.locally_deleted IS NULL OR sm.locally_deleted = 0)
 	`
 
-	args := []interface{}{listID}
+	args := []interface{}{sb.backendName, listID}
 	query, args = sb.applyFilters(query, args, taskFilter)
-	query += " ORDER BY priority ASC, created_at DESC"
+	query += " ORDER BY t.priority ASC, t.created_at DESC"
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
@@ -192,7 +198,7 @@ func (sb *SQLiteBackend) applyFilters(query string, args []interface{}, filter *
 			placeholders[i] = "?"
 			args = append(args, status)
 		}
-		query += fmt.Sprintf(" AND status IN (%s)", strings.Join(placeholders, ","))
+		query += fmt.Sprintf(" AND t.status IN (%s)", strings.Join(placeholders, ","))
 	}
 
 	// Exclude statuses filter
@@ -202,26 +208,26 @@ func (sb *SQLiteBackend) applyFilters(query string, args []interface{}, filter *
 			placeholders[i] = "?"
 			args = append(args, status)
 		}
-		query += fmt.Sprintf(" AND status NOT IN (%s)", strings.Join(placeholders, ","))
+		query += fmt.Sprintf(" AND t.status NOT IN (%s)", strings.Join(placeholders, ","))
 	}
 
 	// Due date filters
 	if filter.DueBefore != nil {
-		query += " AND due_date <= ?"
+		query += " AND t.due_date <= ?"
 		args = append(args, filter.DueBefore.Unix())
 	}
 	if filter.DueAfter != nil {
-		query += " AND due_date >= ?"
+		query += " AND t.due_date >= ?"
 		args = append(args, filter.DueAfter.Unix())
 	}
 
 	// Created date filters
 	if filter.CreatedBefore != nil {
-		query += " AND created_at <= ?"
+		query += " AND t.created_at <= ?"
 		args = append(args, filter.CreatedBefore.Unix())
 	}
 	if filter.CreatedAfter != nil {
-		query += " AND created_at >= ?"
+		query += " AND t.created_at >= ?"
 		args = append(args, filter.CreatedAfter.Unix())
 	}
 
@@ -237,11 +243,13 @@ func (sb *SQLiteBackend) scanTasks(rows *sql.Rows) ([]backend.Task, error) {
 
 	for rows.Next() {
 		var task backend.Task
+		var internalID int64
 		var listID string // Temporary variable for list_id (not stored in backend.Task struct)
 		var description, parentUID, categories sql.NullString
 		var createdAt, modifiedAt, dueDate, startDate, completedAt sql.NullInt64
 
 		err := rows.Scan(
+			&internalID, // Scan internal_id but don't store in backend.Task
 			&task.UID,
 			&listID, // Scan list_id but don't store in backend.Task
 			&task.Summary,
@@ -305,11 +313,11 @@ func (sb *SQLiteBackend) FindTasksBySummary(listID string, summary string) ([]ba
 	}
 
 	query := `
-		SELECT id, list_id, summary, description, status, priority,
+		SELECT internal_id, uid, list_id, summary, description, status, priority,
 		       created_at, modified_at, due_date, start_date, completed_at,
 		       parent_uid, categories
 		FROM tasks
-		WHERE list_id = ? AND LOWER(summary) LIKE LOWER(?)
+		WHERE backend_name = ? AND list_id = ? AND LOWER(summary) LIKE LOWER(?)
 		ORDER BY
 			CASE WHEN LOWER(summary) = LOWER(?) THEN 0 ELSE 1 END,
 			priority ASC,
@@ -317,7 +325,7 @@ func (sb *SQLiteBackend) FindTasksBySummary(listID string, summary string) ([]ba
 	`
 
 	searchPattern := "%" + summary + "%"
-	rows, err := db.Query(query, listID, searchPattern, summary)
+	rows, err := db.Query(query, sb.backendName, listID, searchPattern, summary)
 	if err != nil {
 		return nil, &SQLiteError{Op: "FindTasksBySummary", ListID: listID, Err: err}
 	}
@@ -332,21 +340,16 @@ func (sb *SQLiteBackend) FindTasksBySummary(listID string, summary string) ([]ba
 }
 
 // AddTask creates a new task in the database
-func (sb *SQLiteBackend) AddTask(listID string, task backend.Task) error {
+func (sb *SQLiteBackend) AddTask(listID string, task backend.Task) (string, error) {
 	db, err := sb.GetDB()
 	if err != nil {
-		return &SQLiteError{Op: "AddTask", ListID: listID, Err: err}
-	}
-
-	// Generate UID if not provided
-	if task.UID == "" {
-		task.UID = GenerateUID()
+		return "", &SQLiteError{Op: "AddTask", ListID: listID, Err: err}
 	}
 
 	// Start transaction
 	tx, err := db.Begin()
 	if err != nil {
-		return &SQLiteError{Op: "AddTask", ListID: listID, TaskUID: task.UID, Err: err}
+		return "", &SQLiteError{Op: "AddTask", ListID: listID, Err: err}
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -359,17 +362,21 @@ func (sb *SQLiteBackend) AddTask(listID string, task backend.Task) error {
 		task.Modified = now
 	}
 
-	// Insert task
+	// Insert task with temporary UID - we'll update it after getting the internal_id
+	// Use "pending-temp" as placeholder since we need internal_id first
+	tempUID := "pending-temp-" + fmt.Sprintf("%d", now.UnixNano())
+
 	query := `
 		INSERT INTO tasks (
-			id, list_id, summary, description, status, priority,
+			uid, backend_name, list_id, summary, description, status, priority,
 			created_at, modified_at, due_date, start_date, completed_at,
 			parent_uid, categories
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	_, err = tx.Exec(query,
-		task.UID,
+	result, err := tx.Exec(query,
+		tempUID,
+		sb.backendName,
 		listID,
 		task.Summary,
 		NullString(task.Description),
@@ -384,28 +391,46 @@ func (sb *SQLiteBackend) AddTask(listID string, task backend.Task) error {
 		NullString(strings.Join(task.Categories, ",")),
 	)
 	if err != nil {
-		return &SQLiteError{Op: "AddTask", ListID: listID, TaskUID: task.UID, Err: err}
+		return "", &SQLiteError{Op: "AddTask", ListID: listID, Err: err}
 	}
 
-	// Insert sync metadata
-	_, err = tx.Exec(`
-		INSERT INTO sync_metadata (task_uid, list_id, locally_modified, local_modified_at)
-		VALUES (?, ?, 1, ?)
-	`, task.UID, listID, now.Unix())
+	// Get the internal_id that was just created
+	internalID, err := result.LastInsertId()
 	if err != nil {
-		return &SQLiteError{Op: "AddTask", ListID: listID, TaskUID: task.UID, Err: err}
+		return "", &SQLiteError{Op: "AddTask", ListID: listID, Err: err}
 	}
 
-	// Queue sync operation
-	_, err = tx.Exec(`
-		INSERT OR REPLACE INTO sync_queue (task_uid, list_id, operation, created_at)
-		VALUES (?, ?, 'create', ?)
-	`, task.UID, listID, now.Unix())
+	// Update UID to "pending-{internal_id}" format
+	// This indicates it's waiting for the remote backend to assign a real UID
+	finalUID := fmt.Sprintf("pending-%d", internalID)
+	_, err = tx.Exec("UPDATE tasks SET uid = ? WHERE internal_id = ?", finalUID, internalID)
 	if err != nil {
-		return &SQLiteError{Op: "AddTask", ListID: listID, TaskUID: task.UID, Err: err}
+		return "", &SQLiteError{Op: "AddTask", ListID: listID, Err: err}
 	}
 
-	return tx.Commit()
+	// Insert sync metadata using internal_id
+	_, err = tx.Exec(`
+		INSERT INTO sync_metadata (task_internal_id, backend_name, list_id, locally_modified, local_modified_at)
+		VALUES (?, ?, ?, 1, ?)
+	`, internalID, sb.backendName, listID, now.Unix())
+	if err != nil {
+		return "", &SQLiteError{Op: "AddTask", ListID: listID, Err: err}
+	}
+
+	// Queue sync operation using internal_id
+	_, err = tx.Exec(`
+		INSERT OR REPLACE INTO sync_queue (backend_name, task_internal_id, list_id, operation, created_at)
+		VALUES (?, ?, ?, 'create', ?)
+	`, sb.backendName, internalID, listID, now.Unix())
+	if err != nil {
+		return "", &SQLiteError{Op: "AddTask", ListID: listID, Err: err}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+
+	return finalUID, nil
 }
 
 // UpdateTask updates an existing task
@@ -422,6 +447,16 @@ func (sb *SQLiteBackend) UpdateTask(listID string, task backend.Task) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	// Get internal_id for this task
+	var internalID int64
+	err = tx.QueryRow("SELECT internal_id FROM tasks WHERE backend_name = ? AND uid = ? AND list_id = ?",
+		sb.backendName, task.UID, listID).Scan(&internalID)
+	if err == sql.ErrNoRows {
+		return backend.NewBackendError("UpdateTask", 404, fmt.Sprintf("task %s not found in list %s", task.UID, listID))
+	} else if err != nil {
+		return &SQLiteError{Op: "UpdateTask", ListID: listID, TaskUID: task.UID, Err: err}
+	}
+
 	// Update modified timestamp
 	now := time.Now()
 	task.Modified = now
@@ -432,7 +467,7 @@ func (sb *SQLiteBackend) UpdateTask(listID string, task backend.Task) error {
 		SET summary = ?, description = ?, status = ?, priority = ?,
 		    modified_at = ?, due_date = ?, start_date = ?, completed_at = ?,
 		    parent_uid = ?, categories = ?
-		WHERE id = ? AND list_id = ?
+		WHERE backend_name = ? AND uid = ? AND list_id = ?
 	`
 
 	result, err := tx.Exec(query,
@@ -446,6 +481,7 @@ func (sb *SQLiteBackend) UpdateTask(listID string, task backend.Task) error {
 		TimeToNullInt64(task.Completed),
 		NullString(task.ParentUID),
 		NullString(strings.Join(task.Categories, ",")),
+		sb.backendName,
 		task.UID,
 		listID,
 	)
@@ -453,7 +489,7 @@ func (sb *SQLiteBackend) UpdateTask(listID string, task backend.Task) error {
 		return &SQLiteError{Op: "UpdateTask", ListID: listID, TaskUID: task.UID, Err: err}
 	}
 
-	// Check if task exists
+	// Check if task was updated
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return &SQLiteError{Op: "UpdateTask", ListID: listID, TaskUID: task.UID, Err: err}
@@ -462,21 +498,21 @@ func (sb *SQLiteBackend) UpdateTask(listID string, task backend.Task) error {
 		return backend.NewBackendError("UpdateTask", 404, fmt.Sprintf("task %s not found in list %s", task.UID, listID))
 	}
 
-	// Update sync metadata
+	// Update sync metadata using internal_id
 	_, err = tx.Exec(`
 		UPDATE sync_metadata
 		SET locally_modified = 1, local_modified_at = ?
-		WHERE task_uid = ?
-	`, now.Unix(), task.UID)
+		WHERE backend_name = ? AND task_internal_id = ?
+	`, now.Unix(), sb.backendName, internalID)
 	if err != nil {
 		return &SQLiteError{Op: "UpdateTask", ListID: listID, TaskUID: task.UID, Err: err}
 	}
 
-	// Queue sync operation
+	// Queue sync operation using internal_id
 	_, err = tx.Exec(`
-		INSERT OR REPLACE INTO sync_queue (task_uid, list_id, operation, created_at)
-		VALUES (?, ?, 'update', ?)
-	`, task.UID, listID, now.Unix())
+		INSERT OR REPLACE INTO sync_queue (backend_name, task_internal_id, list_id, operation, created_at)
+		VALUES (?, ?, ?, 'update', ?)
+	`, sb.backendName, internalID, listID, now.Unix())
 	if err != nil {
 		return &SQLiteError{Op: "UpdateTask", ListID: listID, TaskUID: task.UID, Err: err}
 	}
@@ -498,14 +534,14 @@ func (sb *SQLiteBackend) DeleteTask(listID string, taskUID string) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Check if task exists
-	var exists bool
-	err = tx.QueryRow("SELECT EXISTS(SELECT 1 FROM tasks WHERE id = ? AND list_id = ?)", taskUID, listID).Scan(&exists)
-	if err != nil {
-		return &SQLiteError{Op: "DeleteTask", ListID: listID, TaskUID: taskUID, Err: err}
-	}
-	if !exists {
+	// Get internal_id for this task
+	var internalID int64
+	err = tx.QueryRow("SELECT internal_id FROM tasks WHERE backend_name = ? AND uid = ? AND list_id = ?",
+		sb.backendName, taskUID, listID).Scan(&internalID)
+	if err == sql.ErrNoRows {
 		return backend.NewBackendError("DeleteTask", 404, fmt.Sprintf("task %s not found in list %s", taskUID, listID))
+	} else if err != nil {
+		return &SQLiteError{Op: "DeleteTask", ListID: listID, TaskUID: taskUID, Err: err}
 	}
 
 	// Mark as locally deleted (soft delete for sync)
@@ -513,26 +549,26 @@ func (sb *SQLiteBackend) DeleteTask(listID string, taskUID string) error {
 	_, err = tx.Exec(`
 		UPDATE sync_metadata
 		SET locally_deleted = 1, local_modified_at = ?
-		WHERE task_uid = ?
-	`, now, taskUID)
+		WHERE backend_name = ? AND task_internal_id = ?
+	`, now, sb.backendName, internalID)
 	if err != nil {
 		return &SQLiteError{Op: "DeleteTask", ListID: listID, TaskUID: taskUID, Err: err}
 	}
 
-	// Queue delete operation
+	// Queue delete operation using internal_id
 	_, err = tx.Exec(`
-		INSERT OR REPLACE INTO sync_queue (task_uid, list_id, operation, created_at)
-		VALUES (?, ?, 'delete', ?)
-	`, taskUID, listID, now)
+		INSERT OR REPLACE INTO sync_queue (backend_name, task_internal_id, list_id, operation, created_at)
+		VALUES (?, ?, ?, 'delete', ?)
+	`, sb.backendName, internalID, listID, now)
 	if err != nil {
 		return &SQLiteError{Op: "DeleteTask", ListID: listID, TaskUID: taskUID, Err: err}
 	}
 
-	// Delete task (cascade will delete sync_metadata)
-	_, err = tx.Exec("DELETE FROM tasks WHERE id = ? AND list_id = ?", taskUID, listID)
-	if err != nil {
-		return &SQLiteError{Op: "DeleteTask", ListID: listID, TaskUID: taskUID, Err: err}
-	}
+	// NOTE: We don't actually delete the task from the database here.
+	// The task remains in the database with locally_deleted=1 until the sync manager
+	// successfully pushes the delete to the remote backend.
+	// GetTasks() filters out locally_deleted tasks, so they won't appear in queries.
+	// The sync manager will call a cleanup method to actually delete the task after sync succeeds.
 
 	return tx.Commit()
 }
@@ -548,9 +584,9 @@ func (sb *SQLiteBackend) CreateTaskList(name, description, color string) (string
 	now := time.Now().Unix()
 
 	_, err = db.Exec(`
-		INSERT INTO list_sync_metadata (list_id, list_name, list_color, created_at, modified_at)
-		VALUES (?, ?, ?, ?, ?)
-	`, listID, name, color, now, now)
+		INSERT INTO list_sync_metadata (list_id, backend_name, list_name, list_color, created_at, modified_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, listID, sb.backendName, name, color, now, now)
 	if err != nil {
 		return "", &SQLiteError{Op: "CreateTaskList", Err: err}
 	}
@@ -572,13 +608,13 @@ func (sb *SQLiteBackend) DeleteTaskList(listID string) error {
 	defer func() { _ = tx.Rollback() }()
 
 	// Delete all tasks in the list (cascade will delete sync_metadata)
-	_, err = tx.Exec("DELETE FROM tasks WHERE list_id = ?", listID)
+	_, err = tx.Exec("DELETE FROM tasks WHERE backend_name = ? AND list_id = ?", sb.backendName, listID)
 	if err != nil {
 		return &SQLiteError{Op: "DeleteTaskList", ListID: listID, Err: err}
 	}
 
 	// Delete list metadata
-	result, err := tx.Exec("DELETE FROM list_sync_metadata WHERE list_id = ?", listID)
+	result, err := tx.Exec("DELETE FROM list_sync_metadata WHERE backend_name = ? AND list_id = ?", sb.backendName, listID)
 	if err != nil {
 		return &SQLiteError{Op: "DeleteTaskList", ListID: listID, Err: err}
 	}
@@ -604,8 +640,8 @@ func (sb *SQLiteBackend) RenameTaskList(listID, newName string) error {
 	result, err := db.Exec(`
 		UPDATE list_sync_metadata
 		SET list_name = ?, modified_at = ?
-		WHERE list_id = ?
-	`, newName, time.Now().Unix(), listID)
+		WHERE backend_name = ? AND list_id = ?
+	`, newName, time.Now().Unix(), sb.backendName, listID)
 	if err != nil {
 		return &SQLiteError{Op: "RenameTaskList", ListID: listID, Err: err}
 	}
@@ -734,11 +770,19 @@ func (sb *SQLiteBackend) MarkLocallyModified(taskUID string) error {
 		return &SQLiteError{Op: "MarkLocallyModified", TaskUID: taskUID, Err: err}
 	}
 
+	// Get internal_id for this task
+	var internalID int64
+	err = db.QueryRow("SELECT internal_id FROM tasks WHERE backend_name = ? AND uid = ?",
+		sb.backendName, taskUID).Scan(&internalID)
+	if err != nil {
+		return &SQLiteError{Op: "MarkLocallyModified", TaskUID: taskUID, Err: err}
+	}
+
 	_, err = db.Exec(`
 		UPDATE sync_metadata
 		SET locally_modified = 1, local_modified_at = ?
-		WHERE task_uid = ?
-	`, time.Now().Unix(), taskUID)
+		WHERE backend_name = ? AND task_internal_id = ?
+	`, time.Now().Unix(), sb.backendName, internalID)
 	if err != nil {
 		return &SQLiteError{Op: "MarkLocallyModified", TaskUID: taskUID, Err: err}
 	}
@@ -753,11 +797,19 @@ func (sb *SQLiteBackend) MarkLocallyDeleted(taskUID string) error {
 		return &SQLiteError{Op: "MarkLocallyDeleted", TaskUID: taskUID, Err: err}
 	}
 
+	// Get internal_id for this task
+	var internalID int64
+	err = db.QueryRow("SELECT internal_id FROM tasks WHERE backend_name = ? AND uid = ?",
+		sb.backendName, taskUID).Scan(&internalID)
+	if err != nil {
+		return &SQLiteError{Op: "MarkLocallyDeleted", TaskUID: taskUID, Err: err}
+	}
+
 	_, err = db.Exec(`
 		UPDATE sync_metadata
 		SET locally_deleted = 1, local_modified_at = ?
-		WHERE task_uid = ?
-	`, time.Now().Unix(), taskUID)
+		WHERE backend_name = ? AND task_internal_id = ?
+	`, time.Now().Unix(), sb.backendName, internalID)
 	if err != nil {
 		return &SQLiteError{Op: "MarkLocallyDeleted", TaskUID: taskUID, Err: err}
 	}
@@ -773,16 +825,16 @@ func (sb *SQLiteBackend) GetLocallyModifiedTasks() ([]backend.Task, error) {
 	}
 
 	query := `
-		SELECT t.id, t.list_id, t.summary, t.description, t.status, t.priority,
+		SELECT t.internal_id, t.uid, t.list_id, t.summary, t.description, t.status, t.priority,
 		       t.created_at, t.modified_at, t.due_date, t.start_date, t.completed_at,
 		       t.parent_uid, t.categories
 		FROM tasks t
-		INNER JOIN sync_metadata sm ON t.id = sm.task_uid
-		WHERE sm.locally_modified = 1
+		INNER JOIN sync_metadata sm ON t.internal_id = sm.task_internal_id AND t.backend_name = sm.backend_name
+		WHERE t.backend_name = ? AND sm.locally_modified = 1
 		ORDER BY sm.local_modified_at ASC
 	`
 
-	rows, err := db.Query(query)
+	rows, err := db.Query(query, sb.backendName)
 	if err != nil {
 		return nil, &SQLiteError{Op: "GetLocallyModifiedTasks", Err: err}
 	}
@@ -815,12 +867,14 @@ func (sb *SQLiteBackend) GetPendingSyncOperations() ([]SyncOperation, error) {
 	}
 
 	query := `
-		SELECT id, task_uid, list_id, operation, created_at, retry_count, last_error
-		FROM sync_queue
-		ORDER BY created_at ASC
+		SELECT sq.id, t.uid, sq.list_id, sq.operation, sq.created_at, sq.retry_count, sq.last_error
+		FROM sync_queue sq
+		INNER JOIN tasks t ON sq.task_internal_id = t.internal_id AND sq.backend_name = t.backend_name
+		WHERE sq.backend_name = ?
+		ORDER BY sq.created_at ASC
 	`
 
-	rows, err := db.Query(query)
+	rows, err := db.Query(query, sb.backendName)
 	if err != nil {
 		return nil, &SQLiteError{Op: "GetPendingSyncOperations", Err: err}
 	}
@@ -865,11 +919,19 @@ func (sb *SQLiteBackend) ClearSyncFlags(taskUID string) error {
 		return &SQLiteError{Op: "ClearSyncFlags", TaskUID: taskUID, Err: err}
 	}
 
+	// Get internal_id for this task
+	var internalID int64
+	err = db.QueryRow("SELECT internal_id FROM tasks WHERE backend_name = ? AND uid = ?",
+		sb.backendName, taskUID).Scan(&internalID)
+	if err != nil {
+		return &SQLiteError{Op: "ClearSyncFlags", TaskUID: taskUID, Err: err}
+	}
+
 	_, err = db.Exec(`
 		UPDATE sync_metadata
 		SET locally_modified = 0, locally_deleted = 0
-		WHERE task_uid = ?
-	`, taskUID)
+		WHERE backend_name = ? AND task_internal_id = ?
+	`, sb.backendName, internalID)
 	if err != nil {
 		return &SQLiteError{Op: "ClearSyncFlags", TaskUID: taskUID, Err: err}
 	}
@@ -893,13 +955,14 @@ func (sb *SQLiteBackend) ClearSyncFlagsAndQueue(taskUID string) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Get current task modified timestamp to update remote_modified_at
+	// Get internal_id and modified timestamp for this task
+	var internalID int64
 	var modifiedAt sql.NullInt64
 	err = tx.QueryRow(`
-		SELECT modified_at
+		SELECT internal_id, modified_at
 		FROM tasks
-		WHERE id = ?
-	`, taskUID).Scan(&modifiedAt)
+		WHERE backend_name = ? AND uid = ?
+	`, sb.backendName, taskUID).Scan(&internalID, &modifiedAt)
 	if err != nil {
 		return &SQLiteError{Op: "ClearSyncFlags", TaskUID: taskUID, Err: err}
 	}
@@ -909,8 +972,8 @@ func (sb *SQLiteBackend) ClearSyncFlagsAndQueue(taskUID string) error {
 	_, err = tx.Exec(`
 		UPDATE sync_metadata
 		SET locally_modified = 0, locally_deleted = 0, remote_modified_at = ?
-		WHERE task_uid = ?
-	`, modifiedAt, taskUID)
+		WHERE backend_name = ? AND task_internal_id = ?
+	`, modifiedAt, sb.backendName, internalID)
 	if err != nil {
 		return &SQLiteError{Op: "ClearSyncFlagsAndQueue", TaskUID: taskUID, Err: err}
 	}
@@ -918,8 +981,8 @@ func (sb *SQLiteBackend) ClearSyncFlagsAndQueue(taskUID string) error {
 	// Remove all pending sync operations for this task
 	_, err = tx.Exec(`
 		DELETE FROM sync_queue
-		WHERE task_uid = ?
-	`, taskUID)
+		WHERE backend_name = ? AND task_internal_id = ?
+	`, sb.backendName, internalID)
 	if err != nil {
 		return &SQLiteError{Op: "ClearSyncFlagsAndQueue", TaskUID: taskUID, Err: err}
 	}
@@ -934,18 +997,26 @@ func (sb *SQLiteBackend) UpdateSyncMetadata(taskUID, listID, etag string, remote
 		return &SQLiteError{Op: "UpdateSyncMetadata", TaskUID: taskUID, Err: err}
 	}
 
+	// Get internal_id for this task
+	var internalID int64
+	err = db.QueryRow("SELECT internal_id FROM tasks WHERE backend_name = ? AND uid = ?",
+		sb.backendName, taskUID).Scan(&internalID)
+	if err != nil {
+		return &SQLiteError{Op: "UpdateSyncMetadata", TaskUID: taskUID, Err: err}
+	}
+
 	now := time.Now().Unix()
 
 	_, err = db.Exec(`
 		INSERT INTO sync_metadata (
-			task_uid, list_id, remote_etag, last_synced_at,
+			task_internal_id, backend_name, list_id, remote_etag, last_synced_at,
 			remote_modified_at, locally_modified, locally_deleted
-		) VALUES (?, ?, ?, ?, ?, 0, 0)
-		ON CONFLICT(task_uid) DO UPDATE SET
+		) VALUES (?, ?, ?, ?, ?, ?, 0, 0)
+		ON CONFLICT(task_internal_id) DO UPDATE SET
 			remote_etag = excluded.remote_etag,
 			last_synced_at = excluded.last_synced_at,
 			remote_modified_at = excluded.remote_modified_at
-	`, taskUID, listID, etag, now, remoteModifiedAt.Unix())
+	`, internalID, sb.backendName, listID, etag, now, remoteModifiedAt.Unix())
 	if err != nil {
 		return &SQLiteError{Op: "UpdateSyncMetadata", TaskUID: taskUID, Err: err}
 	}
@@ -960,10 +1031,18 @@ func (sb *SQLiteBackend) RemoveSyncOperation(taskUID, operation string) error {
 		return &SQLiteError{Op: "RemoveSyncOperation", TaskUID: taskUID, Err: err}
 	}
 
+	// Get internal_id for this task
+	var internalID int64
+	err = db.QueryRow("SELECT internal_id FROM tasks WHERE backend_name = ? AND uid = ?",
+		sb.backendName, taskUID).Scan(&internalID)
+	if err != nil {
+		return &SQLiteError{Op: "RemoveSyncOperation", TaskUID: taskUID, Err: err}
+	}
+
 	_, err = db.Exec(`
 		DELETE FROM sync_queue
-		WHERE task_uid = ? AND operation = ?
-	`, taskUID, operation)
+		WHERE backend_name = ? AND task_internal_id = ? AND operation = ?
+	`, sb.backendName, internalID, operation)
 	if err != nil {
 		return &SQLiteError{Op: "RemoveSyncOperation", TaskUID: taskUID, Err: err}
 	}

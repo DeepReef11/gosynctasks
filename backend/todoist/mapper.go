@@ -119,32 +119,47 @@ func toCreateTaskRequest(task backend.Task, projectID string) CreateTaskRequest 
 
 // toUpdateTaskRequest converts gosynctasks Task to Todoist update request
 func toUpdateTaskRequest(task backend.Task) UpdateTaskRequest {
-	req := UpdateTaskRequest{
-		Content:     task.Summary,
-		Description: task.Description,
-		Labels:      task.Categories,
+	req := UpdateTaskRequest{}
+
+	// Only set content if not empty
+	if task.Summary != "" {
+		req.Content = &task.Summary
+	}
+
+	// Only set description if not empty
+	if task.Description != "" {
+		req.Description = &task.Description
+	}
+
+	// Set labels (empty array is fine, nil will omit)
+	if len(task.Categories) > 0 {
+		req.Labels = task.Categories
 	}
 
 	// Map priority
+	var priority int
 	switch {
 	case task.Priority >= 1 && task.Priority <= 2:
-		req.Priority = 4 // Urgent
+		priority = 4 // Urgent
 	case task.Priority >= 3 && task.Priority <= 4:
-		req.Priority = 3 // High
+		priority = 3 // High
 	case task.Priority >= 5 && task.Priority <= 6:
-		req.Priority = 2 // Medium
+		priority = 2 // Medium
 	case task.Priority >= 7 && task.Priority <= 9:
-		req.Priority = 1 // Normal
+		priority = 1 // Normal
 	default:
-		req.Priority = 1 // Default to normal
+		priority = 1 // Default to normal
 	}
+	req.Priority = &priority
 
-	// Set due date
+	// Set due date only if present
 	if task.DueDate != nil && !task.DueDate.IsZero() {
 		if task.DueDate.Hour() == 0 && task.DueDate.Minute() == 0 && task.DueDate.Second() == 0 {
-			req.DueDate = task.DueDate.Format("2006-01-02")
+			dueDate := task.DueDate.Format("2006-01-02")
+			req.DueDate = &dueDate
 		} else {
-			req.DueDatetime = task.DueDate.Format(time.RFC3339)
+			dueDatetime := task.DueDate.Format(time.RFC3339)
+			req.DueDatetime = &dueDatetime
 		}
 	}
 
