@@ -2,15 +2,39 @@ package utils
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 )
+
+// ENABLE_BACKGROUND_LOGGING controls whether background sync logging is enabled
+// Set to false to disable background sync logging entirely
+//
+// When enabled (true):
+//   - Background sync logs to: /tmp/gosynctasks-_internal_background_sync-{PID}.log
+//   - Each background sync process creates its own log file with unique PID
+//   - Logs include sync operations, errors, and timing information
+//
+// When disabled (false):
+//   - No log files are created
+//   - All logging calls are no-ops (zero overhead)
+//   - Background sync still runs, just without logging
+const ENABLE_BACKGROUND_LOGGING = true
 
 // Logger provides leveled logging with verbose mode support
 type Logger struct {
 	verbose bool
 	mu      sync.RWMutex
+}
+
+// BackgroundLogger provides logging for background sync processes
+type BackgroundLogger struct {
+	logger   *log.Logger
+	logFile  *os.File
+	enabled  bool
+	filePath string
 }
 
 var (
@@ -118,4 +142,79 @@ func LogOperation(operation string, fn func() error) error {
 func LogOperationf(format string, fn func() error, args ...interface{}) error {
 	operation := fmt.Sprintf(format, args...)
 	return LogOperation(operation, fn)
+}
+
+// ============================================================================
+// BackgroundLogger implementation
+// ============================================================================
+
+// NewBackgroundLogger creates a new background logger that writes to a PID-specific tmp file
+// The log file will be at: /tmp/gosynctasks-_internal_background_sync-{PID}.log
+func NewBackgroundLogger() (*BackgroundLogger, error) {
+	bl := &BackgroundLogger{
+		enabled: ENABLE_BACKGROUND_LOGGING,
+	}
+
+	// If logging is disabled, use a no-op logger
+	if !bl.enabled {
+		bl.logger = log.New(io.Discard, "", 0)
+		return bl, nil
+	}
+
+	// Create PID-specific log file path
+	pid := os.Getpid()
+	bl.filePath = filepath.Join(os.TempDir(), fmt.Sprintf("gosynctasks-_internal_background_sync-%d.log", pid))
+
+	// Open log file (create or append)
+	logFile, err := os.OpenFile(bl.filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		// If we can't open the log file, fall back to discard
+		bl.logger = log.New(io.Discard, "", 0)
+		bl.enabled = false
+		return bl, fmt.Errorf("failed to open log file %s: %w (logging disabled)", bl.filePath, err)
+	}
+
+	bl.logFile = logFile
+	bl.logger = log.New(logFile, "[BackgroundSync] ", log.LstdFlags)
+
+	return bl, nil
+}
+
+// Printf logs a formatted message (same signature as log.Printf)
+func (bl *BackgroundLogger) Printf(format string, v ...interface{}) {
+	if bl.logger != nil {
+		bl.logger.Printf(format, v...)
+	}
+}
+
+// Print logs a message (same signature as log.Print)
+func (bl *BackgroundLogger) Print(v ...interface{}) {
+	if bl.logger != nil {
+		bl.logger.Print(v...)
+	}
+}
+
+// Println logs a message with newline (same signature as log.Println)
+func (bl *BackgroundLogger) Println(v ...interface{}) {
+	if bl.logger != nil {
+		bl.logger.Println(v...)
+	}
+}
+
+// Close closes the log file
+func (bl *BackgroundLogger) Close() error {
+	if bl.logFile != nil {
+		return bl.logFile.Close()
+	}
+	return nil
+}
+
+// GetLogPath returns the path to the log file
+func (bl *BackgroundLogger) GetLogPath() string {
+	return bl.filePath
+}
+
+// IsEnabled returns whether logging is enabled
+func (bl *BackgroundLogger) IsEnabled() bool {
+	return bl.enabled
 }

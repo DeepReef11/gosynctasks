@@ -431,7 +431,8 @@ func (nB *NextcloudBackend) GetDeletedTaskLists() ([]backend.TaskList, error) {
 
 func (nB *NextcloudBackend) AddTask(listID string, task backend.Task) (string, error) {
 	// Set defaults
-	if task.UID == "" {
+	if task.UID == "" || strings.HasPrefix(task.UID, "pending-") {
+		// Generate a new UID if empty or if it's a pending UID from cache
 		task.UID = fmt.Sprintf("task-%d", time.Now().Unix())
 	}
 	if task.Created.IsZero() {

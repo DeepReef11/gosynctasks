@@ -1,12 +1,14 @@
 package sync
 
 import (
-	"gosynctasks/backend"
-	"gosynctasks/backend/sqlite"
 	"database/sql"
 	"fmt"
 	"strings"
 	"time"
+
+	"gosynctasks/backend"
+	"gosynctasks/backend/sqlite"
+	"gosynctasks/internal/utils"
 )
 
 // ConflictResolutionStrategy defines how to handle sync conflicts
@@ -366,9 +368,12 @@ func (sm *SyncManager) pushCreate(op sqlite.SyncOperation) error {
 
 // pushUpdate pushes an update operation to remote
 func (sm *SyncManager) pushUpdate(op sqlite.SyncOperation) error {
+	utils.Debugf("[SYNC] pushUpdate: task=%s, list=%s", op.TaskUID, op.ListID)
+
 	// Get task from local
 	tasks, err := sm.local.GetTasks(op.ListID, nil)
 	if err != nil {
+		utils.Debugf("[SYNC] ERROR getting tasks: %v", err)
 		return err
 	}
 
@@ -382,15 +387,21 @@ func (sm *SyncManager) pushUpdate(op sqlite.SyncOperation) error {
 
 	if task == nil {
 		// backend.Task was deleted locally, remove from queue
+		utils.Debugf("[SYNC] Task %s not found in local (deleted?), skipping update", op.TaskUID)
 		return nil
 	}
 
+	utils.Debugf("[SYNC] Found task: %s (status: %s)", task.Summary, task.Status)
+
 	// Update on remote
+	utils.Debugf("[SYNC] Calling remote.UpdateTask...")
 	err = sm.remote.UpdateTask(op.ListID, *task)
 	if err != nil {
+		utils.Debugf("[SYNC] ERROR updating remote: %v", err)
 		return fmt.Errorf("failed to update task on remote: %w", err)
 	}
 
+	utils.Debugf("[SYNC] ✅ Successfully updated task on remote")
 	return nil
 }
 

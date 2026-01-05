@@ -463,6 +463,12 @@ func GetConfig() *Config {
 	return globalConfig
 }
 
+// SetConfigForTest allows tests to override the global config
+// This should only be used in tests to set up test-specific configuration
+func SetConfigForTest(cfg *Config) {
+	globalConfig = cfg
+}
+
 func loadUserOrSampleConfig() (*Config, error) {
 
 	configPath, err := GetConfigPath()

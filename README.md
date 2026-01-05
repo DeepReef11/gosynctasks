@@ -5,6 +5,8 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/DeepReef11/gosynctasks)](https://goreportcard.com/report/github.com/DeepReef11/gosynctasks)
 [![License: BSD-2](https://img.shields.io/badge/License-BSD--2--Clause-darkred)](https://opensource.org/license/bsd-2-clause)
 
+##  Manage your tasks seamlessly from the comfort of your terminal
+
 A fast, flexible, multi-backend task synchronization tool written in Go. Manage your tasks across different storage backends including Nextcloud CalDAV, Todoist, Git repositories with Markdown files, and local database.
 
 ## Features

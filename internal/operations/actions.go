@@ -578,6 +578,7 @@ func triggerPushSync(syncProvider SyncCoordinatorProvider) {
 
 	// Spawn detached background process to run sync
 	// This process will outlive the parent CLI
+	// Note: spawnBackgroundSync will detect if we're in a test binary and skip spawning
 	spawnBackgroundSync(configPath)
 }
 

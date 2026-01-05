@@ -437,6 +437,91 @@ func TestNextcloudBackend_AddTask(t *testing.T) {
 	}
 }
 
+func TestNextcloudBackend_AddTask_PendingUIDReplacement(t *testing.T) {
+	var capturedUID string
+
+	// Create mock CalDAV server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Extract UID from URL path
+		parts := strings.Split(r.URL.Path, "/")
+		if len(parts) > 0 {
+			capturedUID = strings.TrimSuffix(parts[len(parts)-1], ".ics")
+		}
+
+		buf, _ := io.ReadAll(r.Body)
+		body := string(buf)
+
+		// Extract UID from iCalendar content
+		for _, line := range strings.Split(body, "\n") {
+			if strings.HasPrefix(line, "UID:") {
+				capturedUID = strings.TrimSpace(strings.TrimPrefix(line, "UID:"))
+				break
+			}
+		}
+
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer server.Close()
+
+	nb := createTestBackend(t, server.URL)
+
+	// Test 1: Task with pending UID should get replaced
+	taskWithPendingUID := backend.Task{
+		UID:     "pending-123",
+		Summary: "Task with pending UID",
+		Status:  "NEEDS-ACTION",
+	}
+
+	returnedUID, err := nb.AddTask("/calendars/testuser/tasks/", taskWithPendingUID)
+	if err != nil {
+		t.Fatalf("AddTask failed: %v", err)
+	}
+
+	if strings.HasPrefix(returnedUID, "pending-") {
+		t.Errorf("Expected pending UID to be replaced, but got: %s", returnedUID)
+	}
+
+	if !strings.HasPrefix(capturedUID, "task-") {
+		t.Errorf("Expected generated UID to start with 'task-', but got: %s", capturedUID)
+	}
+
+	if returnedUID != capturedUID {
+		t.Errorf("Returned UID (%s) doesn't match captured UID (%s)", returnedUID, capturedUID)
+	}
+
+	// Test 2: Task with empty UID should get generated
+	taskWithEmptyUID := backend.Task{
+		UID:     "",
+		Summary: "Task with empty UID",
+		Status:  "NEEDS-ACTION",
+	}
+
+	returnedUID2, err := nb.AddTask("/calendars/testuser/tasks/", taskWithEmptyUID)
+	if err != nil {
+		t.Fatalf("AddTask failed for empty UID: %v", err)
+	}
+
+	if !strings.HasPrefix(returnedUID2, "task-") {
+		t.Errorf("Expected generated UID to start with 'task-', but got: %s", returnedUID2)
+	}
+
+	// Test 3: Task with normal UID should be preserved
+	taskWithNormalUID := backend.Task{
+		UID:     "my-custom-uid-456",
+		Summary: "Task with normal UID",
+		Status:  "NEEDS-ACTION",
+	}
+
+	returnedUID3, err := nb.AddTask("/calendars/testuser/tasks/", taskWithNormalUID)
+	if err != nil {
+		t.Fatalf("AddTask failed for normal UID: %v", err)
+	}
+
+	if returnedUID3 != "my-custom-uid-456" {
+		t.Errorf("Expected normal UID to be preserved, but got: %s", returnedUID3)
+	}
+}
+
 func TestNextcloudBackend_UpdateTask(t *testing.T) {
 	var capturedMethod string
 	var capturedBody string

@@ -234,20 +234,20 @@ func (tb *TodoistBackend) UpdateTask(listID string, task backend.Task) error {
 	}
 
 	// Handle status changes AFTER updating properties
-	if task.Status == "DONE" {
+	if task.Status == "COMPLETED" {
 		// Close the task after updating
-		utils.Debugf("Todoist: Closing task %s", task.UID)
+		utils.Debugf("[TODOIST] Closing task %s (content: %s)", task.UID, task.Summary)
 		if err := tb.apiClient.CloseTask(task.UID); err != nil {
-			utils.Debugf("Todoist: Failed to close task: %v", err)
+			utils.Debugf("[TODOIST] ERROR: Failed to close task %s: %v", task.UID, err)
 			return fmt.Errorf("failed to close task: %w", err)
 		}
-		utils.Debugf("Todoist: Task %s closed successfully", task.UID)
+		utils.Debugf("[TODOIST] ✅ Task %s closed successfully", task.UID)
 	} else if task.Status == "TODO" {
 		// Reopen if it was completed
-		utils.Debugf("Todoist: Reopening task %s", task.UID)
+		utils.Debugf("[TODOIST] Reopening task %s", task.UID)
 		if err := tb.apiClient.ReopenTask(task.UID); err != nil {
 			// It might not be closed, so we'll continue
-			utils.Debugf("Todoist: Failed to reopen task (might not be closed): %v", err)
+			utils.Debugf("[TODOIST] Failed to reopen task (might not be closed): %v", err)
 		}
 	}
 

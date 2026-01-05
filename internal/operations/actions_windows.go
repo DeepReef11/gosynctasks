@@ -5,6 +5,7 @@ package operations
 import (
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 )
 
@@ -14,6 +15,12 @@ func spawnBackgroundSync(configPath string) {
 	executable, err := os.Executable()
 	if err != nil {
 		return // Silent fail - will sync on next operation
+	}
+
+	// Check if we're running from a test binary
+	// Test binaries don't have sync commands, so spawning would cause issues
+	if isTestBinary(executable) {
+		return // Don't spawn from test binaries
 	}
 
 	// Build command args with config path
@@ -38,4 +45,13 @@ func spawnBackgroundSync(configPath string) {
 	// Start and immediately detach
 	_ = cmd.Start()
 	// Don't wait - process runs independently
+}
+
+// isTestBinary checks if the executable is a test binary
+func isTestBinary(path string) bool {
+	// Test binaries typically have names like:
+	// - *.test (Linux/macOS)
+	// - *.test.exe (Windows)
+	// - Contain ".test" in the path
+	return strings.Contains(path, ".test")
 }
