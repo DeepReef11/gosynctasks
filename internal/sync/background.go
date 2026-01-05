@@ -56,7 +56,7 @@ func RunBackgroundSyncInProcess() error {
 		// Continue without logging
 	}
 	if bgLogger != nil {
-		defer bgLogger.Close()
+		defer func() { _ = bgLogger.Close() }()
 		bgLogger.Printf("Started in-process sync at %s (PID: %d)", time.Now().Format(time.RFC3339), os.Getpid())
 	}
 

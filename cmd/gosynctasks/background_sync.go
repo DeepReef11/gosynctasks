@@ -26,7 +26,9 @@ func newBackgroundSyncCmd() *cobra.Command {
 				// If logger fails to initialize, we can still continue but logging is disabled
 				// The error is already handled in NewBackgroundLogger
 			}
-			defer bgLogger.Close()
+			if bgLogger != nil {
+				defer func() { _ = bgLogger.Close() }()
+			}
 
 			bgLogger.Printf("Started at %s (PID: %d)", time.Now().Format(time.RFC3339), os.Getpid())
 			if bgLogger.IsEnabled() {
@@ -119,7 +121,9 @@ func RunBackgroundSync() error {
 	if err != nil {
 		// If logger fails to initialize, we can still continue but logging is disabled
 	}
-	defer bgLogger.Close()
+	if bgLogger != nil {
+		defer func() { _ = bgLogger.Close() }()
+	}
 
 	bgLogger.Printf("Started at %s (PID: %d)", time.Now().Format(time.RFC3339), os.Getpid())
 	if bgLogger.IsEnabled() {

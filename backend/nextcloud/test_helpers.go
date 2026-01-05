@@ -42,16 +42,16 @@ func newMockCommand() *mockCommand {
 func (m *mockCommand) withFlag(name string, value interface{}) *mockCommand {
 	switch v := value.(type) {
 	case string:
-		m.Command.Flags().Set(name, v)
+		_ = m.Command.Flags().Set(name, v)
 	case int:
-		m.Command.Flags().Set(name, string(rune(v)))
+		_ = m.Command.Flags().Set(name, string(rune(v)))
 	case bool:
 		if v {
-			m.Command.Flags().Set(name, "true")
+			_ = m.Command.Flags().Set(name, "true")
 		}
 	case []string:
 		for _, s := range v {
-			m.Command.Flags().Set(name, s)
+			_ = m.Command.Flags().Set(name, s)
 		}
 	}
 	return m
@@ -97,14 +97,14 @@ func (o *outputCapture) start() {
 	o.outC = make(chan string)
 	go func() {
 		var buf bytes.Buffer
-		io.Copy(&buf, o.r)
+		_, _ = io.Copy(&buf, o.r)
 		o.outC <- buf.String()
 	}()
 }
 
 // stop stops capturing and returns the captured output
 func (o *outputCapture) stop() string {
-	o.w.Close()
+	_ = o.w.Close()
 	os.Stdout = o.oldStdout
 	os.Stderr = o.oldStderr
 	out := <-o.outC

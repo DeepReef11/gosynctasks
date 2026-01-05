@@ -19,18 +19,18 @@ func spawnBackgroundSync(configPath string) {
 	// Debug: Log that we're attempting to spawn
 	debugLog := "/tmp/gosynctasks-spawn-debug.log"
 	if f, err := os.OpenFile(debugLog, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
-		f.WriteString(fmt.Sprintf("[%s] spawnBackgroundSync called with config: %s\n",
+		_, _ = f.WriteString(fmt.Sprintf("[%s] spawnBackgroundSync called with config: %s\n",
 			time.Now().Format(time.RFC3339), configPath))
-		f.Close()
+		_ = f.Close()
 	}
 
 	// Get current executable path
 	executable, err := os.Executable()
 	if err != nil {
 		if f, err := os.OpenFile(debugLog, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
-			f.WriteString(fmt.Sprintf("[%s] ERROR: Failed to get executable: %v\n",
+			_, _ = f.WriteString(fmt.Sprintf("[%s] ERROR: Failed to get executable: %v\n",
 				time.Now().Format(time.RFC3339), err))
-			f.Close()
+			_ = f.Close()
 		}
 		return // Silent fail - will sync on next operation
 	}
@@ -39,9 +39,9 @@ func spawnBackgroundSync(configPath string) {
 	// Test binaries don't have _internal_background_sync command, so we run sync synchronously instead
 	if isTestBinary(executable) {
 		if f, err := os.OpenFile(debugLog, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
-			f.WriteString(fmt.Sprintf("[%s] Test mode detected: running sync synchronously instead of spawning\n",
+			_, _ = f.WriteString(fmt.Sprintf("[%s] Test mode detected: running sync synchronously instead of spawning\n",
 				time.Now().Format(time.RFC3339)))
-			f.Close()
+			_ = f.Close()
 		}
 		// Run sync in a goroutine to not block the operation
 		go runSyncSynchronously(configPath)
@@ -55,9 +55,9 @@ func spawnBackgroundSync(configPath string) {
 	}
 
 	if f, err := os.OpenFile(debugLog, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
-		f.WriteString(fmt.Sprintf("[%s] Spawning: %s %v\n",
+		_, _ = f.WriteString(fmt.Sprintf("[%s] Spawning: %s %v\n",
 			time.Now().Format(time.RFC3339), executable, args))
-		f.Close()
+		_ = f.Close()
 	}
 
 	// Spawn detached process: gosynctasks _internal_background_sync --config <path>
@@ -78,13 +78,13 @@ func spawnBackgroundSync(configPath string) {
 	err = cmd.Start()
 	if f, err2 := os.OpenFile(debugLog, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err2 == nil {
 		if err != nil {
-			f.WriteString(fmt.Sprintf("[%s] ERROR starting process: %v\n",
+			_, _ = f.WriteString(fmt.Sprintf("[%s] ERROR starting process: %v\n",
 				time.Now().Format(time.RFC3339), err))
 		} else {
-			f.WriteString(fmt.Sprintf("[%s] Process spawned successfully, PID: %d\n",
+			_, _ = f.WriteString(fmt.Sprintf("[%s] Process spawned successfully, PID: %d\n",
 				time.Now().Format(time.RFC3339), cmd.Process.Pid))
 		}
-		f.Close()
+		_ = f.Close()
 	}
 	// Don't wait - process runs independently
 }
@@ -103,18 +103,18 @@ func isTestBinary(path string) bool {
 func runSyncSynchronously(configPath string) {
 	debugLog := "/tmp/gosynctasks-spawn-debug.log"
 	if f, err := os.OpenFile(debugLog, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
-		f.WriteString(fmt.Sprintf("[%s] runSyncSynchronously: running in-process sync\n",
+		_, _ = f.WriteString(fmt.Sprintf("[%s] runSyncSynchronously: running in-process sync\n",
 			time.Now().Format(time.RFC3339)))
-		f.Close()
+		_ = f.Close()
 	}
 
 	// Import and call the in-process sync from internal/sync
 	// This is the same logic as _internal_background_sync but runs in the current process
 	if err := internalSync.RunBackgroundSyncInProcess(); err != nil {
 		if f, err := os.OpenFile(debugLog, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
-			f.WriteString(fmt.Sprintf("[%s] Error running in-process sync: %v\n",
+			_, _ = f.WriteString(fmt.Sprintf("[%s] Error running in-process sync: %v\n",
 				time.Now().Format(time.RFC3339), err))
-			f.Close()
+			_ = f.Close()
 		}
 	}
 }
