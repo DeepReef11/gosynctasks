@@ -1,8 +1,8 @@
 package git
 
 import (
-	"gosynctasks/backend"
 	"fmt"
+	"gosynctasks/backend"
 	"regexp"
 	"strings"
 	"time"

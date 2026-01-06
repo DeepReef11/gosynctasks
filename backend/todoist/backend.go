@@ -83,8 +83,8 @@ func (tb *TodoistBackend) getAPIToken() (string, error) {
 	}
 
 	// No token found anywhere
-	return "", fmt.Errorf("todoist API token not found (tried: keyring, environment variables, config)\n" +
-		"Set it with: gosynctasks credentials set %s token --prompt\n" +
+	return "", fmt.Errorf("todoist API token not found (tried: keyring, environment variables, config)\n"+
+		"Set it with: gosynctasks credentials set %s token --prompt\n"+
 		"Or add 'api_token' to your config file", tb.BackendName)
 }
 

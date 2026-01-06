@@ -13,10 +13,10 @@ type BackendConfigConstructor func(config BackendConfig) (TaskManager, error)
 
 // Registry holds registered backend constructors
 type Registry struct {
-	mu                       sync.RWMutex
-	schemeConstructors       map[string]BackendConstructor
-	typeConstructors         map[string]BackendConfigConstructor
-	detectableConstructors   map[string]BackendConfigConstructor
+	mu                     sync.RWMutex
+	schemeConstructors     map[string]BackendConstructor
+	typeConstructors       map[string]BackendConfigConstructor
+	detectableConstructors map[string]BackendConfigConstructor
 }
 
 var globalRegistry = &Registry{

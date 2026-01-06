@@ -1,12 +1,9 @@
-//go:build integration
-// +build integration
-
 package sync
 
 import (
+	"fmt"
 	"gosynctasks/backend"
 	"gosynctasks/backend/sqlite"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,25 +11,6 @@ import (
 )
 
 // Integration tests that require a real Nextcloud server
-// Run with: go test -tags=integration -v ./backend/sync_integration_test.go
-//
-// Prerequisites:
-// - Start Nextcloud test server: ./scripts/start-test-server.sh
-// - Server should be at: http://localhost:8080
-// - Credentials: admin:admin123
-
-const (
-	defaultNextcloudURL = "nextcloud://admin:admin123@localhost:8080/"
-	testTimeout         = 30 * time.Second
-)
-
-// getNextcloudURL returns the Nextcloud URL from env or default
-func getNextcloudURL() string {
-	if url := os.Getenv("NEXTCLOUD_TEST_URL"); url != "" {
-		return url
-	}
-	return defaultNextcloudURL
-}
 
 // skipIfNoNextcloud skips the test if Nextcloud server is not available
 func skipIfNoNextcloud(t *testing.T) backend.TaskManager {
@@ -42,7 +20,7 @@ func skipIfNoNextcloud(t *testing.T) backend.TaskManager {
 		t.Skip("Skipping integration test (SKIP_INTEGRATION=1)")
 	}
 
-	url := getNextcloudURL()
+	url := os.Getenv("GOSYNCTASKS_NEXTCLOUD_HOST")
 	config := backend.BackendConfig{
 		Type:                "nextcloud",
 		Enabled:             true,
@@ -53,7 +31,7 @@ func skipIfNoNextcloud(t *testing.T) backend.TaskManager {
 		SuppressSSLWarning:  true,
 	}
 
-	backend, err := config.backend.TaskManager()
+	backend, err := config.TaskManager()
 	if err != nil {
 		t.Skipf("Nextcloud server not available: %v", err)
 	}
@@ -141,7 +119,7 @@ func TestSyncPushToNextcloud(t *testing.T) {
 		Modified: now,
 	}
 
-	_, _, err = err = local.AddTask(testListID, localTask)
+	_, err = local.AddTask(testListID, localTask)
 	if err != nil {
 		t.Fatalf("Failed to add local task: %v", err)
 	}
@@ -240,7 +218,7 @@ func TestSyncPullFromNextcloud(t *testing.T) {
 		Modified: now,
 	}
 
-	_, _, err = err = remote.AddTask(testListID, remoteTask)
+	_, err = remote.AddTask(testListID, remoteTask)
 	if err != nil {
 		t.Fatalf("Failed to add remote task: %v", err)
 	}
@@ -340,7 +318,7 @@ func TestSyncBidirectional(t *testing.T) {
 		Created:  now,
 		Modified: now,
 	}
-	_, _, err = err = local.AddTask(testListID, localTask)
+	_, err = local.AddTask(testListID, localTask)
 	if err != nil {
 		t.Fatalf("Failed to add local task: %v", err)
 	}
@@ -358,7 +336,7 @@ func TestSyncBidirectional(t *testing.T) {
 		Created:  now,
 		Modified: now,
 	}
-	_, _, err = err = remote.AddTask(testListID, remoteTask)
+	_, err = remote.AddTask(testListID, remoteTask)
 	if err != nil {
 		t.Fatalf("Failed to add remote task: %v", err)
 	}
@@ -420,7 +398,7 @@ func TestSyncConflictResolution(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		strategy backend.ConflictResolutionStrategy
+		strategy ConflictResolutionStrategy
 	}{
 		{"ServerWins", ServerWins},
 		{"LocalWins", LocalWins},
@@ -479,7 +457,7 @@ func TestSyncConflictResolution(t *testing.T) {
 				Created:     now,
 				Modified:    now,
 			}
-			_, _, err = err = remote.AddTask(testListID, remoteTask)
+			_, err = remote.AddTask(testListID, remoteTask)
 			if err != nil {
 				t.Fatalf("Failed to add remote task: %v", err)
 			}
@@ -623,7 +601,7 @@ func TestSyncDeleteTask(t *testing.T) {
 		Created:  now,
 		Modified: now,
 	}
-	_, _, err = err = local.AddTask(testListID, task)
+	_, err = local.AddTask(testListID, task)
 	if err != nil {
 		t.Fatalf("Failed to add task: %v", err)
 	}

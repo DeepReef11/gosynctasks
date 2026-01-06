@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
-
 )
 
 // mockTodoistServer creates a test HTTP server that mimics Todoist API

@@ -1,8 +1,8 @@
 package nextcloud
 
 import (
-	"gosynctasks/backend"
 	"fmt"
+	"gosynctasks/backend"
 	"strconv"
 	"strings"
 	"time"

@@ -350,12 +350,12 @@ func (c *Config) GetSyncPairs() []SyncPair {
 		}
 
 		pairs = append(pairs, SyncPair{
-			RemoteBackendName:  name,                          // The remote backend to cache
-			CacheDatabasePath:  "",                            // Will be set by GetCacheDatabasePath
-			ConflictResolution: c.Sync.ConflictResolution,     // From global config
-			AutoSync:           c.Sync.AutoSync,               // From global config
-			SyncInterval:       c.Sync.SyncInterval,           // From global config
-			OfflineMode:        c.Sync.OfflineMode,            // From global config
+			RemoteBackendName:  name,                      // The remote backend to cache
+			CacheDatabasePath:  "",                        // Will be set by GetCacheDatabasePath
+			ConflictResolution: c.Sync.ConflictResolution, // From global config
+			AutoSync:           c.Sync.AutoSync,           // From global config
+			SyncInterval:       c.Sync.SyncInterval,       // From global config
+			OfflineMode:        c.Sync.OfflineMode,        // From global config
 		})
 	}
 

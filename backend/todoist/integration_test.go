@@ -1,11 +1,11 @@
 package todoist
 
 import (
+	"github.com/joho/godotenv"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
-	"github.com/joho/godotenv"
 
 	"gosynctasks/backend"
 	"gosynctasks/backend/sqlite"
@@ -13,7 +13,6 @@ import (
 	"gosynctasks/internal/config"
 	"gosynctasks/internal/operations"
 )
-
 
 func TestTodoistBackendIntegration_API(t *testing.T) {
 	// Try to load .env file from project root (best effort, ignore errors)
@@ -273,8 +272,7 @@ func TestTodoistDirectOperationsIntegration(t *testing.T) {
 		t.Fatalf("Task %s not found after creation", taskUID)
 	}
 
-
-			time.Sleep(100 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// Test 2: Complete the task (THIS IS THE CRITICAL TEST)
 	createdTask.Status = "COMPLETED"
@@ -534,7 +532,7 @@ func TestTodoistWithSyncOperationsIntegration(t *testing.T) {
 		t.Errorf("Expected pending UID, got: %s", addedTask.UID)
 	}
 
-			time.Sleep(100 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// ============================================================
 	// TEST 2: Sync to push task to Todoist
@@ -585,7 +583,7 @@ func TestTodoistWithSyncOperationsIntegration(t *testing.T) {
 		t.Errorf("BUG: UID is still pending after sync! UID: %s", syncedTask.UID)
 	}
 
-			time.Sleep(100 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	// ============================================================
 	// TEST 3: Complete task using HandleCompleteAction (operations layer)
 	// ============================================================
@@ -635,7 +633,7 @@ func TestTodoistWithSyncOperationsIntegration(t *testing.T) {
 		t.Error("Task not marked as completed in cache")
 	}
 
-			time.Sleep(100 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	// ============================================================
 	// TEST 4: Sync to push completion to Todoist
 	// ============================================================
@@ -665,7 +663,7 @@ func TestTodoistWithSyncOperationsIntegration(t *testing.T) {
 		}
 	}
 
-			time.Sleep(100 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	// ============================================================
 	// TEST 5: Delete task using HandleDeleteAction (operations layer)
 	// ============================================================
@@ -871,5 +869,3 @@ func TestTodoistUIDUpdateAfterSyncIntegration(t *testing.T) {
 		t.Logf("Warning: failed to delete test task: %v", err)
 	}
 }
-
-

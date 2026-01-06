@@ -1,9 +1,9 @@
 package sync
 
 import (
+	"fmt"
 	"gosynctasks/backend"
 	"gosynctasks/backend/sqlite"
-	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
