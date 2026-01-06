@@ -279,22 +279,6 @@ backends:
       offline_mode: auto
 ```
 
-**LEGACY: Global Sync Configuration (Deprecated)**
-
-The old global sync config is still supported for backward compatibility:
-
-```yaml
-sync:
-  enabled: true
-  local_backend: local
-  remote_backend: nextcloud
-  conflict_resolution: server_wins
-  auto_sync: true
-  sync_interval: 5
-```
-
-This will be automatically migrated to per-backend sync at runtime.
-
 **Auto-Sync Behavior:**
 
 When `auto_sync: true`:
@@ -718,6 +702,11 @@ gosynctasks sync --full
 # Clear and re-sync if needed
 rm ~/.local/share/gosynctasks/tasks.db
 gosynctasks sync
+
+# If still not syncing, try launching sync directly with --backend argument, for instance:
+gosynctasks --backend nextcloud-test sync
+
+# If still not working, make sure sync is enabled in config and that the used backend is also enabled
 ```
 
 #### 3. Duplicate Tasks

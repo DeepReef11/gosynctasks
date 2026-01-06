@@ -4,7 +4,7 @@
 
 ### Add a new backend service
 
-To add a new backend service, the `TaskManager` interface must be implemented.
+To add a new backend service, the `TaskManager` interface must be implemented. Status are currently string and are not well defined, should be changed in the futur to be enum.
 
 ### Quick Commands (Makefile)
 

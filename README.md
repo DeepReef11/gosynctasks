@@ -42,6 +42,23 @@ go build -o gosynctasks ./cmd/gosynctasks
 go install ./cmd/gosynctasks
 ```
 
+
+### Shell Completion
+
+```bash
+# Zsh
+eval "$(gosynctasks completion zsh)"
+
+# Bash
+eval "$(gosynctasks completion bash)"
+
+# Fish
+gosynctasks completion fish | source
+
+# PowerShell
+gosynctasks completion powershell | Out-String | Invoke-Expression
+```
+
 ### Configuration
 
 ```bash
@@ -126,6 +143,8 @@ backend_priority:
 ui: cli
 ```
 
+See `./internal/config/config.sample.yaml` for more details
+
 ## Credentials Storage
 
 ###  System Keyring (Recommended)
@@ -172,7 +191,7 @@ todoist:
 
 ### Environment Variables
 
-For CI/CD or containerized environments:
+For CI/CD or containerized environments, use `.env` (see `.env.example`) or:
 
 **Nextcloud:**
 ```bash
@@ -341,6 +360,9 @@ gosynctasks credentials set todoist token --prompt
 ```
 
 **Option 2: Environment Variables**
+
+You can use `.env` and source it (see .env.example) or:
+
 ```bash
 export GOSYNCTASKS_TODOIST_PASSWORD="your-api-token-here"
 ```
@@ -455,21 +477,6 @@ gosynctasks list trash restore "List"    # Restore from trash
 gosynctasks list trash empty "List"      # Permanently delete
 ```
 
-### Shell Completion
-
-```bash
-# Zsh
-eval "$(gosynctasks completion zsh)"
-
-# Bash
-eval "$(gosynctasks completion bash)"
-
-# Fish
-gosynctasks completion fish | source
-
-# PowerShell
-gosynctasks completion powershell | Out-String | Invoke-Expression
-```
 
 
 ## Configuration Examples
@@ -547,6 +554,7 @@ Contributions are welcome! Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md)
 - Cross-backend task migration
 - More cloud service backends (Google Tasks, Microsoft To Do)
 - Documentation website
+- Tui/Gui
 
 ## Support
 

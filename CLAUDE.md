@@ -20,7 +20,7 @@ go test ./...                                  # Run all tests
 ./scripts/start-test-server.sh                # Start Docker test server
 
 # Test function (use with Docker test server)
-gst() { go run ./cmd/gosynctasks --config ./gosynctasks/config "$@"; }
+go run ./cmd/gosynctasks --config ./gosynctasks/config "$@"; 
 ```
 
 ### Common Commands
