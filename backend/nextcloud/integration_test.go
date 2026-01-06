@@ -52,7 +52,7 @@ func createNextcloudBackend(t *testing.T) (*NextcloudBackend, error) {
 }
 
 // TestNextcloudDirectOperations tests Nextcloud backend operations without sync
-func TestNextcloudDirectOperations(t *testing.T) {
+func TestNextcloudDirectOperationsIntegration(t *testing.T) {
 	// Check for required environment variables
 	ncURL := os.Getenv("GOSYNCTASKS_NEXTCLOUD_HOST")
 	ncUser := os.Getenv("GOSYNCTASKS_NEXTCLOUD_USERNAME")
@@ -225,7 +225,7 @@ func TestNextcloudDirectOperations(t *testing.T) {
 // This is the REAL test that should catch the UID mismatch bug
 // Uses operations layer (HandleAddAction, HandleCompleteAction, etc.)
 // instead of calling backend methods directly
-func TestNextcloudWithSyncOperations(t *testing.T) {
+func TestNextcloudWithSyncOperationsIntegration(t *testing.T) {
 	// Check for required environment variables
 	ncURL := os.Getenv("GOSYNCTASKS_NEXTCLOUD_HOST")
 	ncUser := os.Getenv("GOSYNCTASKS_NEXTCLOUD_USERNAME")
@@ -621,7 +621,7 @@ func TestNextcloudWithSyncOperations(t *testing.T) {
 }
 
 // TestNextcloudUIDUpdateAfterSync verifies that pending UIDs are updated after sync
-func TestNextcloudUIDUpdateAfterSync(t *testing.T) {
+func TestNextcloudUIDUpdateAfterSyncIntegration(t *testing.T) {
 	// Check for required environment variables
 	ncURL := os.Getenv("GOSYNCTASKS_NEXTCLOUD_HOST")
 	ncUser := os.Getenv("GOSYNCTASKS_NEXTCLOUD_USERNAME")
@@ -756,7 +756,7 @@ func TestNextcloudUIDUpdateAfterSync(t *testing.T) {
 		t.Errorf("BUG DETECTED: UID was NOT updated after sync! Still pending: %s", finalUID)
 		t.Error("This is why complete and delete don't work - they're using the wrong UID!")
 	} else {
-		t.Logf("✅ UID correctly updated from %s to %s", pendingUID, finalUID)
+		t.Logf("UID correctly updated from %s to %s", pendingUID, finalUID)
 	}
 
 	// Cleanup task before calendar cleanup

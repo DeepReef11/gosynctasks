@@ -64,6 +64,16 @@ Each backend name gets its own keyring entry. You can have as many backends as n
 
 Good for CI/CD and containers.
 
+With `.env`;
+```bash
+cp .env.example .env
+
+# Edit .env 
+
+```
+
+Or in terminal:
+
 ```bash
 export GOSYNCTASKS_NEXTCLOUD_USERNAME=myuser
 export GOSYNCTASKS_NEXTCLOUD_PASSWORD=secret
@@ -92,26 +102,6 @@ nextcloud:
 When multiple sources exist: **Keyring > Environment Variables > Config URL**
 
 This allows overriding config URL credentials without modifying the config file.
-
-## Migration from Config URL to Keyring
-
-```bash
-# 1. Store in keyring
-gosynctasks credentials set nextcloud myuser --prompt
-
-# 2. Update config: Remove password from URL
-# Before: url: "nextcloud://myuser:mypassword@nextcloud.example.com"
-# After:  host: "nextcloud.example.com"
-#         username: "myuser"
-
-# 3. Verify
-gosynctasks credentials get nextcloud myuser
-gosynctasks nextcloud  # Test connection
-
-# 4. Safe to commit (no credentials in config)
-git add config.yaml
-git commit -m "Migrate to keyring credentials"
-```
 
 ## Platform-Specific Setup
 
@@ -142,14 +132,6 @@ env:
 run: ./gosynctasks sync
 ```
 
-**GitLab CI:**
-```yaml
-script:
-  - export GOSYNCTASKS_NEXTCLOUD_USERNAME=$NEXTCLOUD_USER
-  - export GOSYNCTASKS_NEXTCLOUD_PASSWORD=$NEXTCLOUD_PASS
-  - ./gosynctasks sync
-```
-
 ## Troubleshooting
 
 **Keyring not available:**
@@ -171,10 +153,6 @@ gosynctasks credentials set nextcloud myuser --prompt  # Keyring
 export GOSYNCTASKS_NEXTCLOUD_USERNAME=...              # Environment
 # Or add URL to config (not recommended)
 ```
-
-### Auto-sync will be disabled/Error: failed to get remote backend config
-
-- Make sure the sync 
 
 ## Reporting Security Issues
 

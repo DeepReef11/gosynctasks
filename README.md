@@ -2,29 +2,12 @@
 
 [![CI](https://github.com/DeepReef11/gosynctasks/actions/workflows/ci.yml/badge.svg)](https://github.com/DeepReef11/gosynctasks/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/DeepReef11/gosynctasks/branch/main/graph/badge.svg)](https://codecov.io/gh/DeepReef11/gosynctasks)
-[![Go Report Card](https://goreportcard.com/badge/github.com/DeepReef11/gosynctasks)](https://goreportcard.com/report/github.com/DeepReef11/gosynctasks)
+
 [![License: BSD-2](https://img.shields.io/badge/License-BSD--2--Clause-darkred)](https://opensource.org/license/bsd-2-clause)
 
 ##  Manage your tasks seamlessly from the comfort of your terminal
 
 A fast, flexible, multi-backend task synchronization tool written in Go. Manage your tasks across different storage backends including Nextcloud CalDAV, Todoist, Git repositories with Markdown files, and local database.
-
-## Features
-
-- **Multi-Backend Support**: Work with multiple task storage backends simultaneously
-- **Todoist Integration**: Full REST API v2 support with secure credential storage
-- **Offline Sync**: Local SQLite cache with bidirectional synchronization to remote backends
-- **Git/Markdown Backend**: Manage tasks directly in markdown files within git repositories
-- **Nextcloud CalDAV**: Full CRUD support for Nextcloud Tasks
-- **Auto-Detection**: Automatically detect and use the appropriate backend based on context
-- **Secure Credentials**: Keyring, environment variables, or config file support
-- **Flexible CLI**: Intuitive command-line interface with completion support
-- **Hierarchical Tasks**: Support for subtasks and parent-child relationships
-- **Custom Views**: Create custom task views with filtering, sorting, and custom formatting
-- **Task Filtering**: Filter by status, priority, tags, and dates
-- **Interactive Mode**: User-friendly interactive list and task selection
-- **Conflict Resolution**: Four strategies for handling sync conflicts (server_wins, local_wins, merge, keep_both)
-- **Offline Queue**: Work offline and automatically sync when reconnected
 
 ## Quick Start
 
@@ -64,7 +47,7 @@ gosynctasks completion powershell | Out-String | Invoke-Expression
 ```bash
 # Launch gosynctasks once to create the config file sample
 gosynctasks 
-# Configure sync (see SQLite Backend configuration above)
+# Configure sync (see SQLite Backend configuration below)
 
 # Set credentials
 gosynctasks credentials set backend-name my-user --prompt
@@ -91,7 +74,6 @@ Here is a basic configuration using local sync, Nextcloud as a remote and automa
 
 ```yaml
 backends:
-
   # Use this line to name the backend 
   example-backend-name:
     type: nextcloud
@@ -156,76 +138,17 @@ Store credentials securely in your OS keyring (macOS Keychain, Windows Credentia
 # Store credentials securely (interactive password prompt)
 gosynctasks credentials set nextcloud myuser --prompt
 
-# Verify credentials
-gosynctasks credentials get nextcloud myuser
-```
-
-**Config example:**
-```yaml
-nextcloud:
-  type: nextcloud
-  enabled: true
-  host: "nextcloud.example.com"
-  username: "myuser"
-  # Password retrieved from keyring automatically
-```
 
 **For API Token backends (Todoist):**
 ```bash
 # Store API token as "password" with "token" as username hint
 gosynctasks credentials set todoist token --prompt
-# Enter your API token when prompted
-
-# Verify
-gosynctasks credentials get todoist token
 ```
 
-**Config example:**
-```yaml
-todoist:
-  type: todoist
-  enabled: true
-  username: "token"  # Username hint for keyring lookup
-  # API token retrieved from keyring automatically
-```
 
 ### Environment Variables
 
-For CI/CD or containerized environments, use `.env` (see `.env.example`) or:
-
-**Nextcloud:**
-```bash
-export GOSYNCTASKS_NEXTCLOUD_USERNAME=myuser
-export GOSYNCTASKS_NEXTCLOUD_PASSWORD=secret
-export GOSYNCTASKS_NEXTCLOUD_HOST=nextcloud.example.com
-```
-
-**Todoist:**
-```bash
-export GOSYNCTASKS_TODOIST_PASSWORD="your-api-token-here"
-```
-
-### Credentials in Config (Not Recommended)
-
-**Nextcloud URL format:**
-```yaml
-nextcloud:
-  type: nextcloud
-  enabled: true
-  url: "nextcloud://username:password@nextcloud.example.com"
-```
-
-**Todoist api_token field:**
-```yaml
-todoist:
-  type: todoist
-  enabled: true
-  api_token: "your-api-token-here"
-```
-
-⚠️ **Warning:** Plain text credentials in config files are not recommended for production use.
-
-**Credential Priority:** Keyring > Environment Variables > Config File
+For CI/CD or containerized environments, use `.env` (see `.env.example`).
 
 For more details, see [SECURITY.md](SECURITY.md).
 
@@ -233,7 +156,7 @@ For more details, see [SECURITY.md](SECURITY.md).
 
 ### Git Backend
 
-The Git backend allows you to manage tasks directly in markdown files within git repositories. Perfect for keeping tasks alongside your code!
+The Git backend allows you to manage tasks directly in markdown files within git repositories.
 
 **Setup:**
 
@@ -245,7 +168,6 @@ The Git backend allows you to manage tasks directly in markdown files within git
 
 ```markdown
 <!-- gosynctasks:enabled -->
-
 ## Work Tasks
 - [ ] Review PR #123 @priority:1 @due:2025-01-20
 - [x] Deploy to staging @completed:2025-01-10
@@ -268,14 +190,6 @@ The Git backend allows you to manage tasks directly in markdown files within git
 - `@completed:YYYY-MM-DD` - Completion date
 - `@uid:string` - Unique identifier (auto-generated)
 
-**Features:**
-- ✅ Auto-detection in git repositories
-- ✅ Preserves markdown formatting
-- ✅ Full CRUD operations
-- ✅ Optional auto-commit
-- ✅ Unicode and emoji support
-- ✅ Works with any markdown renderer (GitHub, GitLab, etc.)
-
 ### Nextcloud Backend
 
 Full CalDAV support for Nextcloud Tasks with complete CRUD operations.
@@ -286,20 +200,11 @@ nextcloud:
   enabled: true
   host: "nextcloud.example.com"
   username: "myuser"
-  # Password retrieved from keyring automatically
 ```
 
 ### SQLite Backend
 
 Local SQLite database that can be used for offline synchronization with remote backends to get fast operations.
-
-**Features:**
-- ✅ Offline mode - work without network connectivity
-- ✅ Bidirectional sync with Nextcloud
-- ✅ **Auto-sync with background daemon** - instant operations, sync happens after
-- ✅ Conflict resolution (4 strategies)
-- ✅ Operation queuing and retry logic
-- ✅ Efficient sync with CTags/ETags
 
 **Configuration:**
 ```yaml
@@ -308,36 +213,18 @@ backends:
     type: sqlite
     enabled: true
     db_path: ""  # Empty = use XDG default (~/.local/share/gosynctasks/tasks.db)
-  nextcloud:
-    type: nextcloud
-    enabled: true
-    url: nextcloud://user:pass@server.com
 
 sync:
   enabled: true
-  local_backend: sqlite
-  remote_backend: nextcloud
-  conflict_resolution: server_wins
   auto_sync: true        # Enable background daemon sync
-  sync_interval: 5       # Minutes before data considered stale
-
-backend_priority:
-  - nextcloud  # Local backend auto-selected when sync enabled
+  local_backend: sqlite
+  conflict_resolution: server_wins
 ```
 
-**Note:** When `sync.enabled = true`, the CLI automatically uses `sqlite` for all operations and the `backend_priority` only applies when sync is disabled.
 
 ### Todoist Backend
 
-Cloud-based task management service with full API integration. Perfect for cross-platform sync and mobile access.
-
-**Features:**
-- ✅ Full CRUD operations via Todoist REST API v2
-- ✅ Projects (mapped to task lists)
-- ✅ Tasks with priorities, due dates, and labels
-- ✅ Subtasks support (parent-child relationships)
-- ✅ Secure credential storage (keyring, environment, or config)
-- ✅ Smart priority mapping (Todoist 1-4 ↔ gosynctasks 0-9)
+Cloud-based task management service with full API integration. 
 
 **Configuration:**
 
@@ -347,39 +234,7 @@ backends:
     type: todoist
     enabled: true
     username: "token"  # Username hint for keyring (use "token" for API keys)
-    # API token retrieved from keyring
 ```
-
-**Credential Priority:** Keyring > Environment Variables > Config File
-
-**Option 1: Keyring (Recommended)**
-```bash
-# Get API token from https://todoist.com/app/settings/integrations
-gosynctasks credentials set todoist token --prompt
-# Enter your API token when prompted
-```
-
-**Option 2: Environment Variables**
-
-You can use `.env` and source it (see .env.example) or:
-
-```bash
-export GOSYNCTASKS_TODOIST_PASSWORD="your-api-token-here"
-```
-
-**Option 3: Config File (Less Secure)**
-```yaml
-todoist:
-  type: todoist
-  enabled: true
-  api_token: "your-api-token-here"
-```
-
-**Data Mapping:**
-- **Priority**: Todoist 4 (urgent) → gosynctasks 1 (highest)
-- **Status**: is_completed → TODO/DONE (PROCESSING/CANCELLED via labels)
-- **Projects**: Todoist projects → gosynctasks task lists
-- **Subtasks**: parent_id → ParentUID
 
 **Get your API token:** https://todoist.com/app/settings/integrations
 
