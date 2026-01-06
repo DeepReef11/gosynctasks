@@ -3,8 +3,7 @@
 #
 # Configuration Priority:
 # 1. --config flag (explicit path)
-# 2. ./gosynctasks/config.yaml (project-local config)
-# 3. ~/.config/gosynctasks/config.yaml (user config)
+# 2. ~/.config/gosynctasks/config.yaml (user config)
 
 # =============================================================================
 # BACKENDS - Configure multiple storage backends
@@ -36,7 +35,10 @@ backends:
     #   gosynctasks credentials set nextcloud myuser --prompt
 
     # Option 2: Environment Variables (Good for CI/CD)
-    # Set these environment variables instead of host/username/url:
+    # Set these environment variables instead of host/username/url ):
+    #   cp .env.example .env
+    #   edit .env
+    #  or
     #   export GOSYNCTASKS_NEXTCLOUD_HOST=nextcloud.example.com
     #   export GOSYNCTASKS_NEXTCLOUD_USERNAME=myuser
     #   export GOSYNCTASKS_NEXTCLOUD_PASSWORD=secret
@@ -89,8 +91,10 @@ backends:
 
     # Option 2: Environment Variables (Good for CI/CD)
     # Set these environment variables instead:
+    #   cp .env.example .env
+    #   edit .env
+    #  or
     #   export GOSYNCTASKS_TODOIST_PASSWORD="your-api-token-here"
-    # Config can be minimal (just type and enabled)
 
     # Option 3: Config File (Simple but less secure)
     # Store API token directly in config (plain text)
@@ -123,7 +127,6 @@ backend_priority:
 # Global sync configuration applies to ALL remote backends.
 # When enabled, all remote backends (nextcloud, todoist, etc.) share a single
 # cache database at: ~/.local/share/gosynctasks/cache.db
-# Backends are isolated by the backend_name column in the database.
 #
 # Remote backends can opt-out by setting: sync: {enabled: false}
 

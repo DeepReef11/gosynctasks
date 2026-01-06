@@ -143,6 +143,8 @@ backend_priority:
 ui: cli
 ```
 
+See `./internal/config/config.sample.yaml` for more details
+
 ## Credentials Storage
 
 ###  System Keyring (Recommended)
