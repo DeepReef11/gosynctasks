@@ -131,7 +131,7 @@ jobs:
           echo "Running Todoist sync integration tests..."
           go test -v -timeout 15m ./backend/todoist/ -run Integration 
         env:
-          TODOIST_API_KEY: ${{ secrets.TODOIST_API_KEY }}
+          TODOIST_API_TOKEN: ${{ secrets.TODOIST_API_KEY }}
         continue-on-error: false
 
   security:
