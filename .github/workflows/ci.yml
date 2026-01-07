@@ -50,7 +50,7 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   integration:
-    runs-on: ubuntu-latest-large
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -128,8 +128,16 @@ jobs:
 
       - name: Run Todoist integration tests
         run: |
-          echo "Running Todoist sync integration tests..."
-          go test -v -timeout 15m ./backend/todoist/ -run Integration 
+          echo "Running Todoist integration tests..."
+           go test -short -v -timeout 15m ./backend/todoist/ -run "TestTodoistBackendIntegration_API|TestTodoistDirectOperationsIntegration|TestTodoistUIDUpdateAfterSyncIntegration"
+        env:
+          TODOIST_API_TOKEN: ${{ secrets.TODOIST_API_KEY }}
+        continue-on-error: false
+
+      - name: Run Todoist integration tests with sync
+        run: |
+          echo "Running Todoist integration tests with sync..."
+          go test -v -timeout 15m ./backend/todoist/ -run TestTodoistWithSyncOperationsIntegration
         env:
           TODOIST_API_TOKEN: ${{ secrets.TODOIST_API_KEY }}
         continue-on-error: false
