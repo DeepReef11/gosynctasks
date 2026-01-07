@@ -1,10 +1,10 @@
 package git
 
 import (
-	"gosynctasks/backend"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"gosynctasks/backend"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,11 +27,11 @@ func newGitBackendWrapper(config backend.BackendConfig) (backend.TaskManager, er
 // Tasks are stored in markdown format with a special marker to enable gosynctasks.
 type GitBackend struct {
 	config       backend.BackendConfig
-	RepoPath     string            // Absolute path to git repository root
-	FilePath     string            // Absolute path to task file (e.g., TODO.md)
+	RepoPath     string                    // Absolute path to git repository root
+	FilePath     string                    // Absolute path to task file (e.g., TODO.md)
 	taskLists    map[string][]backend.Task // Tasks organized by list name (## headers)
-	fileModTime  time.Time         // Last modification time of file
-	detectedInfo string            // Human-readable detection info
+	fileModTime  time.Time                 // Last modification time of file
+	detectedInfo string                    // Human-readable detection info
 }
 
 const (

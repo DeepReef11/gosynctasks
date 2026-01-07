@@ -267,12 +267,12 @@ Examples:
 				var response string
 				n, err := fmt.Scanln(&response)
 				if err != nil {
-						fmt.Println("Error reading input:", err)
-						return nil
+					fmt.Println("Error reading input:", err)
+					return nil
 				}
 				if n == 0 {
-						fmt.Println("No input was provided")
-						return nil
+					fmt.Println("No input was provided")
+					return nil
 				}
 				response = strings.ToLower(strings.TrimSpace(response))
 				if response != "y" && response != "yes" {

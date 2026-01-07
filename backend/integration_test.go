@@ -111,9 +111,6 @@ func TestBasicSyncWorkflow(t *testing.T) {
 	if !found {
 		t.Error("Remote backend does not have the locally modified task")
 	}
-
-	t.Logf("✅ Basic sync workflow completed successfully (pulled: %d, pushed: %d)",
-		result.PulledTasks, result.PushedTasks)
 }
 
 // TestOfflineModeWorkflow tests offline operations with queue management
@@ -213,7 +210,6 @@ func TestOfflineModeWorkflow(t *testing.T) {
 		t.Errorf("Expected 3 remote tasks after sync, got %d", len(remoteTasks))
 	}
 
-	t.Logf("✅ Offline mode workflow completed successfully (queued: 3, pushed: %d)", result.PushedTasks)
 }
 
 // TestConflictResolutionScenarios tests all four conflict resolution strategies
@@ -338,7 +334,6 @@ func TestConflictResolutionScenarios(t *testing.T) {
 				}
 			}
 
-			t.Logf("✅ %s strategy resolved conflict correctly", strategy.name)
 		})
 	}
 }
@@ -418,8 +413,6 @@ func TestLargeDatasetPerformance(t *testing.T) {
 		t.Errorf("Expected %d local tasks, got %d", taskCount, len(localTasks))
 	}
 
-	t.Logf("✅ Large dataset performance test passed: %d tasks synced in %v (%.2f tasks/sec)",
-		taskCount, duration, float64(taskCount)/duration.Seconds())
 }
 
 // TestErrorRecoveryWithRetry tests error handling and retry logic
@@ -522,7 +515,6 @@ func TestErrorRecoveryWithRetry(t *testing.T) {
 		t.Errorf("Expected 1 remote task after retry, got %d", len(remoteTasks))
 	}
 
-	t.Logf("✅ Error recovery with retry completed successfully")
 }
 
 // TestConcurrentSyncOperations tests concurrent access to sync manager (race condition detection)
@@ -573,8 +565,6 @@ func TestConcurrentSyncOperations(t *testing.T) {
 		errorCount++
 	}
 
-	// We expect some errors due to concurrent access, but no crashes/panics
-	t.Logf("✅ Concurrent operations completed (errors: %d) - no race conditions detected", errorCount)
 }
 
 // TestHierarchicalTaskSync tests syncing tasks with parent-child relationships
@@ -653,6 +643,4 @@ func TestHierarchicalTaskSync(t *testing.T) {
 	if child.ParentUID != "parent-task" {
 		t.Errorf("Expected child ParentUID 'parent-task', got '%s'", child.ParentUID)
 	}
-
-	t.Logf("✅ Hierarchical task sync completed successfully")
 }

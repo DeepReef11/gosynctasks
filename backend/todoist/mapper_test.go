@@ -136,7 +136,7 @@ func TestToTask(t *testing.T) {
 
 func TestPriorityMapping_TodoistToGosynctasks(t *testing.T) {
 	tests := []struct {
-		todoistPriority int
+		todoistPriority  int
 		expectedPriority int
 	}{
 		{4, 1}, // Urgent → Highest
@@ -288,7 +288,7 @@ func TestToCreateTaskRequest(t *testing.T) {
 
 func TestPriorityMapping_GosynctasksToTodoist(t *testing.T) {
 	tests := []struct {
-		gosynctasksPriority int
+		gosynctasksPriority     int
 		expectedTodoistPriority int
 	}{
 		{1, 4}, // Highest → Urgent

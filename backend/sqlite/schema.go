@@ -1,7 +1,7 @@
 package sqlite
 
 // Schema version for migration management
-const SchemaVersion = 3  // Incremented for internal_id/uid separation
+const SchemaVersion = 3 // Incremented for internal_id/uid separation
 
 // SQL statements for database schema creation
 

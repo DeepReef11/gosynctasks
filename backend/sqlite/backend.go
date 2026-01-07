@@ -1,9 +1,9 @@
 package sqlite
 
 import (
-	"gosynctasks/backend"
 	"database/sql"
 	"fmt"
+	"gosynctasks/backend"
 	"strings"
 	"time"
 

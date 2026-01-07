@@ -52,7 +52,7 @@ func createNextcloudBackend(t *testing.T) (*NextcloudBackend, error) {
 }
 
 // TestNextcloudDirectOperations tests Nextcloud backend operations without sync
-func TestNextcloudDirectOperations(t *testing.T) {
+func TestNextcloudDirectOperationsIntegration(t *testing.T) {
 	// Check for required environment variables
 	ncURL := os.Getenv("GOSYNCTASKS_NEXTCLOUD_HOST")
 	ncUser := os.Getenv("GOSYNCTASKS_NEXTCLOUD_USERNAME")
@@ -169,7 +169,7 @@ func TestNextcloudDirectOperations(t *testing.T) {
 		t.Fatalf("Task %s not found after creation", taskUID)
 	}
 
-		time.Sleep(100 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// Test 2: Complete the task (THIS IS THE CRITICAL TEST)
 	createdTask.Status = "COMPLETED"
@@ -180,7 +180,7 @@ func TestNextcloudDirectOperations(t *testing.T) {
 	t.Logf("Successfully completed task %s", taskUID)
 
 	// Verify task is completed
-		time.Sleep(100 * time.Millisecond) // Give Nextcloud API time to process
+	time.Sleep(100 * time.Millisecond) // Give Nextcloud API time to process
 	tasks, err = nb.GetTasks(testCalendarID, nil)
 	if err != nil {
 		t.Fatalf("Failed to get tasks after complete: %v", err)
@@ -199,7 +199,7 @@ func TestNextcloudDirectOperations(t *testing.T) {
 		t.Errorf("Task %s is still active after completion", taskUID)
 	}
 
-		time.Sleep(100 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	// Test 3: Delete the task (THIS IS ANOTHER CRITICAL TEST)
 	err = nb.DeleteTask(testCalendarID, taskUID)
 	if err != nil {
@@ -208,7 +208,7 @@ func TestNextcloudDirectOperations(t *testing.T) {
 	t.Logf("Successfully deleted task %s", taskUID)
 
 	// Verify task is deleted
-		time.Sleep(100 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	tasks, err = nb.GetTasks(testCalendarID, nil)
 	if err != nil {
 		t.Fatalf("Failed to get tasks after delete: %v", err)
@@ -225,7 +225,7 @@ func TestNextcloudDirectOperations(t *testing.T) {
 // This is the REAL test that should catch the UID mismatch bug
 // Uses operations layer (HandleAddAction, HandleCompleteAction, etc.)
 // instead of calling backend methods directly
-func TestNextcloudWithSyncOperations(t *testing.T) {
+func TestNextcloudWithSyncOperationsIntegration(t *testing.T) {
 	// Check for required environment variables
 	ncURL := os.Getenv("GOSYNCTASKS_NEXTCLOUD_HOST")
 	ncUser := os.Getenv("GOSYNCTASKS_NEXTCLOUD_USERNAME")
@@ -361,10 +361,10 @@ func TestNextcloudWithSyncOperations(t *testing.T) {
 	cfg := &config.Config{
 		DateFormat: "2006-01-02",
 		Sync: &config.SyncConfig{
-			Enabled:             true,
-			AutoSync:            true,
-			LocalBackend:        "sqlite",
-			ConflictResolution:  "server_wins",
+			Enabled:            true,
+			AutoSync:           true,
+			LocalBackend:       "sqlite",
+			ConflictResolution: "server_wins",
 		},
 		Backends: map[string]backend.BackendConfig{
 			"nextcloud": {
@@ -482,7 +482,7 @@ func TestNextcloudWithSyncOperations(t *testing.T) {
 		t.Errorf("BUG: UID is still pending after sync! UID: %s", syncedTask.UID)
 	}
 
-		time.Sleep(100 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	// ============================================================
 	// TEST 3: Complete task using HandleCompleteAction (operations layer)
 	// ============================================================
@@ -533,7 +533,7 @@ func TestNextcloudWithSyncOperations(t *testing.T) {
 		t.Error("Task not marked as completed in cache")
 	}
 
-		time.Sleep(100 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	// ============================================================
 	// TEST 4: Sync to push completion to Nextcloud
 	// ============================================================
@@ -563,7 +563,7 @@ func TestNextcloudWithSyncOperations(t *testing.T) {
 		}
 	}
 
-		time.Sleep(100 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	// ============================================================
 	// TEST 5: Delete task using backend (HandleDeleteAction requires confirmation)
 	// ============================================================
@@ -593,7 +593,7 @@ func TestNextcloudWithSyncOperations(t *testing.T) {
 	}
 	t.Logf("Task deleted from cache")
 
-		time.Sleep(100 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	// ============================================================
 	// TEST 6: Sync to push deletion to Nextcloud
 	// ============================================================
@@ -621,7 +621,7 @@ func TestNextcloudWithSyncOperations(t *testing.T) {
 }
 
 // TestNextcloudUIDUpdateAfterSync verifies that pending UIDs are updated after sync
-func TestNextcloudUIDUpdateAfterSync(t *testing.T) {
+func TestNextcloudUIDUpdateAfterSyncIntegration(t *testing.T) {
 	// Check for required environment variables
 	ncURL := os.Getenv("GOSYNCTASKS_NEXTCLOUD_HOST")
 	ncUser := os.Getenv("GOSYNCTASKS_NEXTCLOUD_USERNAME")
@@ -756,7 +756,7 @@ func TestNextcloudUIDUpdateAfterSync(t *testing.T) {
 		t.Errorf("BUG DETECTED: UID was NOT updated after sync! Still pending: %s", finalUID)
 		t.Error("This is why complete and delete don't work - they're using the wrong UID!")
 	} else {
-		t.Logf("✅ UID correctly updated from %s to %s", pendingUID, finalUID)
+		t.Logf("UID correctly updated from %s to %s", pendingUID, finalUID)
 	}
 
 	// Cleanup task before calendar cleanup

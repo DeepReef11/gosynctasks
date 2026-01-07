@@ -1,8 +1,8 @@
 package todoist
 
 import (
-	"gosynctasks/backend"
 	"fmt"
+	"gosynctasks/backend"
 	"strings"
 	"time"
 )

@@ -1,6 +1,7 @@
 package todoist
 
 import (
+	"github.com/joho/godotenv"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,8 +14,149 @@ import (
 	"gosynctasks/internal/operations"
 )
 
+func TestTodoistBackendIntegration_API(t *testing.T) {
+	// Try to load .env file from project root (best effort, ignore errors)
+	_ = godotenv.Load("../../.env")
+
+	apiToken := os.Getenv("TODOIST_API_TOKEN")
+	if apiToken == "" {
+		t.Skip("Skipping integration test: TODOIST_API_TOKEN not set")
+	}
+
+	config := backend.BackendConfig{
+		Type:     "todoist",
+		Name:     "todoist",
+		Enabled:  true,
+		APIToken: apiToken,
+	}
+
+	tb, err := NewTodoistBackend(config)
+	if err != nil {
+		t.Fatalf("NewTodoistBackend() error = %v", err)
+	}
+
+	// Test GetTaskLists
+	t.Run("GetTaskLists", func(t *testing.T) {
+		lists, err := tb.GetTaskLists()
+		if err != nil {
+			t.Fatalf("GetTaskLists() error = %v", err)
+		}
+		if len(lists) == 0 {
+			t.Log("No projects found (this is OK for a new account)")
+		} else {
+			t.Logf("Found %d projects", len(lists))
+			t.Logf("First project: %s (ID: %s)", lists[0].Name, lists[0].ID)
+		}
+	})
+
+	// Test creating, updating, and deleting a test project
+	t.Run("ProjectLifecycle", func(t *testing.T) {
+		// Create test project
+		testProjectName := "gosynctasks-test-" + time.Now().Format("20060102-150405")
+		projectID, err := tb.CreateTaskList(testProjectName, "Test project", "grey")
+		if err != nil {
+			t.Fatalf("CreateTaskList() error = %v", err)
+		}
+		t.Logf("Created test project: %s", projectID)
+
+		// Cleanup at the end
+		defer func() {
+			if err := tb.DeleteTaskList(projectID); err != nil {
+				t.Errorf("Cleanup: DeleteTaskList() error = %v", err)
+			} else {
+				t.Log("Cleaned up test project")
+			}
+		}()
+
+		// Rename project
+		newName := testProjectName + "-renamed"
+		if err := tb.RenameTaskList(projectID, newName); err != nil {
+			t.Fatalf("RenameTaskList() error = %v", err)
+		}
+
+		// Verify rename
+		lists, err := tb.GetTaskLists()
+		if err != nil {
+			t.Fatalf("GetTaskLists() after rename error = %v", err)
+		}
+		found := false
+		for _, list := range lists {
+			if list.ID == projectID && list.Name == newName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Renamed project not found or name not updated")
+		}
+	})
+
+	// Test task operations
+	t.Run("TaskOperations", func(t *testing.T) {
+		// Create a temporary project for testing
+		testProjectName := "gosynctasks-task-test-" + time.Now().Format("20060102-150405")
+		projectID, err := tb.CreateTaskList(testProjectName, "Test tasks", "grey")
+		if err != nil {
+			t.Fatalf("CreateTaskList() error = %v", err)
+		}
+
+		defer func() {
+			tb.DeleteTaskList(projectID)
+		}()
+
+		// Add a task
+		dueDate := time.Now().Add(24 * time.Hour)
+		newTask := backend.Task{
+			Summary:     "Integration Test Task",
+			Description: "This is a test task created by integration tests",
+			Priority:    1,
+			Categories:  []string{"test", "integration"},
+			DueDate:     &dueDate,
+		}
+
+		if _, err := tb.AddTask(projectID, newTask); err != nil {
+			t.Fatalf("AddTask() error = %v", err)
+		}
+		t.Log("Created test task")
+
+		// Get tasks
+		tasks, err := tb.GetTasks(projectID, nil)
+		if err != nil {
+			t.Fatalf("GetTasks() error = %v", err)
+		}
+
+		if len(tasks) == 0 {
+			t.Fatal("Expected at least one task")
+		}
+
+		testTask := tasks[0]
+		t.Logf("Retrieved task: %s (ID: %s)", testTask.Summary, testTask.UID)
+
+		// Update task
+		testTask.Summary = "Updated Integration Test Task"
+		testTask.Priority = 5
+		if err := tb.UpdateTask(projectID, testTask); err != nil {
+			t.Fatalf("UpdateTask() error = %v", err)
+		}
+		t.Log("Updated task")
+
+		// Mark as done
+		testTask.Status = "DONE"
+		if err := tb.UpdateTask(projectID, testTask); err != nil {
+			t.Fatalf("UpdateTask(DONE) error = %v", err)
+		}
+		t.Log("Marked task as done")
+
+		// Delete task
+		if err := tb.DeleteTask(projectID, testTask.UID); err != nil {
+			t.Fatalf("DeleteTask() error = %v", err)
+		}
+		t.Log("Deleted task")
+	})
+}
+
 // TestTodoistDirectOperations tests Todoist backend operations without sync
-func TestTodoistDirectOperations(t *testing.T) {
+func TestTodoistDirectOperationsIntegration(t *testing.T) {
 	apiToken := os.Getenv("TODOIST_API_TOKEN")
 	if apiToken == "" {
 		t.Skip("TODOIST_API_TOKEN not set, skipping Todoist integration tests")
@@ -130,8 +272,7 @@ func TestTodoistDirectOperations(t *testing.T) {
 		t.Fatalf("Task %s not found after creation", taskUID)
 	}
 
-
-			time.Sleep(100 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// Test 2: Complete the task (THIS IS THE CRITICAL TEST)
 	createdTask.Status = "COMPLETED"
@@ -184,10 +325,7 @@ func TestTodoistDirectOperations(t *testing.T) {
 }
 
 // TestTodoistWithSyncOperations tests Todoist operations WITH sync enabled
-// This is the REAL test that should catch the UID mismatch bug
-// REFACTORED: Now uses operations layer (HandleAddAction, HandleCompleteAction, etc.)
-// instead of calling backend methods directly
-func TestTodoistWithSyncOperations(t *testing.T) {
+func TestTodoistWithSyncOperationsIntegration(t *testing.T) {
 	apiToken := os.Getenv("TODOIST_API_TOKEN")
 	if apiToken == "" {
 		t.Skip("TODOIST_API_TOKEN not set, skipping Todoist sync integration tests")
@@ -394,7 +532,7 @@ func TestTodoistWithSyncOperations(t *testing.T) {
 		t.Errorf("Expected pending UID, got: %s", addedTask.UID)
 	}
 
-			time.Sleep(100 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// ============================================================
 	// TEST 2: Sync to push task to Todoist
@@ -445,7 +583,7 @@ func TestTodoistWithSyncOperations(t *testing.T) {
 		t.Errorf("BUG: UID is still pending after sync! UID: %s", syncedTask.UID)
 	}
 
-			time.Sleep(100 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	// ============================================================
 	// TEST 3: Complete task using HandleCompleteAction (operations layer)
 	// ============================================================
@@ -495,7 +633,7 @@ func TestTodoistWithSyncOperations(t *testing.T) {
 		t.Error("Task not marked as completed in cache")
 	}
 
-			time.Sleep(100 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	// ============================================================
 	// TEST 4: Sync to push completion to Todoist
 	// ============================================================
@@ -525,7 +663,7 @@ func TestTodoistWithSyncOperations(t *testing.T) {
 		}
 	}
 
-			time.Sleep(100 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	// ============================================================
 	// TEST 5: Delete task using HandleDeleteAction (operations layer)
 	// ============================================================
@@ -587,7 +725,7 @@ func TestTodoistWithSyncOperations(t *testing.T) {
 }
 
 // TestTodoistUIDUpdateAfterSync verifies that pending UIDs are updated after sync
-func TestTodoistUIDUpdateAfterSync(t *testing.T) {
+func TestTodoistUIDUpdateAfterSyncIntegration(t *testing.T) {
 	apiToken := os.Getenv("TODOIST_API_TOKEN")
 	if apiToken == "" {
 		t.Skip("TODOIST_API_TOKEN not set")
@@ -723,7 +861,7 @@ func TestTodoistUIDUpdateAfterSync(t *testing.T) {
 		t.Errorf("BUG DETECTED: UID was NOT updated after sync! Still pending: %s", finalUID)
 		t.Error("This is why complete and delete don't work - they're using the wrong UID!")
 	} else {
-		t.Logf("✅ UID correctly updated from %s to %s", pendingUID, finalUID)
+		t.Logf("UID correctly updated from %s to %s", pendingUID, finalUID)
 	}
 
 	// Cleanup task before list cleanup

@@ -53,24 +53,24 @@ type Project struct {
 
 // TodoistTask represents a task from Todoist API
 type TodoistTask struct {
-	ID            string   `json:"id"`
-	ProjectID     string   `json:"project_id"`
-	SectionID     string   `json:"section_id,omitempty"`
-	Content       string   `json:"content"`
-	Description   string   `json:"description"`
-	IsCompleted   bool     `json:"is_completed"`
-	Labels        []string `json:"labels"`
-	ParentID      string   `json:"parent_id,omitempty"`
-	Order         int      `json:"order"`
-	Priority      int      `json:"priority"` // 1=normal, 2, 3, 4=urgent
-	Due           *Due     `json:"due,omitempty"`
-	URL           string   `json:"url"`
-	CommentCount  int      `json:"comment_count"`
-	CreatedAt     string   `json:"created_at"` // RFC3339 format
-	CreatorID     string   `json:"creator_id"`
-	AssigneeID    string   `json:"assignee_id,omitempty"`
-	AssignerID    string   `json:"assigner_id,omitempty"`
-	Duration      *Duration `json:"duration,omitempty"`
+	ID           string    `json:"id"`
+	ProjectID    string    `json:"project_id"`
+	SectionID    string    `json:"section_id,omitempty"`
+	Content      string    `json:"content"`
+	Description  string    `json:"description"`
+	IsCompleted  bool      `json:"is_completed"`
+	Labels       []string  `json:"labels"`
+	ParentID     string    `json:"parent_id,omitempty"`
+	Order        int       `json:"order"`
+	Priority     int       `json:"priority"` // 1=normal, 2, 3, 4=urgent
+	Due          *Due      `json:"due,omitempty"`
+	URL          string    `json:"url"`
+	CommentCount int       `json:"comment_count"`
+	CreatedAt    string    `json:"created_at"` // RFC3339 format
+	CreatorID    string    `json:"creator_id"`
+	AssigneeID   string    `json:"assignee_id,omitempty"`
+	AssignerID   string    `json:"assigner_id,omitempty"`
+	Duration     *Duration `json:"duration,omitempty"`
 }
 
 // Due represents task due date information
@@ -100,7 +100,7 @@ type CreateTaskRequest struct {
 	Labels      []string `json:"labels,omitempty"`
 	Priority    int      `json:"priority,omitempty"` // 1-4
 	DueString   string   `json:"due_string,omitempty"`
-	DueDate     string   `json:"due_date,omitempty"` // YYYY-MM-DD
+	DueDate     string   `json:"due_date,omitempty"`     // YYYY-MM-DD
 	DueDatetime string   `json:"due_datetime,omitempty"` // RFC3339
 	DueLang     string   `json:"due_lang,omitempty"`
 	AssigneeID  string   `json:"assignee_id,omitempty"`

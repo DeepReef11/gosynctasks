@@ -32,10 +32,10 @@ func TestValidatePriority(t *testing.T) {
 
 func TestParseDateFlag(t *testing.T) {
 	tests := []struct {
-		name      string
-		dateFlag  string
-		wantDate  *time.Time
-		wantErr   bool
+		name     string
+		dateFlag string
+		wantDate *time.Time
+		wantErr  bool
 	}{
 		{
 			name:     "empty string returns nil",

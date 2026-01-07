@@ -104,7 +104,7 @@ jobs:
       - name: Run Nextcloud integration tests
         run: |
           echo "Running Nextcloud sync integration tests..."
-          go test -v -timeout 15m -tags=integration ./backend -run "TestSync"
+          go test -v -timeout 15m ./backend/nextcloud/ -run Integration 
         env:
           NEXTCLOUD_TEST_URL: "nextcloud://admin:admin123@localhost:8080/"
         continue-on-error: false
@@ -125,6 +125,22 @@ jobs:
           docker compose down -v 2>/dev/null || true
           docker ps -q | xargs -r docker stop 2>/dev/null || true
           docker system prune -f || true
+
+      - name: Run Todoist integration tests
+        run: |
+          echo "Running Todoist integration tests..."
+           go test -short -v -timeout 15m ./backend/todoist/ -run "TestTodoistBackendIntegration_API|TestTodoistDirectOperationsIntegration|TestTodoistUIDUpdateAfterSyncIntegration"
+        env:
+          TODOIST_API_TOKEN: ${{ secrets.TODOIST_API_KEY }}
+        continue-on-error: false
+
+      - name: Run Todoist integration tests with sync
+        run: |
+          echo "Running Todoist integration tests with sync..."
+          go test -v -timeout 15m ./backend/todoist/ -run TestTodoistWithSyncOperationsIntegration
+        env:
+          TODOIST_API_TOKEN: ${{ secrets.TODOIST_API_KEY }}
+        continue-on-error: false
 
   security:
     runs-on: ubuntu-latest

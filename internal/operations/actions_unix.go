@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strings"
 	"syscall"
+	"testing"
 	"time"
 
 	internalSync "gosynctasks/internal/sync"
@@ -37,7 +38,8 @@ func spawnBackgroundSync(configPath string) {
 
 	// Check if we're running from a test binary (e.g., nextcloud.test)
 	// Test binaries don't have _internal_background_sync command, so we run sync synchronously instead
-	if isTestBinary(executable) {
+
+	if testing.Testing()  {
 		if f, err := os.OpenFile(debugLog, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); err == nil {
 			_, _ = f.WriteString(fmt.Sprintf("[%s] Test mode detected: running sync synchronously instead of spawning\n",
 				time.Now().Format(time.RFC3339)))
