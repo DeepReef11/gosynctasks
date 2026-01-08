@@ -91,6 +91,33 @@ func (a *App) GetTaskManager() backend.TaskManager {
 	return a.taskManager
 }
 
+// GetRemoteBackend returns the remote backend when sync is enabled, otherwise returns the main task manager
+// This is used for list operations which should be performed on the remote, not the cache
+func (a *App) GetRemoteBackend() backend.TaskManager {
+	// If sync is not enabled, just return the main task manager
+	if a.config.Sync == nil || !a.config.Sync.Enabled {
+		return a.taskManager
+	}
+
+	// Determine which remote backend to use
+	var remoteBackendName string
+	if a.config.DefaultBackend != "" {
+		remoteBackendName = a.config.DefaultBackend
+	} else if len(a.config.BackendPriority) > 0 {
+		remoteBackendName = a.config.BackendPriority[0]
+	}
+
+	// Try to get the remote backend from registry
+	if remoteBackendName != "" {
+		if remoteBackend, err := a.registry.GetBackend(remoteBackendName); err == nil {
+			return remoteBackend
+		}
+	}
+
+	// Fallback to the main task manager
+	return a.taskManager
+}
+
 // RefreshTaskLists refreshes the task list cache from the backend
 func (a *App) RefreshTaskLists() error {
 	lists, err := cache.RefreshAndCacheTaskLists(a.taskManager)
@@ -106,6 +133,28 @@ func (a *App) RefreshTaskLists() error {
 func (a *App) RefreshTaskListsOrWarn() {
 	if err := a.RefreshTaskLists(); err != nil {
 		fmt.Printf("Warning: failed to refresh cache: %v\n", err)
+	}
+}
+
+// RefreshTaskListsFromRemote refreshes the task list cache from the remote backend (when sync is enabled)
+// This is used after list operations to ensure the cache is up-to-date with the remote
+func (a *App) RefreshTaskListsFromRemote() error {
+	// Get the remote backend
+	remoteBackend := a.GetRemoteBackend()
+
+	// Fetch lists from remote
+	lists, err := cache.RefreshAndCacheTaskLists(remoteBackend)
+	if err != nil {
+		return err
+	}
+	a.taskLists = lists
+	return nil
+}
+
+// RefreshTaskListsFromRemoteOrWarn is a convenience wrapper that prints a warning on error
+func (a *App) RefreshTaskListsFromRemoteOrWarn() {
+	if err := a.RefreshTaskListsFromRemote(); err != nil {
+		fmt.Printf("Warning: failed to refresh cache from remote: %v\n", err)
 	}
 }
 

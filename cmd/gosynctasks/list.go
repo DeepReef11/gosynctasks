@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"gosynctasks/backend"
+	"gosynctasks/internal/config"
 	"gosynctasks/internal/operations"
 	"gosynctasks/internal/utils"
 
@@ -35,6 +36,9 @@ Examples:
   gosynctasks list info --all                           # Show all lists with details
   gosynctasks list info "Work Tasks" --json             # JSON output`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Refresh task lists from remote (uses cache backend when sync disabled)
+			application.RefreshTaskListsFromRemoteOrWarn()
+
 			// Default action: show all lists (simple view)
 			taskLists := application.GetTaskLists()
 			if len(taskLists) == 0 {
@@ -83,20 +87,34 @@ The color parameter is Nextcloud-specific and will be ignored by other backends.
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 
-			// Get task manager from application
-			taskManager := application.GetTaskManager()
+			// Get remote backend for list operations (bypasses cache when sync enabled)
+			taskManager := application.GetRemoteBackend()
 			if taskManager == nil {
 				return fmt.Errorf("task manager not initialized")
 			}
 
-			// Create the list
+			// Create the list on remote backend
 			listID, err := taskManager.CreateTaskList(name, description, color)
 			if err != nil {
 				return fmt.Errorf("failed to create list: %w", err)
 			}
 
-			// Clear cache
-			application.RefreshTaskListsOrWarn()
+			// If sync is enabled, trigger a sync to pull the new list into the SQLite cache
+			cfg := config.GetConfig()
+			if cfg.Sync != nil && cfg.Sync.Enabled {
+				// Get explicit backend from parent command's --backend flag
+				explicitBackend, _ := cmd.Root().PersistentFlags().GetString("backend")
+
+				// Perform sync to pull the new list into cache (quiet mode)
+				if err := performSync(cfg, explicitBackend, true); err != nil {
+					// Log warning but don't fail - the list was created successfully
+					fmt.Printf("Warning: list created on remote but sync failed: %v\n", err)
+					fmt.Println("Run 'gosynctasks sync' to manually sync the new list to your cache")
+				}
+			}
+
+			// Refresh cache from remote to include the new list in memory
+			application.RefreshTaskListsFromRemoteOrWarn()
 
 			fmt.Printf("List '%s' created successfully (ID: %s)\n", name, listID)
 			return nil
@@ -126,11 +144,14 @@ WARNING: This permanently deletes the list and all its tasks.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 
-			// Get task manager from application
-			taskManager := application.GetTaskManager()
+			// Get remote backend for list operations (bypasses cache when sync enabled)
+			taskManager := application.GetRemoteBackend()
 			if taskManager == nil {
 				return fmt.Errorf("task manager not initialized")
 			}
+
+			// Refresh task lists from backend
+			application.RefreshTaskListsFromRemoteOrWarn()
 
 			// Find the list by name
 			taskLists := application.GetTaskLists()
@@ -159,13 +180,22 @@ WARNING: This permanently deletes the list and all its tasks.`,
 				}
 			}
 
-			// Delete the list
+			// Delete the list from remote backend
 			if err := taskManager.DeleteTaskList(listID); err != nil {
 				return fmt.Errorf("failed to delete list: %w", err)
 			}
 
+			// If sync is enabled, trigger a sync to update the SQLite cache
+			cfg := config.GetConfig()
+			if cfg.Sync != nil && cfg.Sync.Enabled {
+				explicitBackend, _ := cmd.Root().PersistentFlags().GetString("backend")
+				if err := performSync(cfg, explicitBackend, true); err != nil {
+					fmt.Printf("Warning: list deleted on remote but sync failed: %v\n", err)
+				}
+			}
+
 			// Clear cache
-			application.RefreshTaskListsOrWarn()
+			application.RefreshTaskListsFromRemoteOrWarn()
 
 			fmt.Printf("List '%s' deleted successfully.\n", name)
 			return nil
@@ -193,11 +223,14 @@ By default, prompts for confirmation.`,
 			oldName := args[0]
 			newName := args[1]
 
-			// Get task manager from application
-			taskManager := application.GetTaskManager()
+			// Get remote backend for list operations (bypasses cache when sync enabled)
+			taskManager := application.GetRemoteBackend()
 			if taskManager == nil {
 				return fmt.Errorf("task manager not initialized")
 			}
+
+			// Refresh task lists from backend
+			application.RefreshTaskListsFromRemoteOrWarn()
 
 			// Find the old list by name
 			taskLists := application.GetTaskLists()
@@ -224,13 +257,22 @@ By default, prompts for confirmation.`,
 				}
 			}
 
-			// Rename the list
+			// Rename the list on remote backend
 			if err := taskManager.RenameTaskList(listID, newName); err != nil {
 				return fmt.Errorf("failed to rename list: %w", err)
 			}
 
+			// If sync is enabled, trigger a sync to update the SQLite cache
+			cfg := config.GetConfig()
+			if cfg.Sync != nil && cfg.Sync.Enabled {
+				explicitBackend, _ := cmd.Root().PersistentFlags().GetString("backend")
+				if err := performSync(cfg, explicitBackend, true); err != nil {
+					fmt.Printf("Warning: list renamed on remote but sync failed: %v\n", err)
+				}
+			}
+
 			// Clear cache
-			application.RefreshTaskListsOrWarn()
+			application.RefreshTaskListsFromRemoteOrWarn()
 
 			fmt.Printf("List renamed from '%s' to '%s' successfully.\n", oldName, newName)
 			return nil
@@ -265,6 +307,9 @@ Use --json or --yaml for machine-readable output.`,
 			if taskManager == nil {
 				return fmt.Errorf("task manager not initialized")
 			}
+
+			// Refresh task lists from backend
+			application.RefreshTaskListsFromRemoteOrWarn()
 
 			taskLists := application.GetTaskLists()
 
@@ -465,11 +510,14 @@ The list will be restored to its original state before deletion.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 
-			// Get task manager from application
-			taskManager := application.GetTaskManager()
+			// Get remote backend for list operations (bypasses cache when sync enabled)
+			taskManager := application.GetRemoteBackend()
 			if taskManager == nil {
 				return fmt.Errorf("task manager not initialized")
 			}
+
+			// Refresh task lists from backend (needed to ensure cache is updated)
+			application.RefreshTaskListsFromRemoteOrWarn()
 
 			// Find the list in trash by name
 			deletedLists, err := taskManager.GetDeletedTaskLists()
@@ -482,13 +530,22 @@ The list will be restored to its original state before deletion.`,
 				return fmt.Errorf("list '%s' not found in trash", name)
 			}
 
-			// Restore the list
+			// Restore the list on remote backend
 			if err := taskManager.RestoreTaskList(listID); err != nil {
 				return fmt.Errorf("failed to restore list: %w", err)
 			}
 
+			// If sync is enabled, trigger a sync to update the SQLite cache
+			cfg := config.GetConfig()
+			if cfg.Sync != nil && cfg.Sync.Enabled {
+				explicitBackend, _ := cmd.Root().PersistentFlags().GetString("backend")
+				if err := performSync(cfg, explicitBackend, true); err != nil {
+					fmt.Printf("Warning: list restored on remote but sync failed: %v\n", err)
+				}
+			}
+
 			// Clear cache
-			application.RefreshTaskListsOrWarn()
+			application.RefreshTaskListsFromRemoteOrWarn()
 
 			fmt.Printf("List '%s' restored successfully.\n", name)
 			return nil
@@ -515,11 +572,14 @@ Use --force to skip the confirmation prompt.
 WARNING: This permanently and irreversibly deletes the list and all its tasks.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Get task manager from application
-			taskManager := application.GetTaskManager()
+			// Get remote backend for list operations (bypasses cache when sync enabled)
+			taskManager := application.GetRemoteBackend()
 			if taskManager == nil {
 				return fmt.Errorf("task manager not initialized")
 			}
+
+			// Refresh task lists from backend (needed to ensure cache is updated)
+			application.RefreshTaskListsFromRemoteOrWarn()
 
 			// Get deleted lists
 			deletedLists, err := taskManager.GetDeletedTaskLists()
@@ -571,7 +631,7 @@ WARNING: This permanently and irreversibly deletes the list and all its tasks.`,
 				}
 			}
 
-			// Delete the lists
+			// Delete the lists from remote backend
 			deletedCount := 0
 			for _, list := range listsToDelete {
 				if err := taskManager.PermanentlyDeleteTaskList(list.ID); err != nil {
@@ -582,7 +642,7 @@ WARNING: This permanently and irreversibly deletes the list and all its tasks.`,
 			}
 
 			// Clear cache
-			application.RefreshTaskListsOrWarn()
+			application.RefreshTaskListsFromRemoteOrWarn()
 
 			if emptyAll {
 				fmt.Printf("Successfully permanently deleted %d lists from trash.\n", deletedCount)

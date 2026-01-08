@@ -95,6 +95,14 @@ jobs:
             exit 1
           fi
 
+      - name: Run Todoist integration tests with sync
+        run: |
+          echo "Running Todoist integration tests with sync..."
+          go test -v -timeout 15m ./backend/todoist/ -run Integration
+        env:
+          TODOIST_API_TOKEN: ${{ secrets.TODOIST_API_KEY }}
+        continue-on-error: false
+
       - name: Run integration tests
         run: |
           echo "Running integration tests..."
@@ -126,21 +134,7 @@ jobs:
           docker ps -q | xargs -r docker stop 2>/dev/null || true
           docker system prune -f || true
 
-      - name: Run Todoist integration tests
-        run: |
-          echo "Running Todoist integration tests..."
-           go test -short -v -timeout 15m ./backend/todoist/ -run "TestTodoistBackendIntegration_API|TestTodoistDirectOperationsIntegration|TestTodoistUIDUpdateAfterSyncIntegration"
-        env:
-          TODOIST_API_TOKEN: ${{ secrets.TODOIST_API_KEY }}
-        continue-on-error: false
 
-      - name: Run Todoist integration tests with sync
-        run: |
-          echo "Running Todoist integration tests with sync..."
-          go test -v -timeout 15m ./backend/todoist/ -run TestTodoistWithSyncOperationsIntegration
-        env:
-          TODOIST_API_TOKEN: ${{ secrets.TODOIST_API_KEY }}
-        continue-on-error: false
 
   security:
     runs-on: ubuntu-latest

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -89,15 +88,6 @@ func spawnBackgroundSync(configPath string) {
 		_ = f.Close()
 	}
 	// Don't wait - process runs independently
-}
-
-// isTestBinary checks if the executable is a test binary
-func isTestBinary(path string) bool {
-	// Test binaries typically have names like:
-	// - *.test (Linux/macOS)
-	// - *.test.exe (Windows, but this is Unix file)
-	// - Contain ".test" in the path
-	return strings.Contains(path, ".test")
 }
 
 // runSyncSynchronously runs sync in the current process (used in test mode)

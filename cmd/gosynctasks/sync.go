@@ -451,6 +451,68 @@ func getSyncBackends(cfg *config.Config, explicitBackend string) (*sqlite.SQLite
 	return cacheBackend, remoteBackend, nil
 }
 
+// performSync executes a sync operation between local and remote backends
+// This is a helper function used by both the sync command and list operations
+func performSync(cfg *config.Config, explicitBackend string, quiet bool) error {
+	// Check if sync is enabled
+	syncPairs := cfg.GetSyncPairs()
+	hasPerBackendSync := len(syncPairs) > 0
+	hasGlobalSync := cfg.Sync != nil && cfg.Sync.Enabled
+
+	if !hasPerBackendSync && !hasGlobalSync {
+		if !quiet {
+			return utils.ErrSyncNotEnabled()
+		}
+		return nil // Silent return if sync not enabled in quiet mode
+	}
+
+	// Get backends for sync
+	localBackend, remoteBackend, err := getSyncBackends(cfg, explicitBackend)
+	if err != nil {
+		return err
+	}
+
+	// Check if offline
+	isOffline, offlineReason := isBackendOffline(remoteBackend)
+	if isOffline {
+		if !quiet {
+			fmt.Printf("⚠ Offline mode: %s\n", offlineReason)
+			fmt.Println("Working with local cache. Changes will be synced when online.")
+		}
+		return nil
+	}
+
+	// Determine conflict resolution strategy
+	var strategy sync.ConflictResolutionStrategy
+	if hasPerBackendSync {
+		strategy = sync.ConflictResolutionStrategy(syncPairs[0].ConflictResolution)
+	} else {
+		strategy = sync.ConflictResolutionStrategy(cfg.Sync.ConflictResolution)
+	}
+	if strategy == "" {
+		strategy = sync.ServerWins
+	}
+
+	// Create sync manager and perform sync
+	sm := sync.NewSyncManager(localBackend, remoteBackend, strategy)
+
+	if !quiet {
+		utils.Debugf("Syncing with remote backend...")
+	}
+
+	result, err := sm.Sync()
+	if err != nil {
+		return fmt.Errorf("sync failed: %w", err)
+	}
+
+	// Display results if not quiet
+	if !quiet && (result.PulledTasks > 0 || result.PushedTasks > 0) {
+		utils.Debugf("Sync completed: pulled %d tasks, pushed %d tasks", result.PulledTasks, result.PushedTasks)
+	}
+
+	return nil
+}
+
 // isBackendOffline checks if the backend is reachable
 func isBackendOffline(taskManager backend.TaskManager) (bool, string) {
 	// Try to get task lists with timeout

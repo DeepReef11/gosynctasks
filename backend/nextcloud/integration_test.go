@@ -112,7 +112,6 @@ func TestNextcloudDirectOperationsIntegration(t *testing.T) {
 		// ============================================================
 		t.Log("Cleanup: Deleting test calendar via DeleteTaskList...")
 
-		// This is exactly how the CLI deletes calendars (cmd/gosynctasks/list.go:163)
 		if err := nb.DeleteTaskList(testCalendarID); err != nil {
 			t.Errorf("Failed to delete test calendar: %v", err)
 			return
