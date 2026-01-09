@@ -433,7 +433,8 @@ func (nB *NextcloudBackend) AddTask(listID string, task backend.Task) (string, e
 	// Set defaults
 	if task.UID == "" || strings.HasPrefix(task.UID, "pending-") {
 		// Generate a new UID if empty or if it's a pending UID from cache
-		task.UID = fmt.Sprintf("task-%d", time.Now().Unix())
+		// Use UnixNano() for nanosecond precision to ensure uniqueness
+		task.UID = fmt.Sprintf("task-%d", time.Now().UnixNano())
 	}
 	if task.Created.IsZero() {
 		task.Created = time.Now()
@@ -530,8 +531,8 @@ func (nB *NextcloudBackend) DeleteTask(listID string, taskUID string) error {
 func (nB *NextcloudBackend) CreateTaskList(name, description, color string) (string, error) {
 	// Generate a unique list ID from the name (lowercase, replace spaces with dashes)
 	listID := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
-	// Add timestamp to ensure uniqueness
-	listID = fmt.Sprintf("%s-%d", listID, time.Now().Unix())
+	// Add timestamp to ensure uniqueness (use UnixNano for nanosecond precision)
+	listID = fmt.Sprintf("%s-%d", listID, time.Now().UnixNano())
 
 	// Build the MKCALENDAR request body
 	mkcolBody := `<?xml version="1.0" encoding="utf-8" ?>

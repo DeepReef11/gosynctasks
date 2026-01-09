@@ -255,8 +255,16 @@ func (sm *SyncManager) push() (*pushResult, error) {
 		return nil, fmt.Errorf("failed to get pending operations: %w", err)
 	}
 
+	fmt.Printf("[SYNC PUSH] Found %d pending operations\n", len(operations))
+	for i, op := range operations {
+		fmt.Printf("[SYNC PUSH] Op %d: %s task %s (list: %s, retry: %d)\n",
+			i+1, op.Operation, op.TaskUID, op.ListID, op.RetryCount)
+	}
+
 	// Process each operation
-	for _, op := range operations {
+	for i, op := range operations {
+		fmt.Printf("[SYNC PUSH] Processing operation %d/%d: %s task %s\n",
+			i+1, len(operations), op.Operation, op.TaskUID)
 		// Skip if too many retries
 		if op.RetryCount >= 5 {
 			continue
@@ -276,6 +284,10 @@ func (sm *SyncManager) push() (*pushResult, error) {
 		}
 
 		if pushErr != nil {
+			// Log the error for debugging
+			fmt.Printf("[SYNC PUSH] ERROR processing %s operation for task %s: %v\n",
+				op.Operation, op.TaskUID, pushErr)
+
 			// Increment retry count
 			db, err := sm.local.GetDB()
 			if err != nil {
@@ -291,13 +303,18 @@ func (sm *SyncManager) push() (*pushResult, error) {
 				return nil, fmt.Errorf("failed to update retry count: %w", err)
 			}
 
+			fmt.Printf("[SYNC PUSH] Retry count incremented to %d for task %s\n",
+				op.RetryCount+1, op.TaskUID)
+
 			// Apply exponential backoff
 			backoffSeconds := 1 << op.RetryCount // 2^retryCount
 			if backoffSeconds > 300 {
 				backoffSeconds = 300 // Max 5 minutes
 			}
+			fmt.Printf("[SYNC PUSH] Sleeping for %d seconds before continuing...\n", backoffSeconds)
 			time.Sleep(time.Duration(backoffSeconds) * time.Second)
 		} else {
+			fmt.Printf("[SYNC PUSH] ✅ Successfully pushed task %s\n", op.TaskUID)
 			// Success - pushCreate already handles clearing flags for create operations
 			// Only clear for update/delete operations
 			if op.Operation != "create" {
